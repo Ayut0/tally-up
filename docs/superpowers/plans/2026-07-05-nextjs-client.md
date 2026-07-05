@@ -521,7 +521,7 @@ git commit -m "feat: group create/get endpoints and CORS for the web client"
 ```bash
 cd /Users/yuto/Documents/Web_Development/projects/tally-up
 npx create-next-app@latest web --typescript --app --tailwind --eslint --no-src-dir --import-alias "@/*" --use-npm --yes
-cd web && npm install -D vitest @vitest/environment-jsdom @testing-library/react @testing-library/user-event
+cd web && npm install -D vitest jsdom @testing-library/react @testing-library/user-event
 ```
 
 Add to `web/package.json` scripts: `"test": "vitest run"`. Create `web/vitest.config.ts`:
