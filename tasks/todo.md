@@ -1,4 +1,4 @@
-# tab — Plan Tracking
+# tally-up — Plan Tracking
 
 **Session goal (2026-07-05): planning and refining.** All four phase plans are
 written and self-reviewed. Implementation has NOT started (a false start on

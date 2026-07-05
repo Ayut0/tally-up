@@ -1,8 +1,8 @@
-# tab — Ledger Core + Write Path Implementation Plan
+# tally-up — Ledger Core + Write Path Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the correctness heart of "tab" — a pure Go ledger package (all four split rules, deterministic rounding) plus the idempotent HTTP write path backed by Postgres, per `docs/architecture.md` Phases 1–2.
+**Goal:** Build the correctness heart of "tally-up" — a pure Go ledger package (all four split rules, deterministic rounding) plus the idempotent HTTP write path backed by Postgres, per `docs/architecture.md` Phases 1–2.
 
 **Architecture:** Append-only double-entry ledger. A pure `internal/ledger` package computes zero-sum postings from split rules with largest-remainder rounding (ties broken by ascending member UUID). The write path is: validate → pending-row-first idempotency gate (own committed txn) → one `pgx` transaction inserting entry + postings and marking the key succeeded. A janitor goroutine expires stale pending keys.
 
@@ -17,14 +17,14 @@
 - Ledger tables (`entries`, `postings`) are **append-only**, enforced by a `BEFORE UPDATE OR DELETE` trigger. (Row-level triggers do not block `TRUNCATE`, so tests can still reset state.)
 - Idempotency: pending-row-first. Same key + same payload → at most one entry, byte-identical response. Same key + different payload → `422`, never a replay.
 - Isolation: plain `READ COMMITTED` transactions for the add path (adds commute).
-- Module path: `tab` (local module; swap for a full path if ever published).
+- Module path: `tallyup` (local module; swap for a full path if ever published).
 - Branch: `feat/issue-1-ledger-core-write-path` (create it in Task 1, Step 1; all commits land there).
-- Integration tests read `TEST_DATABASE_URL` and **skip** when unset. Dev value: `postgres://tab:tab@localhost:5433/tab_test?sslmode=disable` (docker compose, Task 5).
+- Integration tests read `TEST_DATABASE_URL` and **skip** when unset. Dev value: `postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable` (docker compose, Task 5).
 
 ## File Structure
 
 ```
-go.mod                              — module tab
+go.mod                              — module tallyup
 docker-compose.yml                  — postgres:16 for dev/tests (Task 5)
 migrations/0001_init.up.sql         — full schema from architecture.md §6 + trigger + indexes
 migrations/0001_init.down.sql
@@ -60,7 +60,7 @@ Design note (DRY): `equal`, `shares`, and `percent` are all the same weighted la
 ```bash
 cd /Users/yuto/Documents/Web_Development/projects/tally-up
 git checkout -b feat/issue-1-ledger-core-write-path
-go mod init tab
+go mod init tallyup
 go get github.com/google/uuid@latest
 ```
 
@@ -152,7 +152,7 @@ Expected: compile FAIL — `undefined: ComputePostings`, `undefined: SplitRule`,
 `internal/ledger/ledger.go`:
 
 ```go
-// Package ledger computes double-entry postings for tab's append-only ledger.
+// Package ledger computes double-entry postings for tally-up's append-only ledger.
 // All amounts are integer yen. Computation is deterministic: identical inputs
 // always produce identical postings (rounding included).
 package ledger
@@ -735,9 +735,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: tab
-      POSTGRES_PASSWORD: tab
-      POSTGRES_DB: tab_test
+      POSTGRES_USER: tallyup
+      POSTGRES_PASSWORD: tallyup
+      POSTGRES_DB: tallyup_test
     ports:
       - "5433:5432"
 ```
@@ -979,7 +979,7 @@ func TestStore(t *testing.T) *Store {
 
 ```bash
 docker compose up -d db
-export TEST_DATABASE_URL='postgres://tab:tab@localhost:5433/tab_test?sslmode=disable'
+export TEST_DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable'
 go test ./internal/store/ -v
 ```
 
@@ -1277,7 +1277,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tab/internal/store"
+	"tallyup/internal/store"
 )
 
 var (
@@ -1481,7 +1481,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"tab/internal/ledger"
+	"tallyup/internal/ledger"
 )
 
 var (
@@ -1593,7 +1593,7 @@ package api
 import (
 	"net/http"
 
-	"tab/internal/store"
+	"tallyup/internal/store"
 )
 
 type Server struct {
@@ -1625,8 +1625,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"tab/internal/ledger"
-	"tab/internal/store"
+	"tallyup/internal/ledger"
+	"tallyup/internal/store"
 )
 
 const maxBodyBytes = 1 << 20
@@ -1802,8 +1802,8 @@ import (
 	"syscall"
 	"time"
 
-	"tab/internal/api"
-	"tab/internal/store"
+	"tallyup/internal/api"
+	"tallyup/internal/store"
 )
 
 func main() {
@@ -1853,7 +1853,7 @@ func main() {
 		srv.Shutdown(shutdownCtx) // drains in-flight requests/transactions
 	}()
 
-	slog.Info("tab api listening", "port", port)
+	slog.Info("tallyup api listening", "port", port)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server", "err", err)
 		os.Exit(1)
@@ -1865,7 +1865,7 @@ func main() {
 
 ```bash
 go build ./...
-DATABASE_URL='postgres://tab:tab@localhost:5433/tab_test?sslmode=disable' PORT=8081 go run ./cmd/api &
+DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' PORT=8081 go run ./cmd/api &
 sleep 1
 curl -s -X POST http://localhost:8081/groups/00000000-0000-0000-0000-0000000000a1/entries \
   -H "Idempotency-Key: $(uuidgen)" -d '{}' ; echo

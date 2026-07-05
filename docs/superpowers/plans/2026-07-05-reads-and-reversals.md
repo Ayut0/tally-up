@@ -1,4 +1,4 @@
-# tab — Reads + Reversals Implementation Plan (Phases 3–4)
+# tally-up — Reads + Reversals Implementation Plan (Phases 3–4)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -68,7 +68,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tab/internal/ledger"
+	"tallyup/internal/ledger"
 )
 
 var (
@@ -414,7 +414,7 @@ Expected: compile FAIL — `undefined: EntryRecord` / `s.ListEntries undefined`.
 
 - [ ] **Step 3: Implement**
 
-Append to `internal/store/reads.go` (add imports `encoding/json`, `time`, `tab/internal/ledger`):
+Append to `internal/store/reads.go` (add imports `encoding/json`, `time`, `tallyup/internal/ledger`):
 
 ```go
 type EntryRecord struct {
@@ -947,7 +947,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tab/internal/store"
+	"tallyup/internal/store"
 )
 
 type reverseRequest struct {

@@ -1,4 +1,4 @@
-# tab — Next.js Client Implementation Plan (Phase 5)
+# tally-up — Next.js Client Implementation Plan (Phase 5)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -359,7 +359,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tab/internal/store"
+	"tallyup/internal/store"
 )
 
 type createGroupRequest struct {
@@ -951,7 +951,7 @@ git commit -m "feat: split rule builder with server-parity rounding preview"
 
 **Interfaces:**
 - Produces:
-  - `identity.ts`: `getIdentity(groupId): string | null`, `setIdentity(groupId, memberId): void` — localStorage key `tab:member:<groupId>`. Guarded for SSR (`typeof window === "undefined"` → null/no-op).
+  - `identity.ts`: `getIdentity(groupId): string | null`, `setIdentity(groupId, memberId): void` — localStorage key `tallyup:member:<groupId>`. Guarded for SSR (`typeof window === "undefined"` → null/no-op).
   - `/` — create-group form (group name + dynamic member-name list, 1–20). On submit: mint `groupId` + idempotency key, `createGroup`, `setIdentity` to the first member (the creator), `router.push('/g/<id>')`.
   - `join.tsx` — client component `<JoinPicker group={group} onPicked={...}>`: "Who are you?" one button per member; tapping stores identity. Rendered by the group page (Task 5) whenever identity is unset. The invite link IS the group URL — joining is just opening it and picking yourself.
 
@@ -979,7 +979,7 @@ describe("identity storage", () => {
 Run: `cd web && npm test -- identity` → FAIL (no module). Implement `web/lib/identity.ts`:
 
 ```ts
-const keyFor = (groupId: string) => `tab:member:${groupId}`;
+const keyFor = (groupId: string) => `tallyup:member:${groupId}`;
 
 export function getIdentity(groupId: string): string | null {
   if (typeof window === "undefined") return null;
@@ -1036,7 +1036,7 @@ export default function CreateGroupPage() {
 
   return (
     <main className="mx-auto max-w-md p-4">
-      <h1 className="mb-6 text-2xl font-bold">tab</h1>
+      <h1 className="mb-6 text-2xl font-bold">tally-up</h1>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <input
           className="rounded-lg border p-3"
@@ -1109,7 +1109,7 @@ export function JoinPicker({ group, onPicked }: { group: Group; onPicked: (membe
 
 ```bash
 docker compose up -d db
-DATABASE_URL='postgres://tab:tab@localhost:5433/tab_test?sslmode=disable' go run ./cmd/api &
+DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' go run ./cmd/api &
 cd web && npm run dev
 ```
 

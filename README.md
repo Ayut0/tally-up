@@ -1,4 +1,4 @@
-# tab
+# tally-up
 
 A bill splitter for friend groups — trips, dinners, gatherings, n people, not just two.
 

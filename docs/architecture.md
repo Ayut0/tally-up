@@ -1,4 +1,4 @@
-# tab — Architecture Draft
+# tally-up — Architecture Draft
 
 A bill splitter for friend groups (trips, dinners, gatherings — n people, not just two) with **strong consistency** and **idempotency** as first-class design goals. Balances must be provably correct at all times, across many phones, over flaky mobile networks, with retries.
 
