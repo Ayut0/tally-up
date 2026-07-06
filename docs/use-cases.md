@@ -1,6 +1,6 @@
-# tally-up — Use Cases (Draft for Review)
+# tally-up — Use Cases
 
-Four use cases from the user, checked against the current architecture (`docs/architecture.md`) and implementation plans (`docs/superpowers/plans/`). Two are already fully covered by the existing design; two introduce new scope that the current plans don't address. Nothing here is decided yet — this is the input to a design discussion, not a spec.
+Four use cases from the user, checked against the architecture (`docs/architecture.md`) and implementation plans (`docs/superpowers/plans/`). **All four are now covered.** #2 and #3 were covered by the original design; #1 and #4 surfaced new scope that has since been designed in `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md` and folded back into `docs/architecture.md` (§7 API, §9 phases 7–8). The open questions each raised, and how they were resolved, are kept below as the design record.
 
 ---
 
@@ -8,9 +8,9 @@ Four use cases from the user, checked against the current architecture (`docs/ar
 
 > "Users can add or remove friends or family members whom they want to tally up the total expense."
 
-**Status: not covered.** The current design only creates group members once, at group creation (`POST /groups` takes a fixed `member_names` list; see the client plan's Task 1 and `docs/architecture.md` §6's `group_members` table). There is no "add member to an existing group" or "remove member" operation anywhere in the four plans.
+**Status: covered** — designed in the spec (§2) and planned in `docs/superpowers/plans/2026-07-06-pairwise-and-member-management.md`; reflected in `docs/architecture.md` §7 (`POST`/`DELETE /groups/:id/members…`) and §9 phase 7. Adding inserts a `group_members` row (idempotent create); removing deletes only the membership link and is **rejected unless the member's balance is exactly zero** — option (b) below. Any member can add or remove any member (flat trust, no owner concept).
 
-Open questions this raises against the ledger model:
+The open questions this originally raised, kept as the design record:
 - **Adding** a member mid-trip is straightforward — insert a new `group_members` row. They simply have no postings before they joined, which is already correct behavior (the ledger only records postings for entries where someone participated).
 - **Removing** a member is the harder case, because the ledger is append-only and a removed member may already have historical postings (they owe money, or are owed money). Real options:
   - (a) "Remove" only means "hide from future add-expense participant pickers" — their historical postings and balance stand forever until settled. This preserves the append-only/audit invariants with zero new mechanism.
@@ -34,7 +34,9 @@ Open questions this raises against the ledger model:
 
 > "Users can set a password for their calculation if they want. So that it'd be secret."
 
-**Status: not covered — and in tension with the current sharing model.** Today, knowing the group's URL *is* the entire access model (architecture §2: "the group URL is the capability"). A password is a second, independent gate on top of that, and raises design questions:
+**Status: covered** — designed in the spec (§3) and planned in `docs/superpowers/plans/2026-07-06-group-password.md`; reflected in `docs/architecture.md` §2, §6 (`password_hash`/`password_version`), §7, and §9 phase 8. Decided: one **server-enforced** shared secret per group (bcrypt), gating **all** reads and writes; unlocking exchanges the password for a stateless HMAC-signed token; changing the password bumps a version column that invalidates every old token; a lost password is **unrecoverable by design** (no accounts/email), stated plainly in the UI at set time.
+
+The design questions this originally raised, kept as the design record:
 - **Where does the check happen?** Client-side only (trivially bypassed, but zero-cost and matches "friend group, casual" trust level) vs. server-enforced (real protection, but means the server now holds and checks a secret — hashing, rate-limiting guesses, a "forgot password" story since there's no email/account system).
 - **What does the password actually protect?** Viewing balances/history, or also adding expenses, or both?
 - **Set by whom, and changeable by whom?** Only at group creation, or any time, by any member or only the creator?
@@ -43,10 +45,11 @@ Open questions this raises against the ledger model:
 
 ---
 
-## What's next
+## Resolution
 
-Once you've reviewed this, the open items are:
-1. For #1: which removal semantics (a/b/c above), and who's allowed to remove someone.
-2. For #4: client-side-only vs. server-enforced, what it gates, and the lost-password story.
+Both open items were resolved through the brainstorming flow and recorded in `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md`:
 
-These two feed a short design doc (via the brainstorming flow) before they turn into implementation plan updates — #1 and #4 both touch the group data model and the API surface already planned in the four existing plans, so they're best designed before more implementation work starts.
+1. **#1 removal semantics:** option (b) — removal requires a zero balance; history is never touched. Permissions stay flat: any member can add/remove any member.
+2. **#4 password:** server-enforced, gates everything (reads and writes), bootstrap via one ungated `password-required` probe, and no recovery path for a lost password.
+
+Implementation is planned as phases 7–8 (`docs/superpowers/plans/2026-07-06-pairwise-and-member-management.md`, `docs/superpowers/plans/2026-07-06-group-password.md`); `docs/architecture.md` reflects both.

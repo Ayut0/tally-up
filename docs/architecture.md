@@ -47,7 +47,7 @@ A bill splitter for friend groups (trips, dinners, gatherings — n people, not 
 - **Idempotency on the web client:** mint a UUIDv7 key when the user taps **Add** (component state), reuse it on every retry of that intent, discard on confirmed success. One web-specific caveat: a full page reload loses in-flight state, so the entry `id` itself (client-generated, unique in the DB) is the backstop against re-submission after reload.
 - **API:** Go service. Thin: validate → idempotency gate → single `pgx` transaction → respond. The outbox relay and idempotency janitor run as goroutines in the same binary (see §8).
 - **DB:** Postgres (Neon) is the single source of truth. All correctness lives here.
-- **Sharing model (web-specific):** groups are joined via invite link — the natural web flow for a gathering. Auth starts as a signed group token in the URL or magic-link; upgrade later if it ever needs to.
+- **Sharing model (web-specific):** groups are joined via invite link — the natural web flow for a gathering. The group URL is the capability. Optionally, a group can set one **shared password** (see §7 and the membership/privacy/pairwise design spec) as a second gate on top of the URL: unlocking exchanges the password for a stateless HMAC-signed token that every group-scoped request must then carry. No accounts, no per-person credentials — identity stays "pick your name from the member list."
 - **Freshness (web-specific):** other members' expenses should show up without manual refresh. v1: poll `GET /entries?after_seq=N` every few seconds while the tab is visible — `seq` makes incremental fetch trivial and cheap. v1.1: upgrade to SSE for push. This replaces what push notifications would have done in a native app.
 - **Notifications (v1.1):** outbox table + relay poller → Pushover/Discord ("A added ¥3,200 — dinner").
 
@@ -73,7 +73,7 @@ Example: 4-person trip. Yuto pays ¥12,000 for dinner, but only Yuto, A, and B a
 | B      |     −4,000 | owes                                     |
 | C      |     (none) | not a participant — no posting           |
 
-Balance = `SUM(amount) GROUP BY member`. Positive = is owed; negative = owes. Note the model stores **net positions**, not pairwise debts — A owes "the group" ¥4,000, not "Yuto" specifically. This is a deliberate choice (see §5b: settlement) that makes the ledger simple and makes minimal-transfer settlement possible.
+Balance = `SUM(amount) GROUP BY member`. Positive = is owed; negative = owes. Note the model stores **net positions**, not pairwise debts — A owes "the group" ¥4,000, not "Yuto" specifically. This is a deliberate choice (see §5b: settlement) that makes the ledger simple and makes minimal-transfer settlement possible. A true pairwise "who owes whom" view is still fully derivable without any schema change, because every entry names its payer: each non-payer participant's share is an edge toward the payer, and settlements are two-party by construction. It's exposed as a separate derived read-model (`GET /groups/:id/pairwise-balances`, zero-net pairs omitted) — see the membership/privacy/pairwise design spec §1.
 
 ### Split rules (the uneven-split feature)
 Stored on the entry alongside the **participant list**, applied at write time to compute postings:
@@ -174,9 +174,11 @@ CREATE TABLE members (
 );
 
 CREATE TABLE groups (
-  id         UUID PRIMARY KEY,
-  name       TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id               UUID PRIMARY KEY,
+  name             TEXT NOT NULL,
+  password_hash    TEXT,                   -- NULL = open group (no password); bcrypt when set (migration 0002)
+  password_version INT NOT NULL DEFAULT 0, -- bumped on every set/change/clear → invalidates all issued tokens
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE group_members (
@@ -231,6 +233,7 @@ GROUP BY e.group_id, p.member_id;
 Notes:
 - `entries.id` is client-generated, so the entry id itself is a second idempotency layer (unique-violation on replay even if the key table were lost).
 - Append-only is enforced, not hoped for: revoke `UPDATE/DELETE` on `entries`/`postings` from the app role, or add a `BEFORE UPDATE OR DELETE` trigger that raises.
+- **Membership is mutable after creation.** Adding a member is just a new `group_members` row (no prior postings, balance starts at zero — already correct with no special-casing). Removing a member deletes only the `group_members` link and is **rejected unless their balance is exactly zero**, so "removed" always means "fully squared away." The `members` row and all historical `entries`/`postings` stay intact forever — the ledger's append-only history is never touched. Any member can add or remove any member (flat trust, no owner concept).
 
 ---
 
@@ -246,7 +249,17 @@ PUT    /groups/:id/entries/:eid            # edit = reverse + create, one txn
 GET    /groups/:id/balance                 # derived net balances, all members
 GET    /groups/:id/settle-plan             # proposed minimal transfers + snapshot seq
 GET    /groups/:id/entries?after_seq=N     # paginated ledger (audit/history UI)
+GET    /groups/:id/pairwise-balances       # derived "who owes whom" (zero-net pairs omitted)
+
+POST   /groups/:id/members                 # add member mid-life (Idempotency-Key required)
+DELETE /groups/:id/members/:mid            # remove member; 409 unless their balance is zero
+
+GET    /groups/:id/password-required       # {required: bool} | 404 — the one ungated probe
+POST   /groups/:id/unlock                  # {password} → {token} (HMAC-signed, 30-day expiry)
+PUT    /groups/:id/password                # set/change/clear ({password: string | null})
 ```
+
+When a group has a password set, **every** group-scoped route above requires `Authorization: Bearer <token>` — enforced by one middleware — except the three bootstrap paths: group creation, `password-required`, and `unlock`. Groups without a password behave exactly as before (middleware is a no-op). Full design: `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md`.
 
 Write-path shape (one transaction):
 ```
@@ -287,8 +300,10 @@ validate payload
 4. **Reversals** — delete/edit as reversing entries, with the row-lock against double-reversal.
 5. **Client** — Next.js app: invite-link join, add expense (key minted at tap), balance screen, history; polling for freshness.
 6. **Settle-up** — greedy transfer-plan algorithm, plan-vs-snapshot optimistic check, settlement entries; optional cannot-overpay under `FOR UPDATE`.
-7. **(v1.1) Outbox + notifications** — relay goroutine (Ticker poll of outbox) → Pushover/Discord.
-8. **Chaos pass** — kill the API mid-transaction, retry storms, duplicate keys with mutated payloads; verify invariants hold.
+7. **Pairwise balances + member management** — derived "who owes whom" read-model (no schema change) and add/remove member endpoints with the zero-balance removal gate.
+8. **Group password** — optional shared secret per group: bcrypt hash + version column, HMAC token, one middleware gating all group-scoped routes, client unlock gate.
+9. **(v1.1) Outbox + notifications** — relay goroutine (Ticker poll of outbox) → Pushover/Discord.
+10. **Chaos pass** — kill the API mid-transaction, retry storms, duplicate keys with mutated payloads; verify invariants hold.
 
 Each phase ends with something demonstrable, and phases 1–2 alone already deliver the strong-consistency + idempotency core you named.
 
@@ -305,5 +320,6 @@ Each phase ends with something demonstrable, and phases 1–2 alone already deli
 7. Postings exist only for an entry's declared participants **plus its payer** (and counterparty, for settlements) — the payer needs a posting even when not sharing the expense; all of them ⊆ group members.
 8. The split computation is deterministic: same entry input → byte-identical postings (rounding included).
 9. Executing a proposed settle plan in full drives every balance to exactly zero.
+10. For every member M, the signed sum of M's pairwise edges equals M's net balance from the `balances` view — the pairwise read-model can never disagree with the ledger.
 
-If all nine hold under the chaos pass, the system is doing its job.
+If all ten hold under the chaos pass, the system is doing its job.
