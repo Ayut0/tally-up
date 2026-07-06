@@ -19,7 +19,7 @@
 - Every write endpoint requires an `Idempotency-Key` header and follows the Phase 1–2 gate contract: 201 first success / 200 byte-identical replay / 409 in-flight / 422 hash mismatch; pending keys are released on post-gate failure.
 - Balance responses include `as_of_seq` — the max entry `seq` the balances reflect — read in the **same SQL statement** as the balances so both come from one MVCC snapshot. This field is the snapshot hook the Phase 6 settle-up plan builds on.
 - History (`ListEntries`) needs no transaction: entries and postings are immutable once visible.
-- Branch: `feat/issue-2-reads-and-reversals`, created from the completed Phase 1–2 branch (or main after its merge).
+- Branch: `feat/issue-5-reads-and-reversals`, created from the completed Phase 1–2 branch (or main after its merge).
 
 ## File Structure
 

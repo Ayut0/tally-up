@@ -18,7 +18,7 @@
 - API base URL from `NEXT_PUBLIC_API_URL` (dev default `http://localhost:8080`).
 - Go API changes keep all Phase 1–2 idempotency and append-only constraints.
 - The web app lives entirely under `web/`; the repo root stays a Go module.
-- Branch: `feat/issue-3-nextjs-client`.
+- Branch: `feat/issue-6-nextjs-client`.
 - When implementing UI tasks, load the `frontend-design` skill (and `modern-web-guidance` for any CSS/layout questions) before writing components.
 
 ## File Structure

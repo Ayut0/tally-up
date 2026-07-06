@@ -19,7 +19,7 @@
 - Isolation: plain `READ COMMITTED` transactions for the add path (adds commute).
 - All IDs are **UUIDv7**, minted in application code, never by the database. Go: `uuid.NewV7()` from `github.com/google/uuid` (requires v1.6.0+, which `go get github.com/google/uuid@latest` already picks up). `id` columns have no `DEFAULT` — every insert supplies one explicitly, so there's no path that could silently produce a different UUID version.
 - Module path: `tallyup` (local module; swap for a full path if ever published).
-- Branch: `feat/issue-1-ledger-core-write-path` (create it in Task 1, Step 1; all commits land there).
+- Branch: `feat/issue-4-ledger-core-write-path` (create it in Task 1, Step 1; all commits land there).
 - Integration tests read `TEST_DATABASE_URL` and **skip** when unset. Dev value: `postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable` (docker compose, Task 5).
 
 ## File Structure
@@ -60,7 +60,7 @@ Design note (DRY): `equal`, `shares`, and `percent` are all the same weighted la
 
 ```bash
 cd /Users/yuto/Documents/Web_Development/projects/tally-up
-git checkout -b feat/issue-1-ledger-core-write-path
+git checkout -b feat/issue-4-ledger-core-write-path
 go mod init tallyup
 go get github.com/google/uuid@latest
 ```

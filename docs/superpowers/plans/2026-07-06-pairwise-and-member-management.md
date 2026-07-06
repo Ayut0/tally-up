@@ -19,7 +19,7 @@
 - Removing a member requires **no** `Idempotency-Key` — deletes are naturally idempotent. Blocked with `409` unless the member's balance is exactly zero.
 - Removing a member deletes only the `group_members` link, never the `members` row — historical `entries`/`postings` keep their FK and remain fully readable.
 - No user registration/accounts anywhere in this plan — member names only, matching the existing identity model.
-- Branch: `feat/issue-5-pairwise-member-management`.
+- Branch: `feat/issue-8-pairwise-member-management`.
 
 ## File Structure
 
