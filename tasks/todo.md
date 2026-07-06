@@ -1,18 +1,26 @@
 # tally-up — Plan Tracking
 
-**Session goal (2026-07-05): planning and refining.** All four phase plans are
-written and self-reviewed. Implementation has NOT started (a false start on
-Plan 1 Task 1 was discarded; `main` contains docs only).
+Six implementation plans written and self-reviewed. Implementation has NOT
+started (a false start on Plan 1 Task 1 was discarded; `main` contains docs
+only, plus GitHub issue #1 for expense categories/tags, not yet designed).
 
-## Plans (execution order)
+## Plans (suggested execution order)
 
 1. `docs/superpowers/plans/2026-07-05-ledger-core-write-path.md` — Phases 1–2
 2. `docs/superpowers/plans/2026-07-05-reads-and-reversals.md` — Phases 3–4
 3. `docs/superpowers/plans/2026-07-05-nextjs-client.md` — Phase 5
 4. `docs/superpowers/plans/2026-07-05-settle-up.md` — Phase 6
+5. `docs/superpowers/plans/2026-07-06-pairwise-and-member-management.md` — pairwise "who owes whom" + add/remove members
+6. `docs/superpowers/plans/2026-07-06-group-password.md` — optional server-enforced group password
+
+Plans 5–6 come from `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md`
+and depend on all of Plans 1–4 being implemented first (they extend
+`store.Store`, `api.Server`, and `web/lib/api.ts`). Plan 6 also depends on
+Plan 5 (its middleware wraps the routes Plan 5 adds).
 
 Not yet planned: v1.1 (outbox → Pushover/Discord notifications, SSE), chaos
-pass extension for concurrent checked settlements, real auth.
+pass extension for concurrent checked settlements, expense categories/tags
+(GitHub issue #1).
 
 ## Implementation checklist (all pending)
 
@@ -20,6 +28,8 @@ pass extension for concurrent checked settlements, real auth.
 - [ ] Plan 2: reads + reversals (5 tasks)
 - [ ] Plan 3: Next.js client (5 tasks)
 - [ ] Plan 4: settle-up (4 tasks)
+- [ ] Plan 5: pairwise balances + member management (5 tasks)
+- [ ] Plan 6: group password protection (6 tasks)
 
 ## Review
 
@@ -45,3 +55,25 @@ pass extension for concurrent checked settlements, real auth.
   carries the fresh `as_of_seq` so the client re-proposes in one round trip.
 - Process lesson captured in `tasks/lessons.md` (goal scope governs phase
   transitions).
+- Renamed the whole project from a leftover working title ("tab") to
+  tally-up across every doc — caught by the user, not self-review.
+
+### 2026-07-06 — use cases, design, and two more plans
+- Use-case review (`docs/use-cases.md`) surfaced four candidates; user
+  confirmed two as real requirements: true pairwise "who owes whom" (not
+  just the minimal-transfer settle-up plan) and a server-enforced optional
+  group password. Refunds explicitly dropped (users can just adjust later).
+  Filed GitHub issue #1 for expense categories/tags (undesigned, v1.1+).
+- Brainstormed both features into
+  `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md`,
+  user-approved. Key finding: pairwise balances need **no schema change** —
+  every expense already has one payer + a participant list, so true
+  per-pair debt is fully derivable from existing `entries`/`postings`.
+  Password protection is one shared secret per group (never per-user
+  accounts) — explicit non-goal confirmed with the user.
+- Split into two plans per the spec's own suggestion (Plan 5 small/no new
+  infra, Plan 6 bigger/first real access-control layer). Cross-plan
+  self-review caught a real regression risk: Plan 6's rewritten
+  `postIdempotent` in `web/lib/api.ts` would have silently dropped the
+  `PlanStaleError` check the settle-up plan (Plan 4) already added to that
+  same function — fixed by preserving it explicitly in the plan text.
