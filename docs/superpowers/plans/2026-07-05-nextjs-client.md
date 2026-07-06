@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Money is integer yen everywhere — client state uses integer yen (`number` is safe: amounts ≤ ¥100B are exact in doubles), never decimals. All arithmetic that must be exact (split preview) mirrors the server's largest-remainder rule or defers to the server.
-- Idempotency keys and entry IDs are minted client-side with `crypto.randomUUID()` **when the user commits an intent** (tap Add), never per HTTP attempt; keys are discarded on confirmed success (200 or 201).
+- Idempotency keys and entry IDs are minted client-side with `uuidv7()` (`web/lib/uuidv7.ts` — see Task 2; `crypto.randomUUID()` is v4-only and not used anywhere IDs are minted) **when the user commits an intent** (tap Add), never per HTTP attempt; keys are discarded on confirmed success (200 or 201).
 - Mobile-first: layouts designed at 390px; every screen must be usable one-handed.
 - API base URL from `NEXT_PUBLIC_API_URL` (dev default `http://localhost:8080`).
 - Go API changes keep all Phase 1–2 idempotency and append-only constraints.
@@ -174,9 +174,14 @@ func (s *Store) CreateGroup(ctx context.Context, key uuid.UUID, id uuid.UUID, na
 	}
 	rec := GroupRecord{ID: id, Name: name, Members: make([]GroupMember, 0, len(memberNames))}
 	for _, mn := range memberNames {
-		var mid uuid.UUID
-		if err := tx.QueryRow(ctx,
-			`INSERT INTO members (name) VALUES ($1) RETURNING id`, mn).Scan(&mid); err != nil {
+		// id columns have no DB default (see Global Constraints) — every
+		// member ID is minted here, in application code, as UUIDv7.
+		mid, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("generate member id: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO members (id, name) VALUES ($1, $2)`, mid, mn); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx,
@@ -603,12 +608,77 @@ describe("postIdempotent", () => {
 });
 ```
 
+Every ID minted in this codebase is UUIDv7 (see the Phase 1-2 plan's Global Constraints) — but browsers have no native v7 generator (`crypto.randomUUID()` is v4-only), so a small helper is needed. `web/lib/uuidv7.test.ts`:
+
+```ts
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { uuidv7 } from "./uuidv7";
+
+describe("uuidv7", () => {
+  it("produces a well-formed UUID with version 7 and variant bits set", () => {
+    const id = uuidv7();
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it("never repeats across many calls", () => {
+    const ids = new Set(Array.from({ length: 1000 }, () => uuidv7()));
+    expect(ids.size).toBe(1000);
+  });
+
+  describe("with controlled time", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("is time-ordered: an ID minted later sorts after one minted earlier", () => {
+      // Random bits within the same millisecond aren't ordered by generation
+      // order — only the timestamp prefix guarantees ordering, so this test
+      // controls time explicitly rather than firing calls back-to-back.
+      vi.setSystemTime(1_000_000_000_000);
+      const earlier = uuidv7();
+      vi.setSystemTime(1_000_000_000_001);
+      const later = uuidv7();
+      expect(earlier < later).toBe(true);
+    });
+  });
+});
+```
+
 - [ ] **Step 3: Run to verify failure**
 
 Run: `cd web && npm test`
-Expected: FAIL — `./api` has no exports.
+Expected: FAIL — `./api` has no exports, `./uuidv7` has no exports.
 
 - [ ] **Step 4: Implement types + client**
+
+`web/lib/uuidv7.ts`:
+
+```ts
+/**
+ * A minimal RFC 9562 UUIDv7 generator. The browser's crypto.randomUUID() is
+ * v4-only, and this codebase mints every ID as v7 (time-ordered — see the
+ * Phase 1-2 plan's Global Constraints), so a small helper stands in for it.
+ * Layout: 48-bit unix ms timestamp, 4-bit version, 12-bit random, 2-bit
+ * variant, 62-bit random.
+ */
+export function uuidv7(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+
+  const ts = Date.now();
+  bytes[0] = Math.floor(ts / 2 ** 40) & 0xff;
+  bytes[1] = Math.floor(ts / 2 ** 32) & 0xff;
+  bytes[2] = Math.floor(ts / 2 ** 24) & 0xff;
+  bytes[3] = Math.floor(ts / 2 ** 16) & 0xff;
+  bytes[4] = Math.floor(ts / 2 ** 8) & 0xff;
+  bytes[5] = ts & 0xff;
+
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70; // version 7
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80; // variant 10
+
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+```
 
 `web/lib/types.ts`:
 
@@ -1005,6 +1075,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createGroup } from "@/lib/api";
 import { setIdentity } from "@/lib/identity";
+import { uuidv7 } from "@/lib/uuidv7";
 
 export default function CreateGroupPage() {
   const router = useRouter();
@@ -1023,9 +1094,9 @@ export default function CreateGroupPage() {
     setBusy(true);
     setError("");
     // Intent minted once, here — retries inside createGroup reuse both ids.
-    const groupId = crypto.randomUUID();
+    const groupId = uuidv7();
     try {
-      const group = await createGroup(groupId, name.trim(), memberNames, crypto.randomUUID());
+      const group = await createGroup(groupId, name.trim(), memberNames, uuidv7());
       setIdentity(group.id, group.members[0]!.id); // creator listed themselves first
       router.push(`/g/${group.id}`);
     } catch (err) {
@@ -1277,6 +1348,7 @@ import { addEntry } from "@/lib/api";
 import { buildSplitRule, previewShares } from "@/lib/split";
 import { getIdentity } from "@/lib/identity";
 import type { SplitRule } from "@/lib/types";
+import { uuidv7 } from "@/lib/uuidv7";
 import useGroup from "./useGroup";
 
 const modes: SplitRule["type"][] = ["equal", "exact", "shares", "percent"];
@@ -1327,7 +1399,7 @@ export default function AddExpensePage({ params }: { params: Promise<{ groupId: 
       return;
     }
     // Mint once per intent; a failed attempt retries with the SAME ids.
-    intent.current ??= { entryId: crypto.randomUUID(), key: crypto.randomUUID() };
+    intent.current ??= { entryId: uuidv7(), key: uuidv7() };
     setBusy(true);
     setError("");
     try {

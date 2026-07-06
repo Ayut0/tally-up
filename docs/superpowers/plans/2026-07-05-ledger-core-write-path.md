@@ -17,6 +17,7 @@
 - Ledger tables (`entries`, `postings`) are **append-only**, enforced by a `BEFORE UPDATE OR DELETE` trigger. (Row-level triggers do not block `TRUNCATE`, so tests can still reset state.)
 - Idempotency: pending-row-first. Same key + same payload → at most one entry, byte-identical response. Same key + different payload → `422`, never a replay.
 - Isolation: plain `READ COMMITTED` transactions for the add path (adds commute).
+- All IDs are **UUIDv7**, minted in application code, never by the database. Go: `uuid.NewV7()` from `github.com/google/uuid` (requires v1.6.0+, which `go get github.com/google/uuid@latest` already picks up). `id` columns have no `DEFAULT` — every insert supplies one explicitly, so there's no path that could silently produce a different UUID version.
 - Module path: `tallyup` (local module; swap for a full path if ever published).
 - Branch: `feat/issue-1-ledger-core-write-path` (create it in Task 1, Step 1; all commits land there).
 - Integration tests read `TEST_DATABASE_URL` and **skip** when unset. Dev value: `postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable` (docker compose, Task 5).
@@ -746,12 +747,12 @@ services:
 
 ```sql
 CREATE TABLE members (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id         UUID PRIMARY KEY,
   name       TEXT NOT NULL
 );
 
 CREATE TABLE groups (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id         UUID PRIMARY KEY,
   name       TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

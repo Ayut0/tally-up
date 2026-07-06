@@ -44,7 +44,7 @@ A bill splitter for friend groups (trips, dinners, gatherings — n people, not 
 ```
 
 - **Client:** Next.js web app (App Router), mobile-first responsive UI. At a gathering everyone just opens a link in their phone browser — no install, which fits the friend-group use case better than a native app anyway.
-- **Idempotency on the web client:** mint a UUIDv4 key when the user taps **Add** (component state), reuse it on every retry of that intent, discard on confirmed success. One web-specific caveat: a full page reload loses in-flight state, so the entry `id` itself (client-generated, unique in the DB) is the backstop against re-submission after reload.
+- **Idempotency on the web client:** mint a UUIDv7 key when the user taps **Add** (component state), reuse it on every retry of that intent, discard on confirmed success. One web-specific caveat: a full page reload loses in-flight state, so the entry `id` itself (client-generated, unique in the DB) is the backstop against re-submission after reload.
 - **API:** Go service. Thin: validate → idempotency gate → single `pgx` transaction → respond. The outbox relay and idempotency janitor run as goroutines in the same binary (see §8).
 - **DB:** Postgres (Neon) is the single source of truth. All correctness lives here.
 - **Sharing model (web-specific):** groups are joined via invite link — the natural web flow for a gathering. Auth starts as a signed group token in the URL or magic-link; upgrade later if it ever needs to.
@@ -95,7 +95,7 @@ Stored on the entry alongside the **participant list**, applied at write time to
 ## 4. Idempotency Design
 
 ### Client contract
-- Client mints `idempotency_key` (UUIDv4) when the user taps **Add** — not per HTTP attempt.
+- Client mints `idempotency_key` (UUIDv7) when the user taps **Add** — not per HTTP attempt.
 - Every retry of that intent reuses the same key.
 - Server guarantees: same key + same payload → same result, exactly one ledger entry.
 
@@ -158,15 +158,23 @@ Design decisions that follow:
 
 ## 6. Data Model (Draft DDL)
 
+All IDs are UUIDv7 (time-ordered), generated in application code — Go's
+`uuid.NewV7()` (client-generated entries/groups still arrive with an ID
+already set; server-generated ones like a new member get one minted before
+insert) and the client's `uuidv7()` helper (browsers have no native v7
+generator). No `DEFAULT` on `id` columns: every insert supplies one
+explicitly, so there's no code path that could silently fall back to a
+different UUID version.
+
 ```sql
 -- People & groups (v1: a group of two, but modeled generally)
 CREATE TABLE members (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id         UUID PRIMARY KEY,
   name       TEXT NOT NULL
 );
 
 CREATE TABLE groups (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id         UUID PRIMARY KEY,
   name       TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

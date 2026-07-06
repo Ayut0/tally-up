@@ -77,3 +77,18 @@ pass extension for concurrent checked settlements, expense categories/tags
   `postIdempotent` in `web/lib/api.ts` would have silently dropped the
   `PlanStaleError` check the settle-up plan (Plan 4) already added to that
   same function — fixed by preserving it explicitly in the plan text.
+
+### 2026-07-07 — switched every minted ID to UUIDv7
+- User asked v4 or v7; decided v7 (time-ordered) for all IDs. Swept every
+  plan: schema `DEFAULT gen_random_uuid()` removed from `members`/`groups`
+  (every insert now supplies an explicit ID — no silent-fallback-to-v4 path),
+  Go's two server-side member-minting spots (`CreateGroup`, `AddMember`) now
+  call `uuid.NewV7()` explicitly, and every client-side mint switched from
+  `crypto.randomUUID()` (v4-only, no browser v7 API exists) to a new
+  hand-rolled `web/lib/uuidv7.ts` helper (added to the Next.js client plan's
+  Task 2, RFC 9562 layout, no new dependency). Test-fixture `uuid.New()`
+  calls in Go test code were deliberately left as v4 — arbitrary IDs in
+  tests don't care about version. Caught and fixed one flaky test written
+  during this sweep: "consecutive IDs sort ascending" doesn't hold for v7
+  within the same millisecond (random bits, not a counter) — rewrote it to
+  control time explicitly via `vi.setSystemTime`.

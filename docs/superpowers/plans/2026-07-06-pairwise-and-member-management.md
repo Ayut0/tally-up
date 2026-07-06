@@ -15,7 +15,7 @@
 - Money is integer yen in `int64`. No floats.
 - Pairwise balances never list a zero-net pair — only nonzero relationships are returned (spec §1: "unlike the `balances` view... a zero relationship carries no information").
 - Pairwise result convention: for a pair, the member with the lexicographically smaller UUID (byte order) is always `A`; `Amount > 0` means A owes B, `Amount < 0` means B owes A. Never exactly zero.
-- Adding a member requires `Idempotency-Key` (same convention as every other create endpoint: 201/200-replay/409-in-flight/422-mismatch).
+- Adding a member requires `Idempotency-Key` (same convention as every other create endpoint: 201/200-replay/409-in-flight/422-mismatch). Its ID is minted with `uuid.NewV7()` (no DB default — see the Phase 1-2 plan's Global Constraints).
 - Removing a member requires **no** `Idempotency-Key` — deletes are naturally idempotent. Blocked with `409` unless the member's balance is exactly zero.
 - Removing a member deletes only the `group_members` link, never the `members` row — historical `entries`/`postings` keep their FK and remain fully readable.
 - No user registration/accounts anywhere in this plan — member names only, matching the existing identity model.
@@ -572,10 +572,15 @@ func (s *Store) AddMember(ctx context.Context, key uuid.UUID, groupID uuid.UUID,
 	}
 	defer tx.Rollback(ctx)
 
-	var member GroupMember
-	member.Name = name
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO members (name) VALUES ($1) RETURNING id`, name).Scan(&member.ID); err != nil {
+	// id columns have no DB default (see the Phase 1-2 plan's Global
+	// Constraints) — every member ID is minted here as UUIDv7.
+	mid, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("generate member id: %w", err)
+	}
+	member := GroupMember{ID: mid, Name: name}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO members (id, name) VALUES ($1, $2)`, member.ID, name); err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(ctx,
