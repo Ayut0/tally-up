@@ -18,7 +18,7 @@
 - Changing or clearing a password bumps `password_version`, which invalidates every previously issued token immediately — no explicit revocation list needed.
 - Lost password = permanently locked out. No recovery path exists or is planned. The client states this plainly when a password is set.
 - Money/ledger invariants from prior plans are untouched by this plan.
-- Branch: `feat/issue-6-group-password`.
+- Branch: `feat/issue-9-group-password`.
 
 ## File Structure
 
