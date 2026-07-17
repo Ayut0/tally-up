@@ -32,62 +32,36 @@ See [`docs/architecture.md`](docs/architecture.md) for the full rationale behind
 
 ## Development
 
+`make` targets wrap everything below (`Makefile` at the repo root) — `make help`-style listing isn't wired up, but reading the file is short. Quick path:
+
+```sh
+make db-up    # start local Postgres (docker compose)
+make run      # run the API server against it (migrations apply automatically)
+make seed     # in another terminal: insert one member/group so there's something to POST against
+make smoke    # POST one test expense at the running server
+make test     # full suite, race detector, correctly serialized (see note below)
+make db-down  # stop Postgres when done
+```
+
+Override `DATABASE_URL` or `PORT` per-invocation, e.g. `make run PORT=8081`.
+
 ### Running the API locally
 
-Start Postgres:
+Start Postgres (`make db-up`, or directly: `docker compose up -d db`). This brings up a `postgres:16-alpine` container on `localhost:5433` (user/pass/db all `tallyup`/`tallyup`/`tallyup_test`, per `docker-compose.yml`). Check it's healthy with `docker compose ps`.
 
-```sh
-docker compose up -d db
-```
+Run the API binary against it (`make run`, or directly: `DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' PORT=8080 go run ./cmd/api`). Schema migrations apply automatically on startup — no manual migration step, locally or against any other Postgres instance (see Migrations below). The server logs `tallyup api listening port=8080` once ready.
 
-This brings up a `postgres:16-alpine` container on `localhost:5433` (user/pass/db all `tallyup`/`tallyup`/`tallyup_test`, per `docker-compose.yml`). Check it's healthy with `docker compose ps`.
+Smoke-test it (`make seed && make smoke`, or see the `Makefile`'s `seed`/`smoke` targets for the raw `psql`/`curl` commands — a group first needs at least one row in `members`/`groups`/`group_members` since there's no `POST /groups` endpoint yet). Expect a `201` with `{"id":"...","seq":N}` (`seq` increments with every entry ever written to this database, so it won't necessarily be `1`).
 
-Run the API binary against it:
-
-```sh
-DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' \
-PORT=8080 \
-go run ./cmd/api
-```
-
-Schema migrations apply automatically on startup — no manual migration step, locally or against any other Postgres instance (see Migrations below). The server logs `tallyup api listening port=8080` once ready.
-
-Smoke-test it (a group first needs at least one row in `members`/`groups`/`group_members` — there's no `POST /groups` endpoint yet, so seed one directly for now):
-
-```sh
-docker compose exec db psql -U tallyup -d tallyup_test -c "
-  INSERT INTO members (id, name) VALUES ('00000000-0000-0000-0000-00000000000a', 'yuto');
-  INSERT INTO groups (id, name) VALUES ('00000000-0000-0000-0000-0000000000a1', 'trip');
-  INSERT INTO group_members (group_id, member_id) VALUES ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a');
-"
-
-curl -s -X POST http://localhost:8080/groups/00000000-0000-0000-0000-0000000000a1/entries \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"id":"'$(uuidgen)'","kind":"expense","payer_id":"00000000-0000-0000-0000-00000000000a","total_amount":1000,"split_rule":{"type":"equal"},"participants":["00000000-0000-0000-0000-00000000000a"],"memo":"test","occurred_on":"2026-07-17"}'
-```
-
-Expect a `201` with `{"id":"...","seq":N}` (`seq` increments with every entry ever written to this database, so it won't necessarily be `1`). Stop the server with Ctrl-C (graceful shutdown drains in-flight requests), and stop Postgres with `docker compose down` when you're done (add `-v` to also drop the data volume).
-
-On some macOS setups you'll also need `CGO_ENABLED=0` for `go build`/`go run`/`go test`/`go vet` to work around an unrelated toolchain dyld quirk on this platform.
+Stop the server with Ctrl-C (graceful shutdown drains in-flight requests), and stop Postgres with `make db-down` (or `docker compose down -v` to also drop the data volume).
 
 ### Running tests
 
-Tests in `internal/store` and `internal/api` need a real Postgres to exercise the JSONB storage, idempotency gate, and constraint behavior — they skip cleanly if no database is configured, but you won't get real coverage without one.
+Tests in `internal/store` and `internal/api` need a real Postgres to exercise the JSONB storage, idempotency gate, and constraint behavior — they skip cleanly if no database is configured, but you won't get real coverage without one. `make test` (or `TEST_DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' go test -p 1 ./... -race`) runs the full suite correctly.
 
-```sh
-docker compose up -d db
-export TEST_DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable'
-```
+**Always run with `-p 1` once `TEST_DATABASE_URL` is set** — `internal/api` and `internal/store` both truncate the same live Postgres tables via a shared test helper, and Go parallelizes different packages' test binaries by default, so without `-p 1` the two packages' truncations race against each other's in-flight tests and deadlock. Plain `go test ./...` (no flags) is unsafe whenever `TEST_DATABASE_URL` is exported — this is exactly what `make test` avoids for you.
 
-**Always run the full suite with `-p 1` once `TEST_DATABASE_URL` is set:**
-
-```sh
-go test -p 1 ./... -race
-```
-
-`internal/api` and `internal/store` both truncate the same live Postgres tables via a shared test helper. Go parallelizes different packages' test binaries by default, so without `-p 1` the two packages' truncations race against each other's in-flight tests and deadlock. Plain `go test ./...` (no flags) is unsafe whenever `TEST_DATABASE_URL` is exported.
-
-On some macOS setups you'll also need `CGO_ENABLED=0` for `go build`/`go test`/`go vet` to work around an unrelated toolchain dyld quirk on this platform.
+On some macOS setups you'll also need `CGO_ENABLED=0` for `go build`/`go run`/`go test`/`go vet` to work around an unrelated toolchain dyld quirk on this platform — the `Makefile` sets it automatically for its own targets.
 
 ### Migrations
 
