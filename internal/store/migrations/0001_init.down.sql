@@ -1,0 +1,8 @@
+DROP VIEW IF EXISTS balances;
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS postings;
+DROP TABLE IF EXISTS entries;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS members;
+DROP FUNCTION IF EXISTS forbid_ledger_mutation();
