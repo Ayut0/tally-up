@@ -1,8 +1,8 @@
-DROP VIEW balances;
-DROP TABLE idempotency_keys;
-DROP TABLE postings;
-DROP TABLE entries;
-DROP TABLE group_members;
-DROP TABLE groups;
-DROP TABLE members;
-DROP FUNCTION forbid_ledger_mutation();
+DROP VIEW IF EXISTS balances;
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS postings;
+DROP TABLE IF EXISTS entries;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS members;
+DROP FUNCTION IF EXISTS forbid_ledger_mutation();

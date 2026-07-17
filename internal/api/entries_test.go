@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"tallyup/internal/ledger"
 	"tallyup/internal/store"
 )
 
@@ -137,6 +138,85 @@ func TestCreateExpense_NonMemberParticipantIs422(t *testing.T) {
 	resp, _ := post(t, srv, uuid.New(), b)
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("status %d, want 422", resp.StatusCode)
+	}
+}
+
+// TestCreateExpense_WeightedSharesRoundTrip proves a non-equal split_rule
+// actually survives HTTP -> JSON -> Postgres JSONB -> read-back, and that the
+// stored postings reflect the weighted split rather than an equal one.
+func TestCreateExpense_WeightedSharesRoundTrip(t *testing.T) {
+	srv, s := newTestServer(t)
+	ctx := context.Background()
+
+	entryID := uuid.New()
+	weights := map[uuid.UUID]int64{yuto: 2, memA: 1, memB: 1} // 12000 total -> 6000/3000/3000, no rounding
+	body, _ := json.Marshal(map[string]any{
+		"id": entryID, "kind": "expense", "payer_id": yuto,
+		"total_amount": 12000,
+		"split_rule": map[string]any{
+			"type":    "shares",
+			"weights": weights,
+		},
+		"participants": []uuid.UUID{yuto, memA, memB},
+		"memo":         "weighted dinner", "occurred_on": "2026-07-05",
+	})
+
+	resp, respBody := post(t, srv, uuid.New(), body)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status %d, body %s", resp.StatusCode, respBody)
+	}
+
+	// Read back split_rule straight from Postgres and confirm it deserializes
+	// into the same weighted shares rule that was posted.
+	var splitRuleJSON []byte
+	if err := s.Pool.QueryRow(ctx,
+		`SELECT split_rule FROM entries WHERE id = $1`, entryID).Scan(&splitRuleJSON); err != nil {
+		t.Fatalf("read split_rule: %v", err)
+	}
+	var gotRule ledger.SplitRule
+	if err := json.Unmarshal(splitRuleJSON, &gotRule); err != nil {
+		t.Fatalf("unmarshal split_rule: %v (raw %s)", err, splitRuleJSON)
+	}
+	if gotRule.Type != ledger.SplitShares {
+		t.Fatalf("split_rule type %q, want %q", gotRule.Type, ledger.SplitShares)
+	}
+	if len(gotRule.Weights) != len(weights) {
+		t.Fatalf("split_rule weights %v, want %v", gotRule.Weights, weights)
+	}
+	for member, want := range weights {
+		if got := gotRule.Weights[member]; got != want {
+			t.Fatalf("split_rule weight for %s = %d, want %d", member, got, want)
+		}
+	}
+
+	// Confirm the postings actually reflect the 2:1:1 weighted split, not an
+	// equal 4000/4000/4000 fallback.
+	rows, err := s.Pool.Query(ctx,
+		`SELECT member_id, amount FROM postings WHERE entry_id = $1`, entryID)
+	if err != nil {
+		t.Fatalf("query postings: %v", err)
+	}
+	defer rows.Close()
+	got := map[uuid.UUID]int64{}
+	for rows.Next() {
+		var member uuid.UUID
+		var amount int64
+		if err := rows.Scan(&member, &amount); err != nil {
+			t.Fatalf("scan posting: %v", err)
+		}
+		got[member] = amount
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	want := map[uuid.UUID]int64{yuto: 6000, memA: -3000, memB: -3000}
+	if len(got) != len(want) {
+		t.Fatalf("postings %v, want %v", got, want)
+	}
+	for member, amt := range want {
+		if got[member] != amt {
+			t.Fatalf("posting for %s = %d, want %d (all: %v)", member, got[member], amt, got)
+		}
 	}
 }
 

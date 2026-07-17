@@ -80,6 +80,11 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		postings, err = ledger.SettlementPostings(req.PayerID, *req.Counterparty, req.TotalAmount)
+		// "settlement" is not one of ledger.SplitType's four constants (equal/exact/
+		// shares/percent) — harmless today since nothing recomputes postings from
+		// split_rule, but a future feature deserializing split_rule to recompute
+		// postings must special-case kind == "settlement" rather than treating this
+		// as a ledger.SplitType.
 		splitJSON = []byte(`{"type":"settlement"}`)
 		participants = []uuid.UUID{req.PayerID, *req.Counterparty}
 	default:
@@ -112,6 +117,8 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		ID: req.ID, GroupID: groupID, Kind: req.Kind, PayerID: req.PayerID,
 		Counterparty: req.Counterparty, TotalAmount: req.TotalAmount,
 		SplitRule: splitJSON, Participants: participants, Memo: req.Memo,
+		// CreatedBy is hardwired to PayerID for now, conflating "who recorded the
+		// entry" with "who paid" — placeholder pending real auth.
 		OccurredOn: occurredOn, CreatedBy: req.PayerID,
 	}, postings)
 	if err != nil {
