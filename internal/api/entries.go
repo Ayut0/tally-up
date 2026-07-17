@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/ledger"
+	"tallyup/internal/domain/ledger"
 	"tallyup/internal/store"
 )
 
