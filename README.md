@@ -32,6 +32,44 @@ See [`docs/architecture.md`](docs/architecture.md) for the full rationale behind
 
 ## Development
 
+### Running the API locally
+
+Start Postgres:
+
+```sh
+docker compose up -d db
+```
+
+This brings up a `postgres:16-alpine` container on `localhost:5433` (user/pass/db all `tallyup`/`tallyup`/`tallyup_test`, per `docker-compose.yml`). Check it's healthy with `docker compose ps`.
+
+Run the API binary against it:
+
+```sh
+DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' \
+PORT=8080 \
+go run ./cmd/api
+```
+
+Schema migrations apply automatically on startup — no manual migration step, locally or against any other Postgres instance (see Migrations below). The server logs `tallyup api listening port=8080` once ready.
+
+Smoke-test it (a group first needs at least one row in `members`/`groups`/`group_members` — there's no `POST /groups` endpoint yet, so seed one directly for now):
+
+```sh
+docker compose exec db psql -U tallyup -d tallyup_test -c "
+  INSERT INTO members (id, name) VALUES ('00000000-0000-0000-0000-00000000000a', 'yuto');
+  INSERT INTO groups (id, name) VALUES ('00000000-0000-0000-0000-0000000000a1', 'trip');
+  INSERT INTO group_members (group_id, member_id) VALUES ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a');
+"
+
+curl -s -X POST http://localhost:8080/groups/00000000-0000-0000-0000-0000000000a1/entries \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"id":"'$(uuidgen)'","kind":"expense","payer_id":"00000000-0000-0000-0000-00000000000a","total_amount":1000,"split_rule":{"type":"equal"},"participants":["00000000-0000-0000-0000-00000000000a"],"memo":"test","occurred_on":"2026-07-17"}'
+```
+
+Expect a `201` with `{"id":"...","seq":N}` (`seq` increments with every entry ever written to this database, so it won't necessarily be `1`). Stop the server with Ctrl-C (graceful shutdown drains in-flight requests), and stop Postgres with `docker compose down` when you're done (add `-v` to also drop the data volume).
+
+On some macOS setups you'll also need `CGO_ENABLED=0` for `go build`/`go run`/`go test`/`go vet` to work around an unrelated toolchain dyld quirk on this platform.
+
 ### Running tests
 
 Tests in `internal/store` and `internal/api` need a real Postgres to exercise the JSONB storage, idempotency gate, and constraint behavior — they skip cleanly if no database is configured, but you won't get real coverage without one.
