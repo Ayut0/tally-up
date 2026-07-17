@@ -31,7 +31,7 @@ var ErrUnknownKind = errors.New("kind must be expense or settlement")
 type ValidationError struct{ Err error }
 
 func (e *ValidationError) Error() string { return e.Err.Error() }
-func (e *ValidationError) Unwrap() error  { return e.Err }
+func (e *ValidationError) Unwrap() error { return e.Err }
 
 // Command is everything AddEntry needs to create one entry.
 type Command struct {
