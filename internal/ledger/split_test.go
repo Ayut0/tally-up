@@ -116,3 +116,48 @@ func TestPercentSplit_MustSumTo100(t *testing.T) {
 		t.Fatal("expected error for percents not summing to 100")
 	}
 }
+
+func TestExactSplit(t *testing.T) {
+	rule := SplitRule{Type: SplitExact, Amounts: map[uuid.UUID]int64{memA: 7000, memB: 5000}}
+	got := mustCompute(t, yuto, 12000, rule, []uuid.UUID{memA, memB})
+	want := []Posting{{yuto, 12000}, {memA, -7000}, {memB, -5000}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestExactSplit_ZeroAmountMemberOmitted(t *testing.T) {
+	rule := SplitRule{Type: SplitExact, Amounts: map[uuid.UUID]int64{memA: 12000, memB: 0}}
+	got := mustCompute(t, yuto, 12000, rule, []uuid.UUID{memA, memB})
+	want := []Posting{{yuto, 12000}, {memA, -12000}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestExactSplit_MustSumToTotal(t *testing.T) {
+	rule := SplitRule{Type: SplitExact, Amounts: map[uuid.UUID]int64{memA: 7000, memB: 4999}}
+	if _, err := ComputePostings(yuto, 12000, rule, []uuid.UUID{memA, memB}); err == nil {
+		t.Fatal("expected error for amounts not summing to total")
+	}
+}
+
+func TestSettlementPostings(t *testing.T) {
+	got, err := SettlementPostings(memB, memA, 4000) // B pays A ¥4,000
+	if err != nil {
+		t.Fatalf("SettlementPostings: %v", err)
+	}
+	want := []Posting{{memA, -4000}, {memB, 4000}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestSettlementPostings_Validation(t *testing.T) {
+	if _, err := SettlementPostings(memA, memA, 100); err == nil {
+		t.Fatal("expected error for self-settlement")
+	}
+	if _, err := SettlementPostings(memA, memB, 0); err == nil {
+		t.Fatal("expected error for zero amount")
+	}
+}

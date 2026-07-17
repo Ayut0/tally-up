@@ -93,6 +93,25 @@ func computeShares(total int64, rule SplitRule, participants []uuid.UUID) (map[u
 			return nil, fmt.Errorf("percentages must sum to 100, got %d", sum)
 		}
 		return weightedShares(total, rule.Weights, participants)
+	case SplitExact:
+		if err := coversExactly(rule.Amounts, participants); err != nil {
+			return nil, err
+		}
+		var sum int64
+		for m, a := range rule.Amounts {
+			if a < 0 {
+				return nil, fmt.Errorf("exact amount for %s must be >= 0, got %d", m, a)
+			}
+			sum += a
+		}
+		if sum != total {
+			return nil, fmt.Errorf("exact amounts sum to %d, total is %d", sum, total)
+		}
+		out := make(map[uuid.UUID]int64, len(rule.Amounts))
+		for m, a := range rule.Amounts {
+			out[m] = a
+		}
+		return out, nil
 	default:
 		return nil, fmt.Errorf("unknown split type %q", rule.Type)
 	}
@@ -134,4 +153,20 @@ func weightedShares(total int64, weights map[uuid.UUID]int64, participants []uui
 		shares[remainders[i].member]++
 	}
 	return shares, nil
+}
+
+// SettlementPostings records "payer paid counterparty amount": the payer's
+// net position rises, the counterparty's falls. Output sorted by UUID bytes.
+func SettlementPostings(payer, counterparty uuid.UUID, amount int64) ([]Posting, error) {
+	if amount <= 0 || amount > MaxAmount {
+		return nil, fmt.Errorf("settlement amount must be in (0, %d], got %d", MaxAmount, amount)
+	}
+	if payer == counterparty {
+		return nil, fmt.Errorf("cannot settle with yourself")
+	}
+	postings := []Posting{{MemberID: payer, Amount: amount}, {MemberID: counterparty, Amount: -amount}}
+	if bytes.Compare(postings[1].MemberID[:], postings[0].MemberID[:]) < 0 {
+		postings[0], postings[1] = postings[1], postings[0]
+	}
+	return postings, nil
 }
