@@ -4,7 +4,7 @@
 tally-up is a link-based, accountless bill splitter for friend groups (trips, dinners, gatherings — n people, not just two). One person creates a group, shares the URL, and everyone picks their name once. Expenses are logged as they happen and balances are always recomputed fresh from the expense log — never hand-adjusted. This handoff covers the four core screens plus all four expense-split modes and an empty state.
 
 ## About the Design Files
-The bundled file `Tally-up Mockups.dc.html` is a **design reference built in HTML** — static, high-fidelity mockups showing the intended look, layout, and copy. It is not production code and should not be copied as-is. Your task is to **recreate these designs in the target codebase's existing environment** (React Native, SwiftUI, Android/Compose, web, etc.) using its established component patterns, or — if no environment exists yet — pick the framework best suited to a shareable, no-install, link-based web app (a plain responsive web app is a natural fit given "no accounts, no app-store install").
+The bundled file `tally-up-mockups.html` is a **design reference built in HTML** — static, high-fidelity mockups showing the intended look, layout, and copy. It is not production code and should not be copied as-is. Your task is to **recreate these designs in the target codebase's existing environment** (React Native, SwiftUI, Android/Compose, web, etc.) using its established component patterns, or — if no environment exists yet — pick the framework best suited to a shareable, no-install, link-based web app (a plain responsive web app is a natural fit given "no accounts, no app-store install").
 
 Open the file directly in a browser to view all screens side by side (a canvas of labeled panels, each 390px wide).
 
@@ -12,7 +12,7 @@ Open the file directly in a browser to view all screens side by side (a canvas o
 **High-fidelity.** Colors, type, spacing, and copy shown are final-intent, not placeholders. Recreate pixel-close using the target codebase's component library/tokens where one exists.
 
 ## Product behavior (source of truth)
-See `product-spec.md` for the full original product spec (flow, fixed vs. open decisions, behavioral notes). Key rules that must survive implementation:
+See [`../design-concept.md`](../design-concept.md) for the full original product spec (flow, fixed vs. open decisions, behavioral notes). Key rules that must survive implementation:
 - Balances are **always computed fresh** from the expense log — never manually edited.
 - Whole yen only — no decimals, anywhere.
 - Corrections are struck-through, never deleted from the log.
@@ -123,5 +123,5 @@ Suggested state shape (adapt to target framework):
 No photographic or icon assets — the wordmark uses a simple drawn "tally mark" glyph (4 bars + 1 diagonal strike), and avatars are initials on flat pastel-color circles. No external image assets to source.
 
 ## Files
-- `Tally-up Mockups.dc.html` — all 8 screens/variants, viewable directly in a browser (labeled panels: `#1a` Create, `#1b` Join, `#1c` Balances/History, `#1d`–`#1g` Add expense + 3 split modes, `#1h` Empty state).
-- `product-spec.md` — original product/behavior spec this design implements (flow, fixed constraints, open decisions).
+- `tally-up-mockups.html` — all 8 screens/variants, viewable directly in a browser (labeled panels: `#1a` Create, `#1b` Join, `#1c` Balances/History, `#1d`–`#1g` Add expense + 3 split modes, `#1h` Empty state).
+- [`../design-concept.md`](../design-concept.md) — original product/behavior spec this design implements (flow, fixed constraints, open decisions).
