@@ -193,3 +193,71 @@ func TestMissingIdempotencyKeyIs400(t *testing.T) {
 		t.Fatalf("status %d, want 400", resp.StatusCode)
 	}
 }
+
+func TestConcurrency_SameKey50x_ExactlyOneEntry(t *testing.T) {
+	srv, s := newTestServer(t)
+	key, body := uuid.New(), expenseBody(uuid.New())
+
+	const workers = 50
+	statuses := make(chan int, workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			resp, _ := post(t, srv, key, body)
+			statuses <- resp.StatusCode
+		}()
+	}
+	counts := map[int]int{}
+	for i := 0; i < workers; i++ {
+		counts[<-statuses]++
+	}
+
+	// Exactly one 201; everything else replayed (200) or bounced in-flight (409).
+	if counts[201] != 1 {
+		t.Fatalf("got %d 201s, want exactly 1 (all statuses: %v)", counts[201], counts)
+	}
+	if counts[201]+counts[200]+counts[409] != workers {
+		t.Fatalf("unexpected statuses: %v", counts)
+	}
+
+	var n int
+	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("%d entries, want exactly 1", n)
+	}
+
+	// A 409 client retries and must eventually get the replay.
+	resp, _ := post(t, srv, key, body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("retry after storm: status %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestConcurrency_DistinctKeys50x_AllLand(t *testing.T) {
+	srv, s := newTestServer(t)
+
+	const workers = 50
+	done := make(chan struct{}, workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer func() { done <- struct{}{} }()
+			resp, body := post(t, srv, uuid.New(), expenseBody(uuid.New()))
+			if resp.StatusCode != http.StatusCreated {
+				t.Errorf("status %d, body %s", resp.StatusCode, body)
+			}
+		}()
+	}
+	for i := 0; i < workers; i++ {
+		<-done
+	}
+
+	var n int
+	var sum int64
+	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum)
+	if n != workers {
+		t.Fatalf("%d entries, want %d", n, workers)
+	}
+	if sum != 0 {
+		t.Fatalf("global postings sum %d, want 0", sum)
+	}
+}
