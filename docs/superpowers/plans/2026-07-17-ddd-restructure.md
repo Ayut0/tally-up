@@ -70,6 +70,7 @@ cmd/api/
 - Move: `internal/ledger/split_test.go` → `internal/domain/ledger/split_test.go` (no content change)
 - Modify: `internal/store/entries.go:12` (import path only)
 - Modify: `internal/api/entries.go:15` (import path only)
+- Modify: `internal/api/entries_test.go:15` (import path only — also imports `ledger.SplitRule`/`ledger.SplitShares` for `TestCreateExpense_WeightedSharesRoundTrip`)
 
 **Interfaces:**
 - Produces: `tallyup/internal/domain/ledger` exporting `SplitRule`, `SplitType`, `Posting`, `MaxAmount`, `ComputePostings`, `SettlementPostings` — identical API to today's `tallyup/internal/ledger`.
@@ -83,7 +84,7 @@ git mv internal/ledger internal/domain/ledger
 
 None of `ledger.go`, `split.go`, `property_test.go`, `split_test.go` import their own package by path, so no content edits are needed — `package ledger` stays correct at the new location.
 
-- [ ] **Step 2: Update the two existing importers' import paths**
+- [ ] **Step 2: Update the three existing importers' import paths**
 
 In `internal/store/entries.go`, change:
 
@@ -109,14 +110,29 @@ to:
 	"tallyup/internal/domain/ledger"
 ```
 
+In `internal/api/entries_test.go`, change:
+
+```go
+	"tallyup/internal/ledger"
+```
+
+to:
+
+```go
+	"tallyup/internal/domain/ledger"
+```
+
+This third file is easy to miss — `go build ./...` alone won't catch it (Go doesn't compile `_test.go` files under plain `go build`); only `go vet ./...` or `go test ./...` will. Verify with both, not just `go build`.
+
 - [ ] **Step 3: Verify**
 
 ```bash
 CGO_ENABLED=0 go build ./...
+CGO_ENABLED=0 go vet ./...
 CGO_ENABLED=0 go test ./internal/domain/ledger/... -v
 ```
 
-Expected: build succeeds; all `ledger` package tests (including the `rapid` property tests) pass unchanged.
+Expected: build and vet succeed (vet catches any stray old-path import that `go build` alone would miss, e.g. in a `_test.go` file); all `ledger` package tests (including the `rapid` property tests) pass unchanged.
 
 - [ ] **Step 4: Commit**
 
