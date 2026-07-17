@@ -55,6 +55,19 @@ func ComputePostings(payer uuid.UUID, total int64, rule SplitRule, participants 
 	return postings, nil
 }
 
+// coversExactly ensures the rule's per-member map keys are exactly the participant set.
+func coversExactly[V any](m map[uuid.UUID]V, participants []uuid.UUID) error {
+	if len(m) != len(participants) {
+		return fmt.Errorf("split rule covers %d members, entry has %d participants", len(m), len(participants))
+	}
+	for _, p := range participants {
+		if _, ok := m[p]; !ok {
+			return fmt.Errorf("split rule missing participant %s", p)
+		}
+	}
+	return nil
+}
+
 func computeShares(total int64, rule SplitRule, participants []uuid.UUID) (map[uuid.UUID]int64, error) {
 	switch rule.Type {
 	case SplitEqual:
@@ -63,6 +76,23 @@ func computeShares(total int64, rule SplitRule, participants []uuid.UUID) (map[u
 			w[p] = 1
 		}
 		return weightedShares(total, w, participants)
+	case SplitShares:
+		if err := coversExactly(rule.Weights, participants); err != nil {
+			return nil, err
+		}
+		return weightedShares(total, rule.Weights, participants)
+	case SplitPercent:
+		if err := coversExactly(rule.Weights, participants); err != nil {
+			return nil, err
+		}
+		var sum int64
+		for _, w := range rule.Weights {
+			sum += w
+		}
+		if sum != 100 {
+			return nil, fmt.Errorf("percentages must sum to 100, got %d", sum)
+		}
+		return weightedShares(total, rule.Weights, participants)
 	default:
 		return nil, fmt.Errorf("unknown split type %q", rule.Type)
 	}
