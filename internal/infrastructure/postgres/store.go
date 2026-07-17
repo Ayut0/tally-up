@@ -1,5 +1,8 @@
-// Package store owns all Postgres access. Correctness-critical SQL lives here.
-package store
+// Package postgres implements tally-up's domain repository and port
+// interfaces against Postgres. It owns all pgx access, schema migrations,
+// and the idempotency gate; nothing outside this package knows Postgres
+// exists.
+package postgres
 
 import (
 	"context"
