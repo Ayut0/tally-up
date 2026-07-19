@@ -1,4 +1,4 @@
-package api
+package rest
 
 import (
 	"crypto/sha256"
@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
+	"tallyup/internal/application/addentry"
+	"tallyup/internal/domain/entry"
+	"tallyup/internal/domain/group"
 	"tallyup/internal/domain/ledger"
-	"tallyup/internal/store"
 )
 
 const maxBodyBytes = 1 << 20
@@ -64,79 +65,41 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Compute postings before the gate: pure validation, no DB cost.
-	var postings []ledger.Posting
-	var splitJSON []byte
-	participants := req.Participants
-	switch req.Kind {
-	case "expense":
-		postings, err = ledger.ComputePostings(req.PayerID, req.TotalAmount, req.SplitRule, req.Participants)
-		if err == nil {
-			splitJSON, err = json.Marshal(req.SplitRule)
-		}
-	case "settlement":
-		if req.Counterparty == nil {
-			httpError(w, http.StatusBadRequest, "settlement requires counterparty")
-			return
-		}
-		postings, err = ledger.SettlementPostings(req.PayerID, *req.Counterparty, req.TotalAmount)
-		// "settlement" is not one of ledger.SplitType's four constants (equal/exact/
-		// shares/percent) — harmless today since nothing recomputes postings from
-		// split_rule, but a future feature deserializing split_rule to recompute
-		// postings must special-case kind == "settlement" rather than treating this
-		// as a ledger.SplitType.
-		splitJSON = []byte(`{"type":"settlement"}`)
-		participants = []uuid.UUID{req.PayerID, *req.Counterparty}
-	default:
-		httpError(w, http.StatusBadRequest, "kind must be expense or settlement")
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	gate, stored, err := s.store.AcquireIdempotencyKey(r.Context(), key, requestHash)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "idempotency gate failed")
-		return
-	}
-	switch gate {
-	case store.GateReplay:
-		writeJSON(w, http.StatusOK, stored)
-		return
-	case store.GateInFlight:
-		httpError(w, http.StatusConflict, "request in flight; retry shortly")
-		return
-	case store.GateMismatch:
-		httpError(w, http.StatusUnprocessableEntity, "idempotency key reused with different payload")
-		return
-	}
-
-	resp, err := s.store.CreateEntry(r.Context(), key, store.EntryInput{
+	result, err := s.entries.AddEntry(r.Context(), addentry.Command{
 		ID: req.ID, GroupID: groupID, Kind: req.Kind, PayerID: req.PayerID,
 		Counterparty: req.Counterparty, TotalAmount: req.TotalAmount,
-		SplitRule: splitJSON, Participants: participants, Memo: req.Memo,
+		SplitRule: req.SplitRule, Participants: req.Participants, Memo: req.Memo,
 		// CreatedBy is hardwired to PayerID for now, conflating "who recorded the
 		// entry" with "who paid" — placeholder pending real auth.
 		OccurredOn: occurredOn, CreatedBy: req.PayerID,
-	}, postings)
-	if err != nil {
-		// We own the pending row; free it so the client's retry isn't stuck
-		// behind the janitor. Best-effort — the janitor is the backstop.
-		if relErr := s.store.ReleaseIdempotencyKey(r.Context(), key); relErr != nil {
-			slog.Warn("release idempotency key", "key", key, "err", relErr)
-		}
-	}
+		IdempotencyKey: key, RequestHash: requestHash,
+	})
+
+	var valErr *addentry.ValidationError
 	switch {
-	case errors.Is(err, store.ErrNotGroupMembers):
+	case errors.Is(err, addentry.ErrCounterpartyRequired):
+		httpError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, addentry.ErrUnknownKind):
+		httpError(w, http.StatusBadRequest, err.Error())
+	case errors.As(err, &valErr):
+		httpError(w, http.StatusUnprocessableEntity, valErr.Error())
+	case errors.Is(err, group.ErrNotMember):
 		httpError(w, http.StatusUnprocessableEntity, err.Error())
-	case errors.Is(err, store.ErrDuplicateEntryID):
+	case errors.Is(err, entry.ErrDuplicateID):
 		httpError(w, http.StatusConflict, err.Error())
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, "write failed")
 	default:
-		writeJSON(w, http.StatusCreated, resp)
+		switch result.Gate {
+		case entry.GateReplay:
+			writeJSON(w, http.StatusOK, result.Body)
+		case entry.GateInFlight:
+			httpError(w, http.StatusConflict, "request in flight; retry shortly")
+		case entry.GateMismatch:
+			httpError(w, http.StatusUnprocessableEntity, "idempotency key reused with different payload")
+		default: // entry.GateProceed
+			writeJSON(w, http.StatusCreated, result.Body)
+		}
 	}
 }
 

@@ -10,8 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"tallyup/internal/api"
-	"tallyup/internal/store"
+	"tallyup/internal/application/addentry"
+	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/interfaces/rest"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 		port = "8080"
 	}
 
-	s, err := store.New(ctx, dbURL)
+	s, err := postgres.New(ctx, dbURL)
 	if err != nil {
 		slog.Error("store init", "err", err)
 		os.Exit(1)
@@ -53,7 +54,8 @@ func main() {
 		}
 	}()
 
-	srv := &http.Server{Addr: ":" + port, Handler: api.NewServer(s)}
+	entries := &addentry.Service{Gate: s, Entries: s}
+	srv := &http.Server{Addr: ":" + port, Handler: rest.NewServer(entries)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
