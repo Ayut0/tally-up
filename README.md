@@ -57,12 +57,12 @@ Stop the server with Ctrl-C (graceful shutdown drains in-flight requests), and s
 
 ### Running tests
 
-Tests in `internal/store` and `internal/api` need a real Postgres to exercise the JSONB storage, idempotency gate, and constraint behavior — they skip cleanly if no database is configured, but you won't get real coverage without one. `make test` (or `TEST_DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' go test -p 1 ./... -race`) runs the full suite correctly.
+Tests in `internal/infrastructure/postgres` and `internal/interfaces/rest` need a real Postgres to exercise the JSONB storage, idempotency gate, and constraint behavior — they skip cleanly if no database is configured, but you won't get real coverage without one. `make test` (or `TEST_DATABASE_URL='postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable' go test -p 1 ./... -race`) runs the full suite correctly.
 
-**Always run with `-p 1` once `TEST_DATABASE_URL` is set** — `internal/api` and `internal/store` both truncate the same live Postgres tables via a shared test helper, and Go parallelizes different packages' test binaries by default, so without `-p 1` the two packages' truncations race against each other's in-flight tests and deadlock. Plain `go test ./...` (no flags) is unsafe whenever `TEST_DATABASE_URL` is exported — this is exactly what `make test` avoids for you.
+**Always run with `-p 1` once `TEST_DATABASE_URL` is set** — `internal/interfaces/rest` and `internal/infrastructure/postgres` both truncate the same live Postgres tables via a shared test helper, and Go parallelizes different packages' test binaries by default, so without `-p 1` the two packages' truncations race against each other's in-flight tests and deadlock. Plain `go test ./...` (no flags) is unsafe whenever `TEST_DATABASE_URL` is exported — this is exactly what `make test` avoids for you.
 
 On some macOS setups you'll also need `CGO_ENABLED=0` for `go build`/`go run`/`go test`/`go vet` to work around an unrelated toolchain dyld quirk on this platform — the `Makefile` sets it automatically for its own targets.
 
 ### Migrations
 
-`migrations/*.sql` is the source of truth. It's manually copied into `internal/store/migrations/*.sql` because Go's `go:embed` can't reach outside its own package tree — the store package embeds its local copy at build time. If you add or change a migration, copy it to both locations; there's no automated drift check yet.
+`migrations/*.sql` is the source of truth. It's manually copied into `internal/infrastructure/postgres/migrations/*.sql` because Go's `go:embed` can't reach outside its own package tree — the postgres package embeds its local copy at build time. If you add or change a migration, copy it to both locations; there's no automated drift check yet.

@@ -1,4 +1,4 @@
-package store
+package postgres
 
 import (
 	"context"
@@ -7,21 +7,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"tallyup/internal/domain/entry"
 )
 
-type GateResult int
+var _ entry.IdempotencyGate = (*Store)(nil)
 
-const (
-	GateProceed  GateResult = iota // this request owns the operation
-	GateReplay                     // already succeeded; return stored body
-	GateInFlight                   // another request holds a pending row
-	GateMismatch                   // same key, different payload — client bug
-)
-
-// AcquireIdempotencyKey implements the pending-row-first gate from
-// architecture.md §4. The pending insert commits immediately (its own
-// implicit txn) so a crash leaves a visible pending row for the janitor.
-func (s *Store) AcquireIdempotencyKey(ctx context.Context, key uuid.UUID, requestHash string) (GateResult, []byte, error) {
+// Acquire implements the pending-row-first gate from architecture.md §4.
+// The pending insert commits immediately (its own implicit txn) so a crash
+// leaves a visible pending row for the janitor.
+func (s *Store) Acquire(ctx context.Context, key uuid.UUID, requestHash string) (entry.GateResult, []byte, error) {
 	ct, err := s.Pool.Exec(ctx,
 		`INSERT INTO idempotency_keys (key, request_hash, status) VALUES ($1, $2, 'pending')
 		 ON CONFLICT (key) DO NOTHING`, key, requestHash)
@@ -29,7 +24,7 @@ func (s *Store) AcquireIdempotencyKey(ctx context.Context, key uuid.UUID, reques
 		return 0, nil, err
 	}
 	if ct.RowsAffected() == 1 {
-		return GateProceed, nil, nil
+		return entry.GateProceed, nil, nil
 	}
 
 	var storedHash, status string
@@ -40,24 +35,24 @@ func (s *Store) AcquireIdempotencyKey(ctx context.Context, key uuid.UUID, reques
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Janitor deleted the row between our insert-conflict and this read;
 		// tell the client to retry rather than racing to re-own it here.
-		return GateInFlight, nil, nil
+		return entry.GateInFlight, nil, nil
 	}
 	if err != nil {
 		return 0, nil, err
 	}
 	if storedHash != requestHash {
-		return GateMismatch, nil, nil
+		return entry.GateMismatch, nil, nil
 	}
 	if status == "succeeded" {
-		return GateReplay, body, nil
+		return entry.GateReplay, body, nil
 	}
-	return GateInFlight, nil, nil
+	return entry.GateInFlight, nil, nil
 }
 
-// ReleaseIdempotencyKey frees a pending key after a post-gate failure so the
-// client can retry immediately instead of waiting for the janitor. Succeeded
-// keys are never released: their response snapshot is the replay truth.
-func (s *Store) ReleaseIdempotencyKey(ctx context.Context, key uuid.UUID) error {
+// Release frees a pending key after a post-gate failure so the client can
+// retry immediately instead of waiting for the janitor. Succeeded keys are
+// never released: their response snapshot is the replay truth.
+func (s *Store) Release(ctx context.Context, key uuid.UUID) error {
 	_, err := s.Pool.Exec(ctx,
 		`DELETE FROM idempotency_keys WHERE key = $1 AND status = 'pending'`, key)
 	return err

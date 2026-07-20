@@ -8,7 +8,7 @@
 
 **Tech Stack:** Same as the Phase 1–2 plan: Go 1.23+, stdlib ServeMux, `pgx/v5`, Postgres via docker compose, `TEST_DATABASE_URL`-gated integration tests.
 
-**Prerequisite:** The Phase 1–2 plan (`2026-07-05-ledger-core-write-path.md`) is fully executed: `internal/ledger`, `internal/store` (with `TestStore`, `AcquireIdempotencyKey`, `ReleaseIdempotencyKey`, `CreateEntry`), `internal/api` (with `NewServer`, `seedGroup`, `post`, `expenseBody`, `newTestServer` test helpers) all exist and pass.
+**Prerequisite:** The Phase 1–2 plan (`2026-07-05-ledger-core-write-path.md`) is fully executed: `internal/domain/ledger`, `internal/infrastructure/postgres` (with `TestStore`, `AcquireIdempotencyKey`, `ReleaseIdempotencyKey`, `CreateEntry`), `internal/interfaces/rest` (with `NewServer`, `seedGroup`, `post`, `expenseBody`, `newTestServer` test helpers) all exist and pass.
 
 ## Global Constraints
 
@@ -24,17 +24,17 @@
 ## File Structure
 
 ```
-internal/store/reads.go         — GetBalances, ListEntries + record types
-internal/store/reads_test.go
-internal/store/reversals.go     — ReverseEntry, EditEntry + sentinel errors
-internal/store/reversals_test.go
-internal/store/integrity.go     — CheckIntegrity + IntegrityReport
-internal/store/integrity_test.go
-internal/api/reads.go           — GET balance, GET entries handlers
-internal/api/reversals.go       — POST reverse, PUT edit handlers
-internal/api/reads_test.go
-internal/api/reversals_test.go
-internal/api/server.go          — modify: register the four new routes
+internal/infrastructure/postgres/reads.go         — GetBalances, ListEntries + record types
+internal/infrastructure/postgres/reads_test.go
+internal/infrastructure/postgres/reversals.go     — ReverseEntry, EditEntry + sentinel errors
+internal/infrastructure/postgres/reversals_test.go
+internal/infrastructure/postgres/integrity.go     — CheckIntegrity + IntegrityReport
+internal/infrastructure/postgres/integrity_test.go
+internal/interfaces/rest/reads.go           — GET balance, GET entries handlers
+internal/interfaces/rest/reversals.go       — POST reverse, PUT edit handlers
+internal/interfaces/rest/reads_test.go
+internal/interfaces/rest/reversals_test.go
+internal/interfaces/rest/server.go          — modify: register the four new routes
 ```
 
 ---
@@ -42,9 +42,9 @@ internal/api/server.go          — modify: register the four new routes
 ### Task 1: Balance snapshot — `GetBalances` + `GET /groups/{group_id}/balance`
 
 **Files:**
-- Create: `internal/store/reads.go`, `internal/api/reads.go`
-- Modify: `internal/api/server.go` (add route)
-- Test: `internal/store/reads_test.go`, `internal/api/reads_test.go`
+- Create: `internal/infrastructure/postgres/reads.go`, `internal/interfaces/rest/reads.go`
+- Modify: `internal/interfaces/rest/server.go` (add route)
+- Test: `internal/infrastructure/postgres/reads_test.go`, `internal/interfaces/rest/reads_test.go`
 
 **Interfaces:**
 - Consumes: `balances` view, `TestStore`, api test helpers (`newTestServer`, `seedGroup`, `post`, `expenseBody`, fixture IDs `gID`/`yuto`/`memA`/`memB`).
@@ -56,7 +56,7 @@ internal/api/server.go          — modify: register the four new routes
 
 - [ ] **Step 1: Write the failing store test**
 
-`internal/store/reads_test.go`:
+`internal/infrastructure/postgres/reads_test.go`:
 
 ```go
 package store
@@ -68,7 +68,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/ledger"
+	"tallyup/internal/domain/ledger"
 )
 
 var (
@@ -166,12 +166,12 @@ func TestGetBalances_EmptyLedgerZeroBalances(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run GetBalances`
+Run: `go test ./internal/infrastructure/postgres/ -v -run GetBalances`
 Expected: compile FAIL — `undefined: MemberBalance`, `s.GetBalances undefined`.
 
 - [ ] **Step 3: Implement the store read**
 
-`internal/store/reads.go`:
+`internal/infrastructure/postgres/reads.go`:
 
 ```go
 package store
@@ -223,12 +223,12 @@ func (s *Store) GetBalances(ctx context.Context, groupID uuid.UUID) (BalanceSnap
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run GetBalances`
+Run: `go test ./internal/infrastructure/postgres/ -v -run GetBalances`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing handler test**
 
-`internal/api/reads_test.go`:
+`internal/interfaces/rest/reads_test.go`:
 
 ```go
 package api
@@ -283,7 +283,7 @@ func TestGetBalance_Endpoint(t *testing.T) {
 
 - [ ] **Step 6: Implement the handler and route**
 
-`internal/api/reads.go`:
+`internal/interfaces/rest/reads.go`:
 
 ```go
 package api
@@ -311,7 +311,7 @@ func (s *Server) handleGetBalance(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-In `internal/api/server.go`, add to `NewServer`:
+In `internal/interfaces/rest/server.go`, add to `NewServer`:
 
 ```go
 	mux.HandleFunc("GET /groups/{group_id}/balance", srv.handleGetBalance)
@@ -319,11 +319,11 @@ In `internal/api/server.go`, add to `NewServer`:
 
 - [ ] **Step 7: Run all tests, then commit**
 
-Run: `go test ./internal/store/ ./internal/api/ -v`
+Run: `go test ./internal/infrastructure/postgres/ ./internal/interfaces/rest/ -v`
 Expected: PASS.
 
 ```bash
-git add internal/store/reads.go internal/store/reads_test.go internal/api/reads.go internal/api/reads_test.go internal/api/server.go
+git add internal/infrastructure/postgres/reads.go internal/infrastructure/postgres/reads_test.go internal/interfaces/rest/reads.go internal/interfaces/rest/reads_test.go internal/interfaces/rest/server.go
 git commit -m "feat: balance snapshot endpoint with as_of_seq"
 ```
 
@@ -332,8 +332,8 @@ git commit -m "feat: balance snapshot endpoint with as_of_seq"
 ### Task 2: Ledger history — `ListEntries` + `GET /groups/{group_id}/entries?after_seq=N`
 
 **Files:**
-- Modify: `internal/store/reads.go`, `internal/api/reads.go`, `internal/api/server.go`
-- Test: `internal/store/reads_test.go`, `internal/api/reads_test.go` (append)
+- Modify: `internal/infrastructure/postgres/reads.go`, `internal/interfaces/rest/reads.go`, `internal/interfaces/rest/server.go`
+- Test: `internal/infrastructure/postgres/reads_test.go`, `internal/interfaces/rest/reads_test.go` (append)
 
 **Interfaces:**
 - Produces:
@@ -343,7 +343,7 @@ git commit -m "feat: balance snapshot endpoint with as_of_seq"
 
 - [ ] **Step 1: Write the failing store test**
 
-Append to `internal/store/reads_test.go`:
+Append to `internal/infrastructure/postgres/reads_test.go`:
 
 ```go
 func TestListEntries_AfterSeqIncremental(t *testing.T) {
@@ -409,12 +409,12 @@ func TestListEntries_LimitClamped(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run ListEntries`
+Run: `go test ./internal/infrastructure/postgres/ -v -run ListEntries`
 Expected: compile FAIL — `undefined: EntryRecord` / `s.ListEntries undefined`.
 
 - [ ] **Step 3: Implement**
 
-Append to `internal/store/reads.go` (add imports `encoding/json`, `time`, `tallyup/internal/ledger`):
+Append to `internal/infrastructure/postgres/reads.go` (add imports `encoding/json`, `time`, `tallyup/internal/domain/ledger`):
 
 ```go
 type EntryRecord struct {
@@ -502,12 +502,12 @@ func (s *Store) ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq int
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run ListEntries`
+Run: `go test ./internal/infrastructure/postgres/ -v -run ListEntries`
 Expected: PASS.
 
 - [ ] **Step 5: Handler test, handler, route**
 
-Append to `internal/api/reads_test.go`:
+Append to `internal/interfaces/rest/reads_test.go`:
 
 ```go
 func TestListEntries_Endpoint(t *testing.T) {
@@ -541,7 +541,7 @@ func TestListEntries_Endpoint(t *testing.T) {
 }
 ```
 
-Append to `internal/api/reads.go` (add import `strconv`):
+Append to `internal/interfaces/rest/reads.go` (add import `strconv`):
 
 ```go
 func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
@@ -562,7 +562,7 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-In `internal/api/server.go`:
+In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("GET /groups/{group_id}/entries", srv.handleListEntries)
@@ -570,11 +570,11 @@ In `internal/api/server.go`:
 
 - [ ] **Step 6: Run all tests, commit**
 
-Run: `go test ./internal/store/ ./internal/api/ -v`
+Run: `go test ./internal/infrastructure/postgres/ ./internal/interfaces/rest/ -v`
 Expected: PASS.
 
 ```bash
-git add internal/store/reads.go internal/store/reads_test.go internal/api/reads.go internal/api/reads_test.go internal/api/server.go
+git add internal/infrastructure/postgres/reads.go internal/infrastructure/postgres/reads_test.go internal/interfaces/rest/reads.go internal/interfaces/rest/reads_test.go internal/interfaces/rest/server.go
 git commit -m "feat: after_seq ledger history endpoint"
 ```
 
@@ -583,9 +583,9 @@ git commit -m "feat: after_seq ledger history endpoint"
 ### Task 3: Reverse an entry — `ReverseEntry` + `POST /groups/{group_id}/entries/{entry_id}/reverse`
 
 **Files:**
-- Create: `internal/store/reversals.go`, `internal/api/reversals.go`
-- Modify: `internal/api/server.go`
-- Test: `internal/store/reversals_test.go`, `internal/api/reversals_test.go`
+- Create: `internal/infrastructure/postgres/reversals.go`, `internal/interfaces/rest/reversals.go`
+- Modify: `internal/interfaces/rest/server.go`
+- Test: `internal/infrastructure/postgres/reversals_test.go`, `internal/interfaces/rest/reversals_test.go`
 
 **Interfaces:**
 - Produces:
@@ -596,7 +596,7 @@ git commit -m "feat: after_seq ledger history endpoint"
 
 - [ ] **Step 1: Write the failing store tests**
 
-`internal/store/reversals_test.go`:
+`internal/infrastructure/postgres/reversals_test.go`:
 
 ```go
 package store
@@ -743,12 +743,12 @@ func TestReverseEntry_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run ReverseEntry`
+Run: `go test ./internal/infrastructure/postgres/ -v -run ReverseEntry`
 Expected: compile FAIL — `undefined: ErrAlreadyReversed`, `s.ReverseEntry undefined`.
 
 - [ ] **Step 3: Implement**
 
-`internal/store/reversals.go`:
+`internal/infrastructure/postgres/reversals.go`:
 
 ```go
 package store
@@ -843,12 +843,12 @@ func (s *Store) ReverseEntry(ctx context.Context, key uuid.UUID, groupID, origin
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -race -run ReverseEntry`
+Run: `go test ./internal/infrastructure/postgres/ -v -race -run ReverseEntry`
 Expected: PASS, including the 10-goroutine race — exactly one reversal wins.
 
 - [ ] **Step 5: Handler tests, handler, route**
 
-`internal/api/reversals_test.go`:
+`internal/interfaces/rest/reversals_test.go`:
 
 ```go
 package api
@@ -931,7 +931,7 @@ func TestReverse_ReplayIdempotent(t *testing.T) {
 
 (Add `"context"` and `"net/http/httptest"` to the import list; `gofmt` will order them.)
 
-`internal/api/reversals.go`:
+`internal/interfaces/rest/reversals.go`:
 
 ```go
 package api
@@ -947,7 +947,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/store"
+	"tallyup/internal/infrastructure/postgres"
 )
 
 type reverseRequest struct {
@@ -1025,7 +1025,7 @@ func (s *Server) handleReverseEntry(w http.ResponseWriter, r *http.Request) {
 
 **Design note on `created_by`:** v1 has no authenticated caller identity, so the client states who is deleting via `requested_by` (mirroring how POST uses `payer_id` as `created_by`). The `members` FK guarantees it's a real member; per-group authorization joins the auth story, which is deferred like all v1 auth.
 
-In `internal/api/server.go`:
+In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("POST /groups/{group_id}/entries/{entry_id}/reverse", srv.handleReverseEntry)
@@ -1033,11 +1033,11 @@ In `internal/api/server.go`:
 
 - [ ] **Step 6: Run all tests, commit**
 
-Run: `go test ./internal/store/ ./internal/api/ -v -race`
+Run: `go test ./internal/infrastructure/postgres/ ./internal/interfaces/rest/ -v -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/reversals.go internal/store/reversals_test.go internal/api/reversals.go internal/api/reversals_test.go internal/api/server.go
+git add internal/infrastructure/postgres/reversals.go internal/infrastructure/postgres/reversals_test.go internal/interfaces/rest/reversals.go internal/interfaces/rest/reversals_test.go internal/interfaces/rest/server.go
 git commit -m "feat: entry reversal with row-lock against double-reversal"
 ```
 
@@ -1046,8 +1046,8 @@ git commit -m "feat: entry reversal with row-lock against double-reversal"
 ### Task 4: Edit an entry — `EditEntry` + `PUT /groups/{group_id}/entries/{entry_id}`
 
 **Files:**
-- Modify: `internal/store/reversals.go`, `internal/api/reversals.go`, `internal/api/server.go`
-- Test: `internal/store/reversals_test.go`, `internal/api/reversals_test.go` (append)
+- Modify: `internal/infrastructure/postgres/reversals.go`, `internal/interfaces/rest/reversals.go`, `internal/interfaces/rest/server.go`
+- Test: `internal/infrastructure/postgres/reversals_test.go`, `internal/interfaces/rest/reversals_test.go` (append)
 
 **Interfaces:**
 - Consumes: the lock/check/insert-reversal steps from Task 3 (extracted into an unexported helper), `CreateEntry`'s insert logic (extracted likewise), `ledger.ComputePostings`.
@@ -1058,7 +1058,7 @@ git commit -m "feat: entry reversal with row-lock against double-reversal"
 
 - [ ] **Step 1: Write the failing store test**
 
-Append to `internal/store/reversals_test.go`:
+Append to `internal/infrastructure/postgres/reversals_test.go`:
 
 ```go
 func TestEditEntry_ReverseAndReplaceAtomically(t *testing.T) {
@@ -1124,14 +1124,14 @@ func TestEditEntry_ReverseAndReplaceAtomically(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run EditEntry`
+Run: `go test ./internal/infrastructure/postgres/ -v -run EditEntry`
 Expected: compile FAIL — `s.EditEntry undefined`.
 
 - [ ] **Step 3: Refactor + implement**
 
 First extract the two helpers (behavior-preserving refactor; run the existing suite after):
 
-In `internal/store/reversals.go`, move the body of `ReverseEntry` between `Begin` and the idempotency-key update into:
+In `internal/infrastructure/postgres/reversals.go`, move the body of `ReverseEntry` between `Begin` and the idempotency-key update into:
 
 ```go
 // reverseWithinTx locks the original, rejects double/invalid reversals, and
@@ -1144,7 +1144,7 @@ func reverseWithinTx(ctx context.Context, tx pgx.Tx, groupID, originalID, revers
 
 …with `ReverseEntry` becoming: begin, `seq, err := reverseWithinTx(…)`, build snapshot, mark key with `RETURNING response_body`, commit. **Copy the SQL verbatim from Task 3 — the helper is a cut-and-paste extraction, not a rewrite.**
 
-In `internal/store/entries.go`, extract from `CreateEntry` the membership check + entry insert + postings insert into:
+In `internal/infrastructure/postgres/entries.go`, extract from `CreateEntry` the membership check + entry insert + postings insert into:
 
 ```go
 // insertEntryWithinTx validates membership and appends one entry with its
@@ -1158,9 +1158,9 @@ func insertEntryWithinTx(ctx context.Context, tx pgx.Tx, in EntryInput, postings
 
 …with `CreateEntry` becoming: zero-sum assert, begin, `seq, err := insertEntryWithinTx(…)`, mark key, commit.
 
-Run: `go test ./internal/store/ ./internal/api/ -race` — the refactor must be green before continuing.
+Run: `go test ./internal/infrastructure/postgres/ ./internal/interfaces/rest/ -race` — the refactor must be green before continuing.
 
-Then `EditEntry` in `internal/store/reversals.go`:
+Then `EditEntry` in `internal/infrastructure/postgres/reversals.go`:
 
 ```go
 // EditEntry = reversal + replacement in one transaction (architecture §3):
@@ -1201,12 +1201,12 @@ func (s *Store) EditEntry(ctx context.Context, key uuid.UUID, groupID, originalI
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -race`
+Run: `go test ./internal/infrastructure/postgres/ -v -race`
 Expected: PASS (new EditEntry test + all prior tests still green after the refactor).
 
 - [ ] **Step 5: Handler test, handler, route**
 
-Append to `internal/api/reversals_test.go`:
+Append to `internal/interfaces/rest/reversals_test.go`:
 
 ```go
 func TestEdit_Endpoint(t *testing.T) {
@@ -1246,7 +1246,7 @@ func TestEdit_Endpoint(t *testing.T) {
 }
 ```
 
-Append to `internal/api/reversals.go` — the edit handler reuses the create-payload decoding from `entries.go` by widening `createEntryRequest` with one optional field (in `internal/api/entries.go`):
+Append to `internal/interfaces/rest/reversals.go` — the edit handler reuses the create-payload decoding from `entries.go` by widening `createEntryRequest` with one optional field (in `internal/interfaces/rest/entries.go`):
 
 ```go
 type createEntryRequest struct {
@@ -1352,9 +1352,9 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-**Second refactor requirement:** `buildPostings(req createEntryRequest) ([]ledger.Posting, []byte, []uuid.UUID, error)` does not exist yet — extract it from the POST handler's `switch req.Kind` block in `internal/api/entries.go` (the expense/settlement postings computation, split-rule marshaling, and participant normalization), and make the POST handler call it too. One decode path, two endpoints.
+**Second refactor requirement:** `buildPostings(req createEntryRequest) ([]ledger.Posting, []byte, []uuid.UUID, error)` does not exist yet — extract it from the POST handler's `switch req.Kind` block in `internal/interfaces/rest/entries.go` (the expense/settlement postings computation, split-rule marshaling, and participant normalization), and make the POST handler call it too. One decode path, two endpoints.
 
-In `internal/api/server.go`:
+In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("PUT /groups/{group_id}/entries/{entry_id}", srv.handleEditEntry)
@@ -1366,7 +1366,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/ internal/api/
+git add internal/infrastructure/postgres/ internal/interfaces/rest/
 git commit -m "feat: atomic edit as reversal plus replacement entry"
 ```
 
@@ -1375,8 +1375,8 @@ git commit -m "feat: atomic edit as reversal plus replacement entry"
 ### Task 5: Integrity checks — `CheckIntegrity`
 
 **Files:**
-- Create: `internal/store/integrity.go`
-- Test: `internal/store/integrity_test.go`
+- Create: `internal/infrastructure/postgres/integrity.go`
+- Test: `internal/infrastructure/postgres/integrity_test.go`
 
 **Interfaces:**
 - Produces:
@@ -1385,7 +1385,7 @@ git commit -m "feat: atomic edit as reversal plus replacement entry"
 
 - [ ] **Step 1: Write the failing test**
 
-`internal/store/integrity_test.go`:
+`internal/infrastructure/postgres/integrity_test.go`:
 
 ```go
 package store
@@ -1421,12 +1421,12 @@ func TestCheckIntegrity_CleanLedger(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run CheckIntegrity`
+Run: `go test ./internal/infrastructure/postgres/ -v -run CheckIntegrity`
 Expected: compile FAIL — `s.CheckIntegrity undefined`.
 
 - [ ] **Step 3: Implement**
 
-`internal/store/integrity.go`:
+`internal/infrastructure/postgres/integrity.go`:
 
 ```go
 package store
@@ -1474,7 +1474,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/integrity.go internal/store/integrity_test.go
+git add internal/infrastructure/postgres/integrity.go internal/infrastructure/postgres/integrity_test.go
 git commit -m "feat: ledger integrity checks"
 ```
 

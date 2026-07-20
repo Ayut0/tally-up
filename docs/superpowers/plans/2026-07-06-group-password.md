@@ -25,17 +25,17 @@
 ```
 migrations/0002_group_password.up.sql
 migrations/0002_group_password.down.sql
-internal/store/migrations/0002_group_password.up.sql   — embedded copy
-internal/store/migrations/0002_group_password.down.sql
+internal/infrastructure/postgres/migrations/0002_group_password.up.sql   — embedded copy
+internal/infrastructure/postgres/migrations/0002_group_password.down.sql
 internal/auth/token.go              — Sign, Verify, Token
 internal/auth/token_test.go
-internal/store/password.go         — GetPasswordState, SetPassword, VerifyPassword
-internal/store/password_test.go
-internal/api/password.go           — PUT password, POST unlock, GET password-required
-internal/api/password_test.go
-internal/api/middleware.go         — passwordMiddleware
-internal/api/middleware_test.go
-internal/api/server.go             — modify: NewServer takes a token secret, wires middleware
+internal/infrastructure/postgres/password.go         — GetPasswordState, SetPassword, VerifyPassword
+internal/infrastructure/postgres/password_test.go
+internal/interfaces/rest/password.go           — PUT password, POST unlock, GET password-required
+internal/interfaces/rest/password_test.go
+internal/interfaces/rest/middleware.go         — passwordMiddleware
+internal/interfaces/rest/middleware_test.go
+internal/interfaces/rest/server.go             — modify: NewServer takes a token secret, wires middleware
 cmd/api/main.go                    — modify: TOKEN_SIGNING_SECRET env var
 web/lib/groupAuth.ts               — token storage (localStorage)
 web/lib/groupAuth.test.ts
@@ -48,9 +48,9 @@ web/app/g/[groupId]/layout.tsx     — unlock gate for the whole group route tre
 ### Task 1: Schema migration + `GetPasswordState`
 
 **Files:**
-- Create: `migrations/0002_group_password.up.sql`, `migrations/0002_group_password.down.sql`, and identical copies at `internal/store/migrations/0002_group_password.up.sql` / `.down.sql` (the embedded copy `go:embed` reads — same two-copy pattern as migration `0001`)
-- Modify: `internal/store/groups.go` (add `GetPasswordState`)
-- Test: `internal/store/password_test.go`
+- Create: `migrations/0002_group_password.up.sql`, `migrations/0002_group_password.down.sql`, and identical copies at `internal/infrastructure/postgres/migrations/0002_group_password.up.sql` / `.down.sql` (the embedded copy `go:embed` reads — same two-copy pattern as migration `0001`)
+- Modify: `internal/infrastructure/postgres/groups.go` (add `GetPasswordState`)
+- Test: `internal/infrastructure/postgres/password_test.go`
 
 **Interfaces:**
 - Consumes: `TestStore`, `ErrGroupNotFound` (already defined in `groups.go`).
@@ -77,12 +77,12 @@ ALTER TABLE groups DROP COLUMN password_hash;
 Copy both into the embedded directory:
 
 ```bash
-cp migrations/0002_group_password.up.sql migrations/0002_group_password.down.sql internal/store/migrations/
+cp migrations/0002_group_password.up.sql migrations/0002_group_password.down.sql internal/infrastructure/postgres/migrations/
 ```
 
 - [ ] **Step 2: Write the failing test**
 
-`internal/store/password_test.go`:
+`internal/infrastructure/postgres/password_test.go`:
 
 ```go
 package store
@@ -117,12 +117,12 @@ func TestGetPasswordState_UnknownGroup(t *testing.T) {
 
 - [ ] **Step 3: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run PasswordState`
+Run: `go test ./internal/infrastructure/postgres/ -v -run PasswordState`
 Expected: compile FAIL — `s.GetPasswordState undefined`. (If migration 0002 isn't applied to a fresh `TestStore`, you'd instead see a "column password_hash does not exist" runtime error once the function compiles — the migration copy step above prevents that.)
 
 - [ ] **Step 4: Implement**
 
-Append to `internal/store/groups.go`:
+Append to `internal/infrastructure/postgres/groups.go`:
 
 ```go
 type PasswordState struct {
@@ -150,13 +150,13 @@ func (s *Store) GetPasswordState(ctx context.Context, groupID uuid.UUID) (Passwo
 
 - [ ] **Step 5: Run tests, commit**
 
-Run: `go test ./internal/store/ -v -run PasswordState`
+Run: `go test ./internal/infrastructure/postgres/ -v -run PasswordState`
 Expected: PASS.
 
 ```bash
 git add migrations/0002_group_password.up.sql migrations/0002_group_password.down.sql \
-        internal/store/migrations/0002_group_password.up.sql internal/store/migrations/0002_group_password.down.sql \
-        internal/store/groups.go internal/store/password_test.go
+        internal/infrastructure/postgres/migrations/0002_group_password.up.sql internal/infrastructure/postgres/migrations/0002_group_password.down.sql \
+        internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/password_test.go
 git commit -m "feat: group password schema + password state read"
 ```
 
@@ -350,9 +350,9 @@ git commit -m "feat: stateless HMAC-signed group unlock tokens"
 ### Task 3: `SetPassword` + `PUT /groups/{group_id}/password`
 
 **Files:**
-- Create: `internal/api/password.go`
-- Modify: `internal/store/groups.go` (add `SetPassword`)
-- Test: append to `internal/store/password_test.go`, create `internal/api/password_test.go`
+- Create: `internal/interfaces/rest/password.go`
+- Modify: `internal/infrastructure/postgres/groups.go` (add `SetPassword`)
+- Test: append to `internal/infrastructure/postgres/password_test.go`, create `internal/interfaces/rest/password_test.go`
 
 **Interfaces:**
 - Produces:
@@ -361,7 +361,7 @@ git commit -m "feat: stateless HMAC-signed group unlock tokens"
 
 - [ ] **Step 1: Write the failing store tests**
 
-Append to `internal/store/password_test.go`:
+Append to `internal/infrastructure/postgres/password_test.go`:
 
 ```go
 func TestSetPassword_SetThenVerifyHash(t *testing.T) {
@@ -410,7 +410,7 @@ func TestSetPassword_UnknownGroup(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run SetPassword`
+Run: `go test ./internal/infrastructure/postgres/ -v -run SetPassword`
 Expected: compile FAIL — `s.SetPassword undefined`.
 
 - [ ] **Step 3: Implement**
@@ -419,7 +419,7 @@ Expected: compile FAIL — `s.SetPassword undefined`.
 go get golang.org/x/crypto/bcrypt@latest
 ```
 
-Append to `internal/store/groups.go`:
+Append to `internal/infrastructure/postgres/groups.go`:
 
 ```go
 // SetPassword hashes and stores a new password, or clears it (password=nil,
@@ -449,16 +449,16 @@ func (s *Store) SetPassword(ctx context.Context, groupID uuid.UUID, password *st
 }
 ```
 
-Add `"golang.org/x/crypto/bcrypt"` to `internal/store/groups.go`'s imports.
+Add `"golang.org/x/crypto/bcrypt"` to `internal/infrastructure/postgres/groups.go`'s imports.
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run SetPassword`
+Run: `go test ./internal/infrastructure/postgres/ -v -run SetPassword`
 Expected: PASS.
 
 - [ ] **Step 5: API test, handler, route**
 
-`internal/api/password_test.go`:
+`internal/interfaces/rest/password_test.go`:
 
 ```go
 package api
@@ -502,7 +502,7 @@ func TestSetPassword_ClearWithNull(t *testing.T) {
 }
 ```
 
-`internal/api/password.go`:
+`internal/interfaces/rest/password.go`:
 
 ```go
 package api
@@ -515,7 +515,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/store"
+	"tallyup/internal/infrastructure/postgres"
 )
 
 type setPasswordRequest struct {
@@ -550,7 +550,7 @@ func (s *Server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-In `internal/api/server.go`:
+In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("PUT /groups/{group_id}/password", srv.handleSetPassword)
@@ -562,7 +562,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/groups.go internal/store/password_test.go internal/api/password.go internal/api/password_test.go internal/api/server.go go.mod go.sum
+git add internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/password_test.go internal/interfaces/rest/password.go internal/interfaces/rest/password_test.go internal/interfaces/rest/server.go go.mod go.sum
 git commit -m "feat: set/clear group password"
 ```
 
@@ -571,9 +571,9 @@ git commit -m "feat: set/clear group password"
 ### Task 4: `VerifyPassword` + unlock + password-required endpoints
 
 **Files:**
-- Modify: `internal/store/groups.go` (add `VerifyPassword`), `internal/api/password.go` (add two handlers)
-- Modify: `internal/api/server.go`
-- Test: append to `internal/store/password_test.go`, `internal/api/password_test.go`
+- Modify: `internal/infrastructure/postgres/groups.go` (add `VerifyPassword`), `internal/interfaces/rest/password.go` (add two handlers)
+- Modify: `internal/interfaces/rest/server.go`
+- Test: append to `internal/infrastructure/postgres/password_test.go`, `internal/interfaces/rest/password_test.go`
 
 **Interfaces:**
 - Produces:
@@ -584,7 +584,7 @@ git commit -m "feat: set/clear group password"
 
 - [ ] **Step 1: Write the failing store tests**
 
-Append to `internal/store/password_test.go`:
+Append to `internal/infrastructure/postgres/password_test.go`:
 
 ```go
 func TestVerifyPassword_CorrectAndWrong(t *testing.T) {
@@ -616,12 +616,12 @@ func TestVerifyPassword_NoPasswordSet(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run VerifyPassword`
+Run: `go test ./internal/infrastructure/postgres/ -v -run VerifyPassword`
 Expected: compile FAIL — `s.VerifyPassword undefined`.
 
 - [ ] **Step 3: Implement the store side**
 
-Append to `internal/store/groups.go`:
+Append to `internal/infrastructure/postgres/groups.go`:
 
 ```go
 var (
@@ -656,12 +656,12 @@ func (s *Store) VerifyPassword(ctx context.Context, groupID uuid.UUID, password 
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run VerifyPassword`
+Run: `go test ./internal/infrastructure/postgres/ -v -run VerifyPassword`
 Expected: PASS.
 
 - [ ] **Step 5: API tests, handlers, routes**
 
-Append to `internal/api/password_test.go`:
+Append to `internal/interfaces/rest/password_test.go`:
 
 ```go
 func TestPasswordRequired_Endpoint(t *testing.T) {
@@ -740,7 +740,7 @@ func TestUnlock_NoPasswordSetIs400(t *testing.T) {
 
 (`uuid` is already imported at the top of this file, added in Task 3.)
 
-Append to `internal/api/password.go`:
+Append to `internal/interfaces/rest/password.go`:
 
 ```go
 const unlockTokenTTL = 30 * 24 * time.Hour
@@ -812,9 +812,9 @@ func (s *Server) handleUnlock(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-Add `"time"` and `"tallyup/internal/auth"` to `internal/api/password.go`'s imports.
+Add `"time"` and `"tallyup/internal/auth"` to `internal/interfaces/rest/password.go`'s imports.
 
-`Server` needs the signing secret. In `internal/api/server.go`, modify:
+`Server` needs the signing secret. In `internal/interfaces/rest/server.go`, modify:
 
 ```go
 type Server struct {
@@ -832,7 +832,7 @@ func NewServer(s *store.Store, corsOrigin string, tokenSecret []byte) http.Handl
 }
 ```
 
-Update every caller of `NewServer`: `cmd/api/main.go` → `api.NewServer(s, os.Getenv("CORS_ORIGIN"), []byte(os.Getenv("TOKEN_SIGNING_SECRET")))`; the test helper `newTestServer` in `internal/api/entries_test.go` → `NewServer(s, "*", []byte("test-signing-secret"))`.
+Update every caller of `NewServer`: `cmd/api/main.go` → `api.NewServer(s, os.Getenv("CORS_ORIGIN"), []byte(os.Getenv("TOKEN_SIGNING_SECRET")))`; the test helper `newTestServer` in `internal/interfaces/rest/entries_test.go` → `NewServer(s, "*", []byte("test-signing-secret"))`.
 
 - [ ] **Step 6: Run everything, commit**
 
@@ -840,7 +840,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/groups.go internal/store/password_test.go internal/api/password.go internal/api/password_test.go internal/api/server.go internal/api/entries_test.go cmd/
+git add internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/password_test.go internal/interfaces/rest/password.go internal/interfaces/rest/password_test.go internal/interfaces/rest/server.go internal/interfaces/rest/entries_test.go cmd/
 git commit -m "feat: password-required check and unlock token issuance"
 ```
 
@@ -849,9 +849,9 @@ git commit -m "feat: password-required check and unlock token issuance"
 ### Task 5: Enforcement middleware
 
 **Files:**
-- Create: `internal/api/middleware.go`
-- Modify: `internal/api/server.go`
-- Test: `internal/api/middleware_test.go`
+- Create: `internal/interfaces/rest/middleware.go`
+- Modify: `internal/interfaces/rest/server.go`
+- Test: `internal/interfaces/rest/middleware_test.go`
 
 **Interfaces:**
 - Consumes: `store.GetPasswordState`, `auth.Verify`.
@@ -859,7 +859,7 @@ git commit -m "feat: password-required check and unlock token issuance"
 
 - [ ] **Step 1: Write the failing tests**
 
-`internal/api/middleware_test.go`:
+`internal/interfaces/rest/middleware_test.go`:
 
 ```go
 package api
@@ -1001,12 +1001,12 @@ func TestMiddleware_ExemptRoutesNeedNoToken(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/api/ -v -run Middleware`
+Run: `go test ./internal/interfaces/rest/ -v -run Middleware`
 Expected: FAIL — `TestMiddleware_LockedGroupRejectsNoToken` gets 200 instead of 401 (no enforcement wired yet).
 
 - [ ] **Step 3: Implement**
 
-`internal/api/middleware.go`:
+`internal/interfaces/rest/middleware.go`:
 
 ```go
 package api
@@ -1018,7 +1018,7 @@ import (
 	"github.com/google/uuid"
 
 	"tallyup/internal/auth"
-	"tallyup/internal/store"
+	"tallyup/internal/infrastructure/postgres"
 )
 
 // passwordMiddleware enforces the optional per-group password on every
@@ -1084,7 +1084,7 @@ func groupIDFromPath(path string) (uuid.UUID, bool) {
 }
 ```
 
-Wire it into `NewServer` in `internal/api/server.go`, between the mux and the CORS wrap:
+Wire it into `NewServer` in `internal/interfaces/rest/server.go`, between the mux and the CORS wrap:
 
 ```go
 	return corsMiddleware(corsOrigin, passwordMiddleware(s, tokenSecret, mux))
@@ -1094,11 +1094,11 @@ Wire it into `NewServer` in `internal/api/server.go`, between the mux and the CO
 
 - [ ] **Step 4: Run tests, commit**
 
-Run: `go test ./internal/api/ -v -run Middleware`
+Run: `go test ./internal/interfaces/rest/ -v -run Middleware`
 Expected: PASS (7/7). Then: `go test ./... -race` for the full suite.
 
 ```bash
-git add internal/api/middleware.go internal/api/middleware_test.go internal/api/server.go
+git add internal/interfaces/rest/middleware.go internal/interfaces/rest/middleware_test.go internal/interfaces/rest/server.go
 git commit -m "feat: enforce per-group password on every group-scoped route"
 ```
 

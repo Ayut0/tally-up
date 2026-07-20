@@ -1,4 +1,4 @@
-package api
+package rest
 
 import (
 	"bytes"
@@ -12,8 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/ledger"
-	"tallyup/internal/store"
+	"tallyup/internal/application/addentry"
+	"tallyup/internal/domain/ledger"
+	"tallyup/internal/infrastructure/postgres"
 )
 
 var (
@@ -26,7 +27,7 @@ var (
 // seedGroup inserts the standard 3-member test group.
 // One statement per Exec: pgx v5's extended protocol rejects multi-statement
 // calls, and bind parameters can never span statements anyway.
-func seedGroup(t *testing.T, s *store.Store) {
+func seedGroup(t *testing.T, s *postgres.Store) {
 	t.Helper()
 	ctx := context.Background()
 	stmts := []struct {
@@ -68,10 +69,11 @@ func post(t *testing.T, srv *httptest.Server, key uuid.UUID, body []byte) (*http
 	return resp, rb
 }
 
-func newTestServer(t *testing.T) (*httptest.Server, *store.Store) {
-	s := store.TestStore(t)
+func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
+	s := postgres.TestStore(t)
 	seedGroup(t, s)
-	srv := httptest.NewServer(NewServer(s))
+	svc := &addentry.Service{Gate: s, Entries: s}
+	srv := httptest.NewServer(NewServer(svc))
 	t.Cleanup(srv.Close)
 	return srv, s
 }

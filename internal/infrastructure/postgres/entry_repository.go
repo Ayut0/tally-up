@@ -1,40 +1,24 @@
-package store
+package postgres
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"tallyup/internal/ledger"
+	"tallyup/internal/domain/entry"
+	"tallyup/internal/domain/group"
+	"tallyup/internal/domain/ledger"
 )
 
-var (
-	ErrNotGroupMembers  = errors.New("payer, counterparty, and participants must all be group members")
-	ErrDuplicateEntryID = errors.New("entry id already exists")
-)
+var _ entry.Repository = (*Store)(nil)
 
-type EntryInput struct {
-	ID           uuid.UUID
-	GroupID      uuid.UUID
-	Kind         string
-	PayerID      uuid.UUID
-	Counterparty *uuid.UUID
-	TotalAmount  int64
-	SplitRule    []byte // raw JSON, stored verbatim
-	Participants []uuid.UUID
-	Memo         string
-	OccurredOn   time.Time
-	CreatedBy    uuid.UUID
-}
-
-// CreateEntry runs the write path's single transaction: membership check,
-// entry + postings insert, and marking the idempotency key succeeded with the
+// Create runs the write path's single transaction: membership check, entry
+// + postings insert, and marking the idempotency key succeeded with the
 // response snapshot. postings must already sum to zero (asserted here too).
-func (s *Store) CreateEntry(ctx context.Context, key uuid.UUID, in EntryInput, postings []ledger.Posting) ([]byte, error) {
+func (s *Store) Create(ctx context.Context, key uuid.UUID, in entry.Input, postings []ledger.Posting) ([]byte, error) {
 	var sum int64
 	for _, p := range postings {
 		sum += p.Amount
@@ -69,7 +53,7 @@ func (s *Store) CreateEntry(ctx context.Context, key uuid.UUID, in EntryInput, p
 		return nil, err
 	}
 	if cnt != len(ids) {
-		return nil, ErrNotGroupMembers
+		return nil, group.ErrNotMember
 	}
 
 	var seq int64
@@ -82,7 +66,7 @@ func (s *Store) CreateEntry(ctx context.Context, key uuid.UUID, in EntryInput, p
 		in.SplitRule, in.Participants, in.Memo, in.OccurredOn, in.CreatedBy).Scan(&seq)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-		return nil, ErrDuplicateEntryID
+		return nil, entry.ErrDuplicateID
 	}
 	if err != nil {
 		return nil, err

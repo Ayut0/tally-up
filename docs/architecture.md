@@ -294,7 +294,7 @@ validate payload
 
 ## 9. Build Phases
 
-1. **Ledger core (Go package)** — `internal/ledger`: postings computation for all four split rules, zero-sum + determinism property tests (`testing/quick` or `rapid`). *(The correctness heart. A pure package with tests, before any HTTP or DB.)*
+1. **Ledger core (Go package)** — `internal/domain/ledger`: postings computation for all four split rules, zero-sum + determinism property tests (`testing/quick` or `rapid`). *(The correctness heart. A pure package with tests, before any HTTP or DB.)*
 2. **Write path + idempotency** — HTTP handler, `pgx` transaction, pending-row-first gate, janitor goroutine for stale pendings. Test: fire the same request 50× concurrently → exactly one entry.
 3. **Reads** — balance view, ledger history endpoint, "explain this balance" (replay).
 4. **Reversals** — delete/edit as reversing entries, with the row-lock against double-reversal.
