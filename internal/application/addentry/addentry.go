@@ -33,6 +33,14 @@ type ValidationError struct{ Err error }
 func (e *ValidationError) Error() string { return e.Err.Error() }
 func (e *ValidationError) Unwrap() error { return e.Err }
 
+// GateError wraps an idempotency-gate acquisition failure (a DB-level error
+// from IdempotencyGate.Acquire) so callers can report it distinctly from a
+// persistence failure.
+type GateError struct{ Err error }
+
+func (e *GateError) Error() string { return e.Err.Error() }
+func (e *GateError) Unwrap() error { return e.Err }
+
 // Command is everything AddEntry needs to create one entry.
 type Command struct {
 	ID             uuid.UUID
@@ -73,7 +81,7 @@ func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
 
 	gate, stored, err := s.Gate.Acquire(ctx, cmd.IdempotencyKey, cmd.RequestHash)
 	if err != nil {
-		return Result{}, err
+		return Result{}, &GateError{Err: err}
 	}
 	if gate != entry.GateProceed {
 		return Result{Gate: gate, Body: stored}, nil

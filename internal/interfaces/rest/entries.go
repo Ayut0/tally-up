@@ -76,6 +76,7 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 	})
 
 	var valErr *addentry.ValidationError
+	var gateErr *addentry.GateError
 	switch {
 	case errors.Is(err, addentry.ErrCounterpartyRequired):
 		httpError(w, http.StatusBadRequest, err.Error())
@@ -87,6 +88,8 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, entry.ErrDuplicateID):
 		httpError(w, http.StatusConflict, err.Error())
+	case errors.As(err, &gateErr):
+		httpError(w, http.StatusInternalServerError, "idempotency gate failed")
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, "write failed")
 	default:
