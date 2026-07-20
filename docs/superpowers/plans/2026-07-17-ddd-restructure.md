@@ -797,6 +797,16 @@ type ValidationError struct{ Err error }
 func (e *ValidationError) Error() string { return e.Err.Error() }
 func (e *ValidationError) Unwrap() error { return e.Err }
 
+// GateError wraps an idempotency-gate acquisition failure (a DB-level error
+// from IdempotencyGate.Acquire) so callers can report it distinctly from a
+// persistence failure — the original pre-restructure handler returned a
+// distinct "idempotency gate failed" 500 for this case, separate from
+// "write failed" for a Create failure; this preserves that distinction.
+type GateError struct{ Err error }
+
+func (e *GateError) Error() string { return e.Err.Error() }
+func (e *GateError) Unwrap() error { return e.Err }
+
 // Command is everything AddEntry needs to create one entry.
 type Command struct {
 	ID             uuid.UUID
@@ -837,7 +847,7 @@ func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
 
 	gate, stored, err := s.Gate.Acquire(ctx, cmd.IdempotencyKey, cmd.RequestHash)
 	if err != nil {
-		return Result{}, err
+		return Result{}, &GateError{Err: err}
 	}
 	if gate != entry.GateProceed {
 		return Result{Gate: gate, Body: stored}, nil
@@ -1034,6 +1044,7 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 	})
 
 	var valErr *addentry.ValidationError
+	var gateErr *addentry.GateError
 	switch {
 	case errors.Is(err, addentry.ErrCounterpartyRequired):
 		httpError(w, http.StatusBadRequest, err.Error())
@@ -1045,6 +1056,8 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, entry.ErrDuplicateID):
 		httpError(w, http.StatusConflict, err.Error())
+	case errors.As(err, &gateErr):
+		httpError(w, http.StatusInternalServerError, "idempotency gate failed")
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, "write failed")
 	default:
