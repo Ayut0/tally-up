@@ -31,7 +31,7 @@ func main() {
 
 	s, err := postgres.New(ctx, dbURL)
 	if err != nil {
-		slog.Error("store init", "err", err)
+		slog.Error("postgres init", "err", err)
 		os.Exit(1)
 	}
 	defer s.Pool.Close()
