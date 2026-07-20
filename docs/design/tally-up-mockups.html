@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700;800&amp;family=Spline+Sans+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ece5d8;font-family:Karla,system-ui,sans-serif}
+a{color:#b4562e;text-decoration:none}a:hover{color:#8f3f1d}
+.dv-turn{padding:44px 48px 36px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+.dv-tid{font:700 10px 'Spline Sans Mono',monospace;padding:3px 7px;background:#2b2118;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:800 15px/1.2 Karla,sans-serif;color:#2b2118}
+.dv-sub{font:500 12px/1.5 Karla,sans-serif;color:rgba(43,33,24,.55);margin:0 0 26px;max-width:640px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:700 10.5px 'Spline Sans Mono',monospace;padding:3px 7px;background:rgba(43,33,24,.1);color:#2b2118;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:500 11.5px/1.3 Karla,sans-serif;color:rgba(43,33,24,.6)}
+.dv-card{width:390px;background:#faf6ee;border:1px solid rgba(43,33,24,.12);border-radius:22px;box-shadow:0 2px 10px rgba(43,33,24,.08);overflow:hidden}
+@keyframes pulseIn{0%{background:#f3e7c9}100%{background:transparent}}
+</style>
+</helmet>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">tally-up — warm ledger direction</span></div>
+<p class="dv-sub">Warm paper tones, Karla for UI, Spline Sans Mono for every ¥ figure — the "well-kept ledger" personality. Green/red kept strictly for in-the-black / in-the-red. 390px baseline, one thumb-reachable primary action per screen.</p>
+<div class="dv-opts">
+
+<!-- ============ 01 CREATE ============ -->
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Screen 01 — Create a group</div>
+<div class="dv-card" data-screen-label="01 Create">
+<div style="padding:36px 26px 30px;display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="display:flex;align-items:flex-end;gap:2.5px;height:20px;position:relative;padding-right:3px">
+      <div style="width:3px;height:20px;background:#b4562e;border-radius:2px"></div>
+      <div style="width:3px;height:20px;background:#b4562e;border-radius:2px"></div>
+      <div style="width:3px;height:20px;background:#b4562e;border-radius:2px"></div>
+      <div style="width:3px;height:20px;background:#b4562e;border-radius:2px"></div>
+      <div style="position:absolute;left:-3px;top:8px;width:22px;height:3px;background:#2b2118;border-radius:2px;transform:rotate(-24deg)"></div>
+    </div>
+    <div style="font:800 26px/1 Karla,sans-serif;color:#2b2118;letter-spacing:-.02em">tally-up</div>
+  </div>
+  <div style="font:500 14.5px/1.5 Karla,sans-serif;color:rgba(43,33,24,.6)">Split expenses with your group. No accounts, no installs — just a link.</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Group name</label>
+    <div style="background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:14px 16px;font:600 17px/1 Karla,sans-serif;color:#2b2118">Kyoto Trip</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Members — put yourself first</label>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px">
+        <div style="width:30px;height:30px;border-radius:50%;background:oklch(0.85 0.06 60);display:flex;align-items:center;justify-content:center;font:800 13px Karla,sans-serif;color:#6d4520">Y</div>
+        <div style="flex:1;font:600 16px/1 Karla,sans-serif;color:#2b2118">Yuto</div>
+        <div style="font:700 10.5px 'Spline Sans Mono',monospace;padding:4px 8px;background:#f3e7c9;color:#8a5a1d;border-radius:99px">YOU</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px">
+        <div style="width:30px;height:30px;border-radius:50%;background:oklch(0.85 0.06 150);display:flex;align-items:center;justify-content:center;font:800 13px Karla,sans-serif;color:#3c5c3f">A</div>
+        <div style="flex:1;font:600 16px/1 Karla,sans-serif;color:#2b2118">Aya</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px">
+        <div style="width:30px;height:30px;border-radius:50%;background:oklch(0.85 0.06 250);display:flex;align-items:center;justify-content:center;font:800 13px Karla,sans-serif;color:#3a4e6b">K</div>
+        <div style="flex:1;font:600 16px/1 Karla,sans-serif;color:#2b2118">Kenji</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px">
+        <div style="width:30px;height:30px;border-radius:50%;background:oklch(0.85 0.06 340);display:flex;align-items:center;justify-content:center;font:800 13px Karla,sans-serif;color:#6b3a55">M</div>
+        <div style="flex:1;font:600 16px/1 Karla,sans-serif;color:#2b2118">Mio</div>
+      </div>
+      <button style="display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1.5px dashed rgba(43,33,24,.3);border-radius:12px;padding:13px;font:700 14px Karla,sans-serif;color:rgba(43,33,24,.6);cursor:pointer">+ add member</button>
+    </div>
+  </div>
+  <button style="background:#b4562e;border:none;border-radius:14px;padding:17px;font:800 17px Karla,sans-serif;color:#fff;cursor:pointer;box-shadow:0 3px 0 #8f3f1d;min-height:52px">Create group</button>
+</div>
+</div></div>
+
+<!-- ============ 02 JOIN ============ -->
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Screen 02 — Open the shared link</div>
+<div class="dv-card" data-screen-label="02 Join">
+<div style="padding:44px 26px 36px;display:flex;flex-direction:column;gap:8px">
+  <div style="font:700 12px/1 'Spline Sans Mono',monospace;color:#b4562e;letter-spacing:.1em;text-transform:uppercase">You're invited</div>
+  <div style="font:800 30px/1.15 Karla,sans-serif;color:#2b2118;letter-spacing:-.02em;margin-bottom:6px">Kyoto Trip</div>
+  <div style="font:600 16px/1.4 Karla,sans-serif;color:rgba(43,33,24,.65);margin-bottom:20px">Who are you? Pick your name once — this phone will remember.</div>
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <button style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:16px;padding:18px 18px;cursor:pointer;min-height:64px" style-hover="border-color:#b4562e">
+      <div style="width:38px;height:38px;border-radius:50%;background:oklch(0.85 0.06 60);display:flex;align-items:center;justify-content:center;font:800 16px Karla,sans-serif;color:#6d4520">Y</div>
+      <div style="flex:1;text-align:left;font:700 18px/1 Karla,sans-serif;color:#2b2118">Yuto</div>
+      <div style="font:600 18px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35)">›</div>
+    </button>
+    <button style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:16px;padding:18px 18px;cursor:pointer;min-height:64px" style-hover="border-color:#b4562e">
+      <div style="width:38px;height:38px;border-radius:50%;background:oklch(0.85 0.06 150);display:flex;align-items:center;justify-content:center;font:800 16px Karla,sans-serif;color:#3c5c3f">A</div>
+      <div style="flex:1;text-align:left;font:700 18px/1 Karla,sans-serif;color:#2b2118">Aya</div>
+      <div style="font:600 18px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35)">›</div>
+    </button>
+    <button style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:16px;padding:18px 18px;cursor:pointer;min-height:64px" style-hover="border-color:#b4562e">
+      <div style="width:38px;height:38px;border-radius:50%;background:oklch(0.85 0.06 250);display:flex;align-items:center;justify-content:center;font:800 16px Karla,sans-serif;color:#3a4e6b">K</div>
+      <div style="flex:1;text-align:left;font:700 18px/1 Karla,sans-serif;color:#2b2118">Kenji</div>
+      <div style="font:600 18px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35)">›</div>
+    </button>
+    <button style="display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:16px;padding:18px 18px;cursor:pointer;min-height:64px" style-hover="border-color:#b4562e">
+      <div style="width:38px;height:38px;border-radius:50%;background:oklch(0.85 0.06 340);display:flex;align-items:center;justify-content:center;font:800 16px Karla,sans-serif;color:#6b3a55">M</div>
+      <div style="flex:1;text-align:left;font:700 18px/1 Karla,sans-serif;color:#2b2118">Mio</div>
+      <div style="font:600 18px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35)">›</div>
+    </button>
+  </div>
+  <div style="margin-top:18px;font:500 12.5px/1.5 Karla,sans-serif;color:rgba(43,33,24,.45);text-align:center">Not on the list? Ask whoever made the group to add you.</div>
+</div>
+</div></div>
+
+<!-- ============ 03 BALANCES ============ -->
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Screen 03 — Balances &amp; history (home)</div>
+<div class="dv-card" data-screen-label="03 Balances">
+<div style="position:relative;padding:32px 22px 96px;display:flex;flex-direction:column;gap:22px">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font:800 24px/1.1 Karla,sans-serif;color:#2b2118;letter-spacing:-.02em">Kyoto Trip</div>
+      <div style="font:600 12px/1 Karla,sans-serif;color:rgba(43,33,24,.5);margin-top:5px">4 members · updates live</div>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:2px;height:16px;position:relative">
+      <div style="width:2.5px;height:16px;background:#b4562e;border-radius:2px"></div>
+      <div style="width:2.5px;height:16px;background:#b4562e;border-radius:2px"></div>
+      <div style="width:2.5px;height:16px;background:#b4562e;border-radius:2px"></div>
+      <div style="width:2.5px;height:16px;background:#b4562e;border-radius:2px"></div>
+      <div style="position:absolute;left:-2px;top:6.5px;width:18px;height:2.5px;background:#2b2118;border-radius:2px;transform:rotate(-24deg)"></div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Balances</div>
+    <div style="background:#fff;border:1.5px solid rgba(43,33,24,.12);border-radius:16px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(43,33,24,.08);animation:pulseIn 1.6s ease-out">
+        <div style="width:32px;height:32px;border-radius:50%;background:oklch(0.85 0.06 60);display:flex;align-items:center;justify-content:center;font:800 14px Karla,sans-serif;color:#6d4520">Y</div>
+        <div style="flex:1;font:700 16px/1 Karla,sans-serif;color:#2b2118">Yuto <span style="font:600 12px Karla,sans-serif;color:rgba(43,33,24,.45)">(you)</span></div>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:oklch(0.52 0.12 150);font-variant-numeric:tabular-nums">+¥6,200</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(43,33,24,.08)">
+        <div style="width:32px;height:32px;border-radius:50%;background:oklch(0.85 0.06 250);display:flex;align-items:center;justify-content:center;font:800 14px Karla,sans-serif;color:#3a4e6b">K</div>
+        <div style="flex:1;font:700 16px/1 Karla,sans-serif;color:#2b2118">Kenji</div>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:oklch(0.52 0.12 150);font-variant-numeric:tabular-nums">+¥2,200</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(43,33,24,.08)">
+        <div style="width:32px;height:32px;border-radius:50%;background:oklch(0.85 0.06 150);display:flex;align-items:center;justify-content:center;font:800 14px Karla,sans-serif;color:#3c5c3f">A</div>
+        <div style="flex:1;font:700 16px/1 Karla,sans-serif;color:#2b2118">Aya</div>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:oklch(0.52 0.14 25);font-variant-numeric:tabular-nums">−¥3,400</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px">
+        <div style="width:32px;height:32px;border-radius:50%;background:oklch(0.85 0.06 340);display:flex;align-items:center;justify-content:center;font:800 14px Karla,sans-serif;color:#6b3a55">M</div>
+        <div style="flex:1;font:700 16px/1 Karla,sans-serif;color:#2b2118">Mio</div>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:oklch(0.52 0.14 25);font-variant-numeric:tabular-nums">−¥5,000</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">History</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.12);border-radius:14px;padding:13px 16px">
+        <div style="flex:1;min-width:0">
+          <div style="font:700 15px/1.2 Karla,sans-serif;color:#2b2118">Onsen tickets</div>
+          <div style="font:500 12px/1.2 Karla,sans-serif;color:rgba(43,33,24,.5);margin-top:3px">Kenji paid · today</div>
+        </div>
+        <div style="font:700 15.5px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">¥8,000</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.12);border-radius:14px;padding:13px 16px">
+        <div style="flex:1;min-width:0">
+          <div style="font:700 15px/1.2 Karla,sans-serif;color:#2b2118">Taxi to station</div>
+          <div style="font:500 12px/1.2 Karla,sans-serif;color:rgba(43,33,24,.5);margin-top:3px">Aya paid · yesterday</div>
+        </div>
+        <div style="font:700 15.5px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">¥2,400</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.5);border:1.5px dashed rgba(43,33,24,.15);border-radius:14px;padding:13px 16px">
+        <div style="flex:1;min-width:0">
+          <div style="font:700 15px/1.2 Karla,sans-serif;color:rgba(43,33,24,.4);text-decoration:line-through">Coffee, refunded</div>
+          <div style="font:500 12px/1.2 Karla,sans-serif;color:rgba(43,33,24,.35);margin-top:3px">deleted — the ledger never forgets</div>
+        </div>
+        <div style="font:700 15.5px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35);text-decoration:line-through;font-variant-numeric:tabular-nums">¥600</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;background:#f3e7c9;border-radius:14px;padding:13px 16px">
+    <div style="flex:1;font:600 13px/1.4 Karla,sans-serif;color:#6d4a12">Invite friends — this page's link <em style="font-style:normal;font-weight:800">is</em> the invite.</div>
+    <button style="flex:none;background:#2b2118;border:none;border-radius:10px;padding:10px 14px;font:800 12.5px Karla,sans-serif;color:#fff;cursor:pointer;min-height:38px">Copy link</button>
+  </div>
+  <div style="position:absolute;left:22px;right:22px;bottom:22px">
+    <button style="width:100%;background:#b4562e;border:none;border-radius:16px;padding:17px;font:800 17px Karla,sans-serif;color:#fff;cursor:pointer;box-shadow:0 4px 14px rgba(180,86,46,.4),0 3px 0 #8f3f1d;min-height:56px">+ Add expense</button>
+  </div>
+</div>
+</div></div>
+
+<!-- ============ 04 ADD EXPENSE (EQUAL) ============ -->
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Screen 04 — Add expense · Equal (default)</div>
+<div class="dv-card" data-screen-label="04 Add expense — Equal">
+<div style="padding:30px 22px 28px;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;align-items:center;gap:12px">
+    <button style="width:36px;height:36px;border-radius:50%;background:#fff;border:1.5px solid rgba(43,33,24,.15);font:600 16px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">‹</button>
+    <div style="font:800 22px/1 Karla,sans-serif;color:#2b2118;letter-spacing:-.02em">Add expense</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Total</label>
+    <div style="display:flex;align-items:baseline;gap:6px;background:#fff;border:1.5px solid #b4562e;border-radius:14px;padding:16px 18px">
+      <span style="font:700 20px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45)">¥</span>
+      <span style="font:700 30px/1 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">8,000</span>
+    </div>
+    <div style="font:500 11.5px Karla,sans-serif;color:rgba(43,33,24,.45)">Whole yen only — no decimals, ever.</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Paid by</label>
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px">
+      <div style="width:28px;height:28px;border-radius:50%;background:oklch(0.85 0.06 250);display:flex;align-items:center;justify-content:center;font:800 12px Karla,sans-serif;color:#3a4e6b">K</div>
+      <div style="flex:1;font:700 15.5px Karla,sans-serif;color:#2b2118">Kenji</div>
+      <div style="font:600 14px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35)">▾</div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Who shared it?</label>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:7px;background:#2b2118;border:1.5px solid #2b2118;border-radius:99px;padding:9px 14px;font:700 14px Karla,sans-serif;color:#fff;min-height:38px">✓ Yuto</div>
+      <div style="display:flex;align-items:center;gap:7px;background:#2b2118;border:1.5px solid #2b2118;border-radius:99px;padding:9px 14px;font:700 14px Karla,sans-serif;color:#fff;min-height:38px">✓ Aya</div>
+      <div style="display:flex;align-items:center;gap:7px;background:#2b2118;border:1.5px solid #2b2118;border-radius:99px;padding:9px 14px;font:700 14px Karla,sans-serif;color:#fff;min-height:38px">✓ Kenji</div>
+      <div style="display:flex;align-items:center;gap:7px;background:#2b2118;border:1.5px solid #2b2118;border-radius:99px;padding:9px 14px;font:700 14px Karla,sans-serif;color:#fff;min-height:38px">✓ Mio</div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Split</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;background:rgba(43,33,24,.08);border-radius:12px;padding:4px">
+      <div style="text-align:center;background:#fff;border-radius:9px;padding:9px 0;font:800 13px Karla,sans-serif;color:#2b2118;box-shadow:0 1px 3px rgba(43,33,24,.12)">Equal</div>
+      <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Exact</div>
+      <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Shares</div>
+      <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Percent</div>
+    </div>
+    <div style="background:#f3e7c9;border-radius:12px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:6px 14px;font:600 13.5px 'Spline Sans Mono',monospace;color:#6d4a12;font-variant-numeric:tabular-nums">
+      <span>Yuto ¥2,000</span><span>Aya ¥2,000</span><span>Kenji ¥2,000</span><span>Mio ¥2,000</span>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Memo</label>
+      <div style="background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px;font:600 14.5px Karla,sans-serif;color:#2b2118;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Onsen tickets</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="font:700 12px/1 Karla,sans-serif;color:rgba(43,33,24,.55);letter-spacing:.06em;text-transform:uppercase">Date</label>
+      <div style="background:#fff;border:1.5px solid rgba(43,33,24,.18);border-radius:12px;padding:12px 14px;font:600 14.5px 'Spline Sans Mono',monospace;color:#2b2118">Jul 16</div>
+    </div>
+  </div>
+  <button style="background:#b4562e;border:none;border-radius:14px;padding:17px;font:800 17px Karla,sans-serif;color:#fff;cursor:pointer;box-shadow:0 3px 0 #8f3f1d;min-height:52px">Add</button>
+</div>
+</div></div>
+
+<!-- ============ 04b EXACT ============ -->
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Split mode — Exact (¥ per person)</div>
+<div class="dv-card" data-screen-label="04 Split — Exact">
+<div style="padding:26px 22px 26px;display:flex;flex-direction:column;gap:14px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;background:rgba(43,33,24,.08);border-radius:12px;padding:4px">
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Equal</div>
+    <div style="text-align:center;background:#fff;border-radius:9px;padding:9px 0;font:800 13px Karla,sans-serif;color:#2b2118;box-shadow:0 1px 3px rgba(43,33,24,.12)">Exact</div>
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Shares</div>
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Percent</div>
+  </div>
+  <div style="font:500 12.5px/1.4 Karla,sans-serif;color:rgba(43,33,24,.55)">Enter each person's exact amount. Must add up to the total.</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;font:700 15px Karla,sans-serif;color:#2b2118">Yuto</div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:96px;justify-content:flex-end">
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">¥</span>
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">3,000</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;font:700 15px Karla,sans-serif;color:#2b2118">Aya</div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:96px;justify-content:flex-end">
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">¥</span>
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">2,000</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;font:700 15px Karla,sans-serif;color:#2b2118">Kenji</div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:96px;justify-content:flex-end">
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">¥</span>
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">2,000</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;font:700 15px Karla,sans-serif;color:#2b2118">Mio</div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:96px;justify-content:flex-end">
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">¥</span>
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">1,000</span>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;background:#f3e7c9;border-radius:12px;padding:12px 14px">
+    <div style="font:700 13px Karla,sans-serif;color:#6d4a12">Adds up ✓</div>
+    <div style="font:700 14px 'Spline Sans Mono',monospace;color:#6d4a12;font-variant-numeric:tabular-nums">¥8,000 / ¥8,000</div>
+  </div>
+</div>
+</div></div>
+
+<!-- ============ 04c SHARES ============ -->
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Split mode — Shares</div>
+<div class="dv-card" data-screen-label="04 Split — Shares">
+<div style="padding:26px 22px 26px;display:flex;flex-direction:column;gap:14px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;background:rgba(43,33,24,.08);border-radius:12px;padding:4px">
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Equal</div>
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Exact</div>
+    <div style="text-align:center;background:#fff;border-radius:9px;padding:9px 0;font:800 13px Karla,sans-serif;color:#2b2118;box-shadow:0 1px 3px rgba(43,33,24,.12)">Shares</div>
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Percent</div>
+  </div>
+  <div style="font:500 12.5px/1.4 Karla,sans-serif;color:rgba(43,33,24,.55)">Weight by shares — e.g. a couple counts as 2. Amounts reflow live.</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Yuto</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥3,200</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">−</button>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;min-width:20px;text-align:center">2</div>
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">+</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Aya</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥1,600</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">−</button>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;min-width:20px;text-align:center">1</div>
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">+</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Kenji</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥1,600</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">−</button>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;min-width:20px;text-align:center">1</div>
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">+</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Mio</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥1,600</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">−</button>
+        <div style="font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;min-width:20px;text-align:center">1</div>
+        <button style="width:38px;height:38px;border-radius:10px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);font:700 17px 'Spline Sans Mono',monospace;color:#2b2118;cursor:pointer">+</button>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;background:#f3e7c9;border-radius:12px;padding:12px 14px">
+    <div style="font:700 13px Karla,sans-serif;color:#6d4a12">5 shares total</div>
+    <div style="font:700 14px 'Spline Sans Mono',monospace;color:#6d4a12;font-variant-numeric:tabular-nums">¥8,000 booked exactly</div>
+  </div>
+</div>
+</div></div>
+
+<!-- ============ 04d PERCENT ============ -->
+<div class="dv-opt" id="1g"><div class="dv-olabel"><a class="dv-oid" href="#1g">1g</a>Split mode — Percent</div>
+<div class="dv-card" data-screen-label="04 Split — Percent">
+<div style="padding:26px 22px 26px;display:flex;flex-direction:column;gap:14px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;background:rgba(43,33,24,.08);border-radius:12px;padding:4px">
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Equal</div>
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Exact</div>
+    <div style="text-align:center;border-radius:9px;padding:9px 0;font:700 13px Karla,sans-serif;color:rgba(43,33,24,.5)">Shares</div>
+    <div style="text-align:center;background:#fff;border-radius:9px;padding:9px 0;font:800 13px Karla,sans-serif;color:#2b2118;box-shadow:0 1px 3px rgba(43,33,24,.12)">Percent</div>
+  </div>
+  <div style="font:500 12.5px/1.4 Karla,sans-serif;color:rgba(43,33,24,.55)">Percentages must total 100. The preview shows the exact yen booked — rounding included.</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Yuto</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥2,667</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:72px;justify-content:flex-end">
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">33.4</span>
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">%</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Aya</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥2,667</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:72px;justify-content:flex-end">
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">33.3</span>
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">%</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid rgba(43,33,24,.15);border-radius:12px;padding:11px 14px">
+      <div style="flex:1;min-width:0">
+        <div style="font:700 15px Karla,sans-serif;color:#2b2118">Kenji</div>
+        <div style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.45);margin-top:2px;font-variant-numeric:tabular-nums">→ ¥2,666</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:4px;background:#faf6ee;border:1.5px solid rgba(43,33,24,.2);border-radius:9px;padding:8px 12px;min-width:72px;justify-content:flex-end">
+        <span style="font:700 16px 'Spline Sans Mono',monospace;color:#2b2118;font-variant-numeric:tabular-nums">33.3</span>
+        <span style="font:600 12px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.4)">%</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.45);border:1.5px solid rgba(43,33,24,.08);border-radius:12px;padding:11px 14px;opacity:.55">
+      <div style="flex:1;font:700 15px Karla,sans-serif;color:#2b2118">Mio <span style="font:600 11.5px Karla,sans-serif;color:rgba(43,33,24,.5)">— not sharing</span></div>
+      <div style="font:600 13px 'Spline Sans Mono',monospace;color:rgba(43,33,24,.35)">—</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;background:#f3e7c9;border-radius:12px;padding:12px 14px">
+    <div style="font:700 13px Karla,sans-serif;color:#6d4a12">100% ✓</div>
+    <div style="font:700 14px 'Spline Sans Mono',monospace;color:#6d4a12;font-variant-numeric:tabular-nums">¥8,000 booked exactly</div>
+  </div>
+</div>
+</div></div>
+
+<!-- ============ EMPTY STATE ============ -->
+<div class="dv-opt" id="1h"><div class="dv-olabel"><a class="dv-oid" href="#1h">1h</a>Bonus — brand-new group, no expenses yet</div>
+<div class="dv-card" data-screen-label="03 Empty state">
+<div style="position:relative;padding:32px 22px 96px;display:flex;flex-direction:column;gap:22px;min-height:420px">
+  <div style="font:800 24px/1.1 Karla,sans-serif;color:#2b2118;letter-spacing:-.02em">Kyoto Trip</div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:36px 20px;background:#fff;border:1.5px dashed rgba(43,33,24,.2);border-radius:18px;text-align:center">
+    <div style="display:flex;align-items:flex-end;gap:3px;height:26px;position:relative;opacity:.8">
+      <div style="width:4px;height:26px;background:#e4d5b8;border-radius:2px"></div>
+      <div style="width:4px;height:26px;background:#e4d5b8;border-radius:2px"></div>
+      <div style="width:4px;height:26px;background:#e4d5b8;border-radius:2px"></div>
+      <div style="width:4px;height:26px;background:#e4d5b8;border-radius:2px"></div>
+    </div>
+    <div style="font:800 17px/1.3 Karla,sans-serif;color:#2b2118">A fresh ledger</div>
+    <div style="font:500 14px/1.5 Karla,sans-serif;color:rgba(43,33,24,.55);max-width:250px">Everyone starts at ¥0. Add the first expense and balances appear here — exact, always.</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;background:#f3e7c9;border-radius:14px;padding:13px 16px">
+    <div style="flex:1;font:600 13px/1.4 Karla,sans-serif;color:#6d4a12">3 friends haven't opened the link yet.</div>
+    <button style="flex:none;background:#2b2118;border:none;border-radius:10px;padding:10px 14px;font:800 12.5px Karla,sans-serif;color:#fff;cursor:pointer;min-height:38px">Copy link</button>
+  </div>
+  <div style="position:absolute;left:22px;right:22px;bottom:22px">
+    <button style="width:100%;background:#b4562e;border:none;border-radius:16px;padding:17px;font:800 17px Karla,sans-serif;color:#fff;cursor:pointer;box-shadow:0 4px 14px rgba(180,86,46,.4),0 3px 0 #8f3f1d;min-height:56px">+ Add expense</button>
+  </div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "make it an interactive prototype" · "show the Settle up screen" · "try a cooler / greener palette"</p>
+</section>
+</x-dc>
+</body>
+</html>
