@@ -8,7 +8,7 @@
 
 **Tech Stack:** Same as prior plans — Go 1.23+, `pgx/v5`, stdlib ServeMux, `TEST_DATABASE_URL`-gated integration tests, `rapid` for property tests.
 
-**Prerequisites:** All four prior plans are executed: `internal/ledger`, `internal/store` (with `Store`, `TestStore`, `GetBalances`, `AcquireIdempotencyKey`, `CreateGroup`/`GetGroup`), `internal/api` (with `NewServer`, `httpError`/`writeJSON`, `newTestServer`/`seedGroup`/`post` test helpers, `gID`/`yuto`/`memA`/`memB` fixtures).
+**Prerequisites:** All four prior plans are executed: `internal/domain/ledger`, `internal/infrastructure/postgres` (with `Store`, `TestStore`, `GetBalances`, `AcquireIdempotencyKey`, `CreateGroup`/`GetGroup`), `internal/interfaces/rest` (with `NewServer`, `httpError`/`writeJSON`, `newTestServer`/`seedGroup`/`post` test helpers, `gID`/`yuto`/`memA`/`memB` fixtures).
 
 ## Global Constraints
 
@@ -24,14 +24,14 @@
 ## File Structure
 
 ```
-internal/store/pairwise.go        — GetPairwiseBalances
-internal/store/pairwise_test.go
-internal/store/members.go         — AddMember, RemoveMember, ErrNonzeroBalance
-internal/store/members_test.go
-internal/api/pairwise.go          — GET /groups/{group_id}/pairwise-balances
-internal/api/members.go           — POST/DELETE /groups/{group_id}/members[/{member_id}]
-internal/api/members_test.go
-internal/api/server.go            — modify: register 3 new routes
+internal/infrastructure/postgres/pairwise.go        — GetPairwiseBalances
+internal/infrastructure/postgres/pairwise_test.go
+internal/infrastructure/postgres/members.go         — AddMember, RemoveMember, ErrNonzeroBalance
+internal/infrastructure/postgres/members_test.go
+internal/interfaces/rest/pairwise.go          — GET /groups/{group_id}/pairwise-balances
+internal/interfaces/rest/members.go           — POST/DELETE /groups/{group_id}/members[/{member_id}]
+internal/interfaces/rest/members_test.go
+internal/interfaces/rest/server.go            — modify: register 3 new routes
 web/lib/api.ts                    — modify: getPairwiseBalances, addMember, removeMember
 web/lib/types.ts                  — modify: PairwiseBalance type
 web/app/g/[groupId]/owes/page.tsx — "who owes whom" screen
@@ -42,18 +42,18 @@ web/app/g/[groupId]/owes/page.tsx — "who owes whom" screen
 ### Task 1: `GetPairwiseBalances` — derived pairwise read-model
 
 **Files:**
-- Create: `internal/store/pairwise.go`
-- Test: `internal/store/pairwise_test.go`
+- Create: `internal/infrastructure/postgres/pairwise.go`
+- Test: `internal/infrastructure/postgres/pairwise_test.go`
 
 **Interfaces:**
-- Consumes: `TestStore`, `seedReadGroup`/`addExpense`/`addSettlement`/`rGroup`/`rYuto`/`rMemA`/`rMemB` (test helpers already defined in `internal/store/reads_test.go` and `internal/store/settle_test.go` — same package, no import needed), `GetBalances`.
+- Consumes: `TestStore`, `seedReadGroup`/`addExpense`/`addSettlement`/`rGroup`/`rYuto`/`rMemA`/`rMemB` (test helpers already defined in `internal/infrastructure/postgres/reads_test.go` and `internal/infrastructure/postgres/settle_test.go` — same package, no import needed), `GetBalances`.
 - Produces:
   - `store.PairwiseBalance{A uuid.UUID; B uuid.UUID; Amount int64}` (JSON `a`, `b`, `amount`) — by convention `A`'s bytes `<` `B`'s bytes; `Amount` is never `0`.
   - `(*Store) GetPairwiseBalances(ctx context.Context, groupID uuid.UUID) ([]PairwiseBalance, error)` — sorted by `(A, B)` ascending for determinism.
 
 - [ ] **Step 1: Write the failing tests**
 
-`internal/store/pairwise_test.go`:
+`internal/infrastructure/postgres/pairwise_test.go`:
 
 ```go
 package store
@@ -192,7 +192,7 @@ func TestProperty_PairwiseNetsToMemberBalance(t *testing.T) {
 }
 ```
 
-Add two small test helpers this file needs, appended to `internal/store/reads_test.go` (same package as the entry point for constructing arbitrary-split test expenses — `addExpense` only supports equal splits):
+Add two small test helpers this file needs, appended to `internal/infrastructure/postgres/reads_test.go` (same package as the entry point for constructing arbitrary-split test expenses — `addExpense` only supports equal splits):
 
 ```go
 // computeExactSplit builds the postings for an exact split without going
@@ -228,12 +228,12 @@ func addExpenseWithPostings(t *testing.T, s *Store, id uuid.UUID, payer uuid.UUI
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run PairwiseBalances`
+Run: `go test ./internal/infrastructure/postgres/ -v -run PairwiseBalances`
 Expected: compile FAIL — `undefined: PairwiseBalance`, `s.GetPairwiseBalances undefined`.
 
 - [ ] **Step 3: Implement**
 
-`internal/store/pairwise.go`:
+`internal/infrastructure/postgres/pairwise.go`:
 
 ```go
 package store
@@ -340,13 +340,13 @@ func (s *Store) GetPairwiseBalances(ctx context.Context, groupID uuid.UUID) ([]P
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `go test ./internal/store/ -v -run PairwiseBalances`
-Expected: PASS. Then: `go test ./internal/store/ -v -run Property` to confirm the cross-check property test passes alongside the existing ones.
+Run: `go test ./internal/infrastructure/postgres/ -v -run PairwiseBalances`
+Expected: PASS. Then: `go test ./internal/infrastructure/postgres/ -v -run Property` to confirm the cross-check property test passes alongside the existing ones.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add internal/store/pairwise.go internal/store/pairwise_test.go internal/store/reads_test.go
+git add internal/infrastructure/postgres/pairwise.go internal/infrastructure/postgres/pairwise_test.go internal/infrastructure/postgres/reads_test.go
 git commit -m "feat: derive true pairwise who-owes-whom balances from the ledger"
 ```
 
@@ -355,9 +355,9 @@ git commit -m "feat: derive true pairwise who-owes-whom balances from the ledger
 ### Task 2: `GET /groups/{group_id}/pairwise-balances`
 
 **Files:**
-- Create: `internal/api/pairwise.go`
-- Modify: `internal/api/server.go`
-- Test: append to `internal/api/reads_test.go` (same package; reuses `getJSON`, `newTestServer`, `post`, `expenseBody`, `gID`)
+- Create: `internal/interfaces/rest/pairwise.go`
+- Modify: `internal/interfaces/rest/server.go`
+- Test: append to `internal/interfaces/rest/reads_test.go` (same package; reuses `getJSON`, `newTestServer`, `post`, `expenseBody`, `gID`)
 
 **Interfaces:**
 - Consumes: `store.GetPairwiseBalances`, `store.PairwiseBalance`.
@@ -365,7 +365,7 @@ git commit -m "feat: derive true pairwise who-owes-whom balances from the ledger
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `internal/api/reads_test.go`:
+Append to `internal/interfaces/rest/reads_test.go`:
 
 ```go
 func TestGetPairwiseBalances_Endpoint(t *testing.T) {
@@ -396,12 +396,12 @@ func TestGetPairwiseBalances_Endpoint(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/api/ -v -run PairwiseBalances`
+Run: `go test ./internal/interfaces/rest/ -v -run PairwiseBalances`
 Expected: FAIL — 404 (route not registered).
 
 - [ ] **Step 3: Implement**
 
-`internal/api/pairwise.go`:
+`internal/interfaces/rest/pairwise.go`:
 
 ```go
 package api
@@ -429,7 +429,7 @@ func (s *Server) handleGetPairwiseBalances(w http.ResponseWriter, r *http.Reques
 }
 ```
 
-In `internal/api/server.go`:
+In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("GET /groups/{group_id}/pairwise-balances", srv.handleGetPairwiseBalances)
@@ -437,11 +437,11 @@ In `internal/api/server.go`:
 
 - [ ] **Step 4: Run tests, commit**
 
-Run: `go test ./internal/api/ -v`
+Run: `go test ./internal/interfaces/rest/ -v`
 Expected: PASS.
 
 ```bash
-git add internal/api/pairwise.go internal/api/reads_test.go internal/api/server.go
+git add internal/interfaces/rest/pairwise.go internal/interfaces/rest/reads_test.go internal/interfaces/rest/server.go
 git commit -m "feat: pairwise-balances endpoint"
 ```
 
@@ -450,9 +450,9 @@ git commit -m "feat: pairwise-balances endpoint"
 ### Task 3: `AddMember` + `POST /groups/{group_id}/members`
 
 **Files:**
-- Create: `internal/store/members.go`, `internal/api/members.go`
-- Modify: `internal/api/server.go`
-- Test: `internal/store/members_test.go`, `internal/api/members_test.go`
+- Create: `internal/infrastructure/postgres/members.go`, `internal/interfaces/rest/members.go`
+- Modify: `internal/interfaces/rest/server.go`
+- Test: `internal/infrastructure/postgres/members_test.go`, `internal/interfaces/rest/members_test.go`
 
 **Interfaces:**
 - Consumes: `AcquireIdempotencyKey`/`ReleaseIdempotencyKey`, `store.GroupMember` (already defined in the client plan's group work: `{ID uuid.UUID; Name string}`).
@@ -462,7 +462,7 @@ git commit -m "feat: pairwise-balances endpoint"
 
 - [ ] **Step 1: Write the failing store test**
 
-`internal/store/members_test.go`:
+`internal/infrastructure/postgres/members_test.go`:
 
 ```go
 package store
@@ -541,12 +541,12 @@ This test reuses `computeExactSplit` from Task 1 — same package, no import nee
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run AddMember`
+Run: `go test ./internal/infrastructure/postgres/ -v -run AddMember`
 Expected: compile FAIL — `s.AddMember undefined`.
 
 - [ ] **Step 3: Implement**
 
-`internal/store/members.go`:
+`internal/infrastructure/postgres/members.go`:
 
 ```go
 package store
@@ -604,12 +604,12 @@ func (s *Store) AddMember(ctx context.Context, key uuid.UUID, groupID uuid.UUID,
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run AddMember`
+Run: `go test ./internal/infrastructure/postgres/ -v -run AddMember`
 Expected: PASS.
 
 - [ ] **Step 5: API test, handler, route**
 
-`internal/api/members_test.go`:
+`internal/interfaces/rest/members_test.go`:
 
 ```go
 package api
@@ -664,7 +664,7 @@ func TestAddMember_BlankNameRejected(t *testing.T) {
 }
 ```
 
-`internal/api/members.go`:
+`internal/interfaces/rest/members.go`:
 
 ```go
 package api
@@ -679,7 +679,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/store"
+	"tallyup/internal/infrastructure/postgres"
 )
 
 type addMemberRequest struct {
@@ -742,7 +742,7 @@ func (s *Server) handleAddMember(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-In `internal/api/server.go`:
+In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("POST /groups/{group_id}/members", srv.handleAddMember)
@@ -754,7 +754,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/members.go internal/store/members_test.go internal/api/members.go internal/api/members_test.go internal/api/server.go
+git add internal/infrastructure/postgres/members.go internal/infrastructure/postgres/members_test.go internal/interfaces/rest/members.go internal/interfaces/rest/members_test.go internal/interfaces/rest/server.go
 git commit -m "feat: add member to an existing group"
 ```
 
@@ -763,8 +763,8 @@ git commit -m "feat: add member to an existing group"
 ### Task 4: `RemoveMember` + `DELETE /groups/{group_id}/members/{member_id}`
 
 **Files:**
-- Modify: `internal/store/members.go`, `internal/api/members.go`, `internal/api/server.go`
-- Test: append to `internal/store/members_test.go`, `internal/api/members_test.go`
+- Modify: `internal/infrastructure/postgres/members.go`, `internal/interfaces/rest/members.go`, `internal/interfaces/rest/server.go`
+- Test: append to `internal/infrastructure/postgres/members_test.go`, `internal/interfaces/rest/members_test.go`
 
 **Interfaces:**
 - Consumes: `GetBalances` (for the zero-balance check).
@@ -774,7 +774,7 @@ git commit -m "feat: add member to an existing group"
 
 - [ ] **Step 1: Write the failing store tests**
 
-Append to `internal/store/members_test.go`:
+Append to `internal/infrastructure/postgres/members_test.go`:
 
 ```go
 func TestRemoveMember_ZeroBalanceSucceeds(t *testing.T) {
@@ -846,12 +846,12 @@ func TestRemoveMember_AlreadyRemovedIsNoop(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run RemoveMember`
+Run: `go test ./internal/infrastructure/postgres/ -v -run RemoveMember`
 Expected: compile FAIL — `s.RemoveMember undefined`.
 
 - [ ] **Step 3: Implement**
 
-Append to `internal/store/members.go`:
+Append to `internal/infrastructure/postgres/members.go`:
 
 ```go
 // RemoveMember unlinks a member from a group, blocked unless their balance
@@ -876,12 +876,12 @@ func (s *Store) RemoveMember(ctx context.Context, groupID, memberID uuid.UUID) e
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run RemoveMember`
+Run: `go test ./internal/infrastructure/postgres/ -v -run RemoveMember`
 Expected: PASS.
 
 - [ ] **Step 5: API test, handler, route**
 
-Append to `internal/api/members_test.go`:
+Append to `internal/interfaces/rest/members_test.go`:
 
 ```go
 func TestRemoveMember_Endpoint(t *testing.T) {
@@ -913,7 +913,7 @@ func TestRemoveMember_NonzeroBalanceIs409(t *testing.T) {
 }
 ```
 
-Append to `internal/api/members.go`:
+Append to `internal/interfaces/rest/members.go`:
 
 ```go
 func (s *Server) handleRemoveMember(w http.ResponseWriter, r *http.Request) {
@@ -939,7 +939,7 @@ func (s *Server) handleRemoveMember(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-Add `"errors"` to `internal/api/members.go`'s imports. In `internal/api/server.go`:
+Add `"errors"` to `internal/interfaces/rest/members.go`'s imports. In `internal/interfaces/rest/server.go`:
 
 ```go
 	mux.HandleFunc("DELETE /groups/{group_id}/members/{member_id}", srv.handleRemoveMember)
@@ -951,7 +951,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/members.go internal/store/members_test.go internal/api/members.go internal/api/members_test.go internal/api/server.go
+git add internal/infrastructure/postgres/members.go internal/infrastructure/postgres/members_test.go internal/interfaces/rest/members.go internal/interfaces/rest/members_test.go internal/interfaces/rest/server.go
 git commit -m "feat: remove member from a group, blocked on nonzero balance"
 ```
 

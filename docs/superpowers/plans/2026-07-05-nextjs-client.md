@@ -24,11 +24,11 @@
 ## File Structure
 
 ```
-internal/store/groups.go            — CreateGroup, GetGroup
-internal/store/groups_test.go
-internal/api/groups.go              — POST /groups, GET /groups/{group_id}
-internal/api/groups_test.go
-internal/api/server.go              — modify: routes + CORS middleware
+internal/infrastructure/postgres/groups.go            — CreateGroup, GetGroup
+internal/infrastructure/postgres/groups_test.go
+internal/interfaces/rest/groups.go              — POST /groups, GET /groups/{group_id}
+internal/interfaces/rest/groups_test.go
+internal/interfaces/rest/server.go              — modify: routes + CORS middleware
 web/package.json                    — Next.js app (create-next-app)
 web/lib/types.ts                    — API mirror types
 web/lib/api.ts                      — typed client + idempotent post with retry
@@ -48,9 +48,9 @@ web/app/g/[groupId]/useGroupData.ts — polling hook
 ### Task 1: Server — group endpoints + CORS
 
 **Files:**
-- Create: `internal/store/groups.go`, `internal/api/groups.go`
-- Modify: `internal/api/server.go`
-- Test: `internal/store/groups_test.go`, `internal/api/groups_test.go`
+- Create: `internal/infrastructure/postgres/groups.go`, `internal/interfaces/rest/groups.go`
+- Modify: `internal/interfaces/rest/server.go`
+- Test: `internal/infrastructure/postgres/groups_test.go`, `internal/interfaces/rest/groups_test.go`
 
 **Interfaces:**
 - Consumes: `AcquireIdempotencyKey` / `ReleaseIdempotencyKey`, `httpError` / `writeJSON`, test helpers.
@@ -63,7 +63,7 @@ web/app/g/[groupId]/useGroupData.ts — polling hook
 
 - [ ] **Step 1: Write the failing store test**
 
-`internal/store/groups_test.go`:
+`internal/infrastructure/postgres/groups_test.go`:
 
 ```go
 package store
@@ -126,12 +126,12 @@ func TestGetGroup_NotFound(t *testing.T) {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./internal/store/ -v -run Group`
+Run: `go test ./internal/infrastructure/postgres/ -v -run Group`
 Expected: compile FAIL — `undefined: GroupRecord`, `s.CreateGroup undefined`.
 
 - [ ] **Step 3: Implement the store side**
 
-`internal/store/groups.go`:
+`internal/infrastructure/postgres/groups.go`:
 
 ```go
 package store
@@ -236,12 +236,12 @@ func (s *Store) GetGroup(ctx context.Context, id uuid.UUID) (GroupRecord, error)
 
 - [ ] **Step 4: Run store tests**
 
-Run: `go test ./internal/store/ -v -run Group`
+Run: `go test ./internal/infrastructure/postgres/ -v -run Group`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing API test**
 
-`internal/api/groups_test.go`:
+`internal/interfaces/rest/groups_test.go`:
 
 ```go
 package api
@@ -347,7 +347,7 @@ func TestCORSPreflight(t *testing.T) {
 
 - [ ] **Step 6: Implement handlers + CORS**
 
-`internal/api/groups.go`:
+`internal/interfaces/rest/groups.go`:
 
 ```go
 package api
@@ -364,7 +364,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/store"
+	"tallyup/internal/infrastructure/postgres"
 )
 
 type createGroupRequest struct {
@@ -465,7 +465,7 @@ func (s *Server) handleGetGroup(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-In `internal/api/server.go`, change `NewServer` and add CORS:
+In `internal/interfaces/rest/server.go`, change `NewServer` and add CORS:
 
 ```go
 func NewServer(s *store.Store, corsOrigin string) http.Handler {
@@ -504,7 +504,7 @@ Run: `go test ./... -race`
 Expected: PASS.
 
 ```bash
-git add internal/store/groups.go internal/store/groups_test.go internal/api/ cmd/
+git add internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/groups_test.go internal/interfaces/rest/ cmd/
 git commit -m "feat: group create/get endpoints and CORS for the web client"
 ```
 
@@ -965,7 +965,7 @@ function pick(
 }
 
 /**
- * Mirror of the Go weightedShares engine (internal/ledger/split.go):
+ * Mirror of the Go weightedShares engine (internal/domain/ledger/split.go):
  * floor(total*w/W) each, remainder yen by largest remainder, ties broken by
  * ascending member id. Kept in lockstep by transcribed Go test cases.
  */
