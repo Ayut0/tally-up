@@ -21,7 +21,7 @@ const maxBodyBytes = 1 << 20
 
 type createEntryRequest struct {
 	ID           uuid.UUID        `json:"id"`
-	Kind         string           `json:"kind"`
+	Kind         entry.Kind       `json:"kind"`
 	PayerID      uuid.UUID        `json:"payer_id"`
 	Counterparty *uuid.UUID       `json:"counterparty,omitempty"`
 	TotalAmount  int64            `json:"total_amount"`

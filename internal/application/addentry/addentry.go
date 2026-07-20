@@ -45,7 +45,7 @@ func (e *GateError) Unwrap() error { return e.Err }
 type Command struct {
 	ID             uuid.UUID
 	GroupID        uuid.UUID
-	Kind           string
+	Kind           entry.Kind
 	PayerID        uuid.UUID
 	Counterparty   *uuid.UUID
 	TotalAmount    int64
@@ -107,12 +107,12 @@ func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
 func computePostings(cmd Command) (postings []ledger.Posting, splitJSON []byte, participants []uuid.UUID, err error) {
 	participants = cmd.Participants
 	switch cmd.Kind {
-	case "expense":
+	case entry.KindExpense:
 		postings, err = ledger.ComputePostings(cmd.PayerID, cmd.TotalAmount, cmd.SplitRule, cmd.Participants)
 		if err == nil {
 			splitJSON, err = json.Marshal(cmd.SplitRule)
 		}
-	case "settlement":
+	case entry.KindSettlement:
 		if cmd.Counterparty == nil {
 			return nil, nil, nil, ErrCounterpartyRequired
 		}

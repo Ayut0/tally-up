@@ -16,12 +16,23 @@ import (
 // ErrDuplicateID means an entry with this client-generated id already exists.
 var ErrDuplicateID = errors.New("entry id already exists")
 
+// Kind is the entry's type. Go has no sum type, so this is the idiomatic
+// approximation — a named string with the two valid values as constants
+// (mirroring ledger.SplitType). It documents the field and gives the values a
+// canonical home; the exhaustive check still lives in the application layer.
+type Kind string
+
+const (
+	KindExpense    Kind = "expense"
+	KindSettlement Kind = "settlement"
+)
+
 // Input is everything Repository.Create needs to persist one entry and its
 // postings.
 type Input struct {
 	ID           uuid.UUID
 	GroupID      uuid.UUID
-	Kind         string
+	Kind         Kind
 	PayerID      uuid.UUID
 	Counterparty *uuid.UUID
 	TotalAmount  int64
