@@ -132,3 +132,9 @@ type HistoryReader interface {
 type Reverser interface {
 	Reverse(ctx context.Context, idempotencyKey uuid.UUID, groupID, originalID, reversalID, requestedBy uuid.UUID) ([]byte, error)
 }
+
+// Editor persists an edit — reversal + replacement in one transaction, the
+// other half of the append-only correction model alongside Reverser.
+type Editor interface {
+	Edit(ctx context.Context, idempotencyKey uuid.UUID, groupID, originalID, reversalID uuid.UUID, in Input, postings []ledger.Posting) ([]byte, error)
+}

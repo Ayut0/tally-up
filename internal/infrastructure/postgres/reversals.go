@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"tallyup/internal/domain/entry"
+	"tallyup/internal/domain/ledger"
 )
 
 var _ entry.Reverser = (*Store)(nil)
@@ -86,6 +87,39 @@ func (s *Store) Reverse(ctx context.Context, key uuid.UUID, groupID, originalID,
 	}
 
 	snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d,"reverses_id":%q}`, reversalID, seq, originalID))
+	var resp []byte
+	if err := tx.QueryRow(ctx,
+		`UPDATE idempotency_keys SET status='succeeded', response_body=$2 WHERE key=$1
+		 RETURNING response_body`, key, snapshot).Scan(&resp); err != nil {
+		return nil, err
+	}
+	return resp, tx.Commit(ctx)
+}
+
+var _ entry.Editor = (*Store)(nil)
+
+// Edit = reversal + replacement in one transaction (architecture.md §3):
+// either both land or neither does.
+func (s *Store) Edit(ctx context.Context, key uuid.UUID, groupID, originalID, reversalID uuid.UUID, in entry.Input, postings []ledger.Posting) ([]byte, error) {
+	if err := assertZeroSum(postings); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := reverseWithinTx(ctx, tx, groupID, originalID, reversalID, in.CreatedBy); err != nil {
+		return nil, err
+	}
+	seq, err := insertEntryWithinTx(ctx, tx, in, postings)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d,"reversal_id":%q}`, in.ID, seq, reversalID))
 	var resp []byte
 	if err := tx.QueryRow(ctx,
 		`UPDATE idempotency_keys SET status='succeeded', response_body=$2 WHERE key=$1

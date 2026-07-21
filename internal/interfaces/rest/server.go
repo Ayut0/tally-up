@@ -24,5 +24,6 @@ func NewServer(entries *addentry.Service, balances entry.BalanceReader, history 
 	mux.HandleFunc("GET /groups/{group_id}/balance", srv.handleGetBalance)
 	mux.HandleFunc("GET /groups/{group_id}/entries", srv.handleListEntries)
 	mux.HandleFunc("POST /groups/{group_id}/entries/{entry_id}/reverse", srv.handleReverseEntry)
+	mux.HandleFunc("PUT /groups/{group_id}/entries/{entry_id}", srv.handleEditEntry)
 	return mux
 }

@@ -76,3 +76,39 @@ func TestReverse_ReplayIdempotent(t *testing.T) {
 		t.Fatalf("%d reversals, want 1", n)
 	}
 }
+
+func TestEdit_Endpoint(t *testing.T) {
+	srv, s := newTestServer(t)
+	entryID := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(entryID)) // 12000 3-way
+
+	body, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "reversal_id": uuid.New(),
+		"kind": "expense", "payer_id": yuto, "total_amount": 9000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	req, _ := http.NewRequest("PUT",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, entryID), bytes.NewReader(body))
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		rb, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status %d, body %s", resp.StatusCode, rb)
+	}
+
+	var n int
+	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	if n != 3 {
+		t.Fatalf("%d entries after edit, want 3 (original + reversal + replacement)", n)
+	}
+	var sum int64
+	s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum)
+	if sum != 0 {
+		t.Fatalf("global sum %d, want 0", sum)
+	}
+}

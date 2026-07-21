@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"tallyup/internal/domain/entry"
@@ -15,24 +16,20 @@ import (
 
 var _ entry.Repository = (*Store)(nil)
 
-// Create runs the write path's single transaction: membership check, entry
-// + postings insert, and marking the idempotency key succeeded with the
-// response snapshot. postings must already sum to zero (asserted here too).
-func (s *Store) Create(ctx context.Context, key uuid.UUID, in entry.Input, postings []ledger.Posting) ([]byte, error) {
+func assertZeroSum(postings []ledger.Posting) error {
 	var sum int64
 	for _, p := range postings {
 		sum += p.Amount
 	}
 	if sum != 0 {
-		return nil, fmt.Errorf("postings sum to %d, refusing to write", sum)
+		return fmt.Errorf("postings sum to %d, refusing to write", sum)
 	}
+	return nil
+}
 
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
+// insertEntryWithinTx validates membership and appends one entry with its
+// postings. Caller owns the transaction and has already zero-sum-checked.
+func insertEntryWithinTx(ctx context.Context, tx pgx.Tx, in entry.Input, postings []ledger.Posting) (int64, error) {
 	// Everyone touched by this entry must belong to the group.
 	touched := append([]uuid.UUID{in.PayerID}, in.Participants...)
 	if in.Counterparty != nil {
@@ -50,14 +47,14 @@ func (s *Store) Create(ctx context.Context, key uuid.UUID, in entry.Input, posti
 	if err := tx.QueryRow(ctx,
 		`SELECT count(*) FROM group_members WHERE group_id=$1 AND member_id = ANY($2)`,
 		in.GroupID, ids).Scan(&cnt); err != nil {
-		return nil, err
+		return 0, err
 	}
 	if cnt != len(ids) {
-		return nil, group.ErrNotMember
+		return 0, group.ErrNotMember
 	}
 
 	var seq int64
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		INSERT INTO entries (id, group_id, kind, payer_id, counterparty, total_amount,
 		                     split_rule, participants, memo, occurred_on, created_by)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
@@ -66,18 +63,39 @@ func (s *Store) Create(ctx context.Context, key uuid.UUID, in entry.Input, posti
 		in.SplitRule, in.Participants, in.Memo, in.OccurredOn, in.CreatedBy).Scan(&seq)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-		return nil, entry.ErrDuplicateID
+		return 0, entry.ErrDuplicateID
 	}
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	for _, p := range postings {
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO postings (entry_id, member_id, amount) VALUES ($1,$2,$3)`,
 			in.ID, p.MemberID, p.Amount); err != nil {
-			return nil, err
+			return 0, err
 		}
+	}
+	return seq, nil
+}
+
+// Create runs the write path's single transaction: membership check, entry
+// + postings insert, and marking the idempotency key succeeded with the
+// response snapshot. postings must already sum to zero (asserted here too).
+func (s *Store) Create(ctx context.Context, key uuid.UUID, in entry.Input, postings []ledger.Posting) ([]byte, error) {
+	if err := assertZeroSum(postings); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	seq, err := insertEntryWithinTx(ctx, tx, in, postings)
+	if err != nil {
+		return nil, err
 	}
 
 	// RETURNING gives us the JSONB-normalized bytes, so this first response is

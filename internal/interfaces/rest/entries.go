@@ -29,6 +29,7 @@ type createEntryRequest struct {
 	Participants []uuid.UUID      `json:"participants"`
 	Memo         string           `json:"memo,omitempty"`
 	OccurredOn   string           `json:"occurred_on"` // YYYY-MM-DD
+	ReversalID   uuid.UUID        `json:"reversal_id,omitempty"` // PUT (edit) only
 }
 
 func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {

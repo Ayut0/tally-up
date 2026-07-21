@@ -55,6 +55,7 @@ type Result struct {
 type Service struct {
 	Gate     entry.IdempotencyGate
 	Reverses entry.Reverser
+	Edits    entry.Editor
 }
 
 func (s *Service) Reverse(ctx context.Context, cmd ReverseCommand) (Result, error) {
@@ -67,6 +68,38 @@ func (s *Service) Reverse(ctx context.Context, cmd ReverseCommand) (Result, erro
 	}
 
 	resp, err := s.Reverses.Reverse(ctx, cmd.IdempotencyKey, cmd.GroupID, cmd.OriginalID, cmd.ReversalID, cmd.RequestedBy)
+	if err != nil {
+		if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
+			slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)
+		}
+		return Result{}, err
+	}
+	return Result{Gate: entry.GateProceed, Body: resp}, nil
+}
+
+func (s *Service) Edit(ctx context.Context, cmd EditCommand) (Result, error) {
+	postings, splitJSON, participants, err := addentry.ComputePostings(addentry.Command{
+		Kind: cmd.Kind, PayerID: cmd.PayerID, Counterparty: cmd.Counterparty,
+		TotalAmount: cmd.TotalAmount, SplitRule: cmd.SplitRule, Participants: cmd.Participants,
+	})
+	if err != nil {
+		return Result{}, err
+	}
+
+	gate, stored, err := s.Gate.Acquire(ctx, cmd.IdempotencyKey, cmd.RequestHash)
+	if err != nil {
+		return Result{}, &addentry.GateError{Err: err}
+	}
+	if gate != entry.GateProceed {
+		return Result{Gate: gate, Body: stored}, nil
+	}
+
+	resp, err := s.Edits.Edit(ctx, cmd.IdempotencyKey, cmd.GroupID, cmd.OriginalID, cmd.ReversalID, entry.Input{
+		ID: cmd.ID, GroupID: cmd.GroupID, Kind: cmd.Kind, PayerID: cmd.PayerID,
+		Counterparty: cmd.Counterparty, TotalAmount: cmd.TotalAmount,
+		SplitRule: splitJSON, Participants: participants, Memo: cmd.Memo,
+		OccurredOn: cmd.OccurredOn, CreatedBy: cmd.PayerID,
+	}, postings)
 	if err != nil {
 		if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
 			slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"tallyup/internal/domain/entry"
+	"tallyup/internal/domain/ledger"
 )
 
 // reverse acquires a fresh idempotency key and calls Reverse.
@@ -138,5 +140,65 @@ func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 		`SELECT count(*) FROM entries WHERE reverses_id = $1`, orig).Scan(&n)
 	if n != 1 {
 		t.Fatalf("%d reversal entries exist, want exactly 1", n)
+	}
+}
+
+func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	orig := uuid.New()
+	// Original: yuto pays 12000, 3-way equal → yuto +8000, a -4000, b -4000.
+	addExpense(t, s, orig, rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB})
+
+	// Edit: actually it was 9000, and only yuto and a shared it.
+	newID, revID, key := uuid.New(), uuid.New(), uuid.New()
+	postings, err := ledger.ComputePostings(rYuto, 9000,
+		ledger.SplitRule{Type: ledger.SplitEqual}, []uuid.UUID{rYuto, rMemA})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, _, err := s.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
+		t.Fatalf("gate: %v %v", res, err)
+	}
+	if _, err := s.Edit(context.Background(), key, rGroup, orig, revID, entry.Input{
+		ID: newID, GroupID: rGroup, Kind: entry.KindExpense, PayerID: rYuto,
+		TotalAmount: 9000, SplitRule: []byte(`{"type":"equal"}`),
+		Participants: []uuid.UUID{rYuto, rMemA},
+		OccurredOn:   time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC), CreatedBy: rYuto,
+	}, postings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Net effect: only the corrected entry counts. yuto +4500, a -4500, b 0.
+	snap, err := s.GetBalances(context.Background(), rGroup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []entry.MemberBalance{{rYuto, 4500}, {rMemA, -4500}, {rMemB, 0}}
+	for i, w := range want {
+		if snap.Balances[i] != w {
+			t.Fatalf("balance[%d] = %v, want %v", i, snap.Balances[i], w)
+		}
+	}
+
+	// Ledger shape: original + reversal + replacement = 3 entries.
+	entries, _ := s.ListEntries(context.Background(), rGroup, 0, 100)
+	if len(entries) != 3 {
+		t.Fatalf("%d entries, want 3", len(entries))
+	}
+
+	// The original cannot be edited twice.
+	key2 := uuid.New()
+	if res, _, err := s.Acquire(context.Background(), key2, key2.String()); err != nil || res != entry.GateProceed {
+		t.Fatalf("gate: %v %v", res, err)
+	}
+	_, err = s.Edit(context.Background(), key2, rGroup, orig, uuid.New(), entry.Input{
+		ID: uuid.New(), GroupID: rGroup, Kind: entry.KindExpense, PayerID: rYuto,
+		TotalAmount: 100, SplitRule: []byte(`{"type":"equal"}`),
+		Participants: []uuid.UUID{rYuto},
+		OccurredOn:   time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC), CreatedBy: rYuto,
+	}, []ledger.Posting{})
+	if !errors.Is(err, entry.ErrAlreadyReversed) {
+		t.Fatalf("second edit: got %v, want ErrAlreadyReversed", err)
 	}
 }
