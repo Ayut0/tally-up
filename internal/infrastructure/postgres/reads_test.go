@@ -102,3 +102,63 @@ func TestGetBalances_EmptyLedgerZeroBalances(t *testing.T) {
 		t.Fatalf("as_of_seq = %d, want 0 on empty ledger", snap.AsOfSeq)
 	}
 }
+
+func TestListEntries_AfterSeqIncremental(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	e1, e2, e3 := uuid.New(), uuid.New(), uuid.New()
+	addExpense(t, s, e1, rYuto, 3000, []uuid.UUID{rYuto, rMemA, rMemB})
+	addExpense(t, s, e2, rMemA, 2000, []uuid.UUID{rMemA, rMemB})
+	addExpense(t, s, e3, rMemB, 900, []uuid.UUID{rYuto, rMemA, rMemB})
+
+	all, err := s.ListEntries(context.Background(), rGroup, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("got %d entries, want 3", len(all))
+	}
+	if all[0].ID != e1 || all[1].ID != e2 || all[2].ID != e3 {
+		t.Fatalf("wrong order: %v %v %v", all[0].ID, all[1].ID, all[2].ID)
+	}
+	if all[0].Seq >= all[1].Seq || all[1].Seq >= all[2].Seq {
+		t.Fatalf("seq not ascending: %d %d %d", all[0].Seq, all[1].Seq, all[2].Seq)
+	}
+	if len(all[1].Postings) != 2 {
+		t.Fatalf("entry 2 has %d postings, want 2", len(all[1].Postings))
+	}
+	if all[0].OccurredOn != "2026-07-05" {
+		t.Fatalf("occurred_on = %q, want 2026-07-05", all[0].OccurredOn)
+	}
+
+	// Incremental fetch: only entries after e2's seq.
+	tail, err := s.ListEntries(context.Background(), rGroup, all[1].Seq, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail) != 1 || tail[0].ID != e3 {
+		t.Fatalf("after_seq fetch wrong: %+v", tail)
+	}
+}
+
+func TestListEntries_LimitClamped(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
+
+	one, err := s.ListEntries(context.Background(), rGroup, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(one) != 1 {
+		t.Fatalf("limit 1 returned %d entries", len(one))
+	}
+	// Nonsense limits fall back into range rather than erroring.
+	if _, err := s.ListEntries(context.Background(), rGroup, 0, 0); err != nil {
+		t.Fatalf("limit 0: %v", err)
+	}
+	if _, err := s.ListEntries(context.Background(), rGroup, 0, 10_000); err != nil {
+		t.Fatalf("limit 10000: %v", err)
+	}
+}

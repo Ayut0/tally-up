@@ -12,12 +12,14 @@ import (
 type Server struct {
 	entries  *addentry.Service
 	balances entry.BalanceReader
+	history  entry.HistoryReader
 }
 
-func NewServer(entries *addentry.Service, balances entry.BalanceReader) http.Handler {
-	srv := &Server{entries: entries, balances: balances}
+func NewServer(entries *addentry.Service, balances entry.BalanceReader, history entry.HistoryReader) http.Handler {
+	srv := &Server{entries: entries, balances: balances, history: history}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /groups/{group_id}/entries", srv.handleCreateEntry)
 	mux.HandleFunc("GET /groups/{group_id}/balance", srv.handleGetBalance)
+	mux.HandleFunc("GET /groups/{group_id}/entries", srv.handleListEntries)
 	return mux
 }

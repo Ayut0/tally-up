@@ -111,3 +111,9 @@ type Record struct {
 type BalanceReader interface {
 	GetBalances(ctx context.Context, groupID uuid.UUID) (BalanceSnapshot, error)
 }
+
+// HistoryReader is the read-side port for paginated ledger history — a
+// pure query, no idempotency gate involved.
+type HistoryReader interface {
+	ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq int64, limit int) ([]Record, error)
+}
