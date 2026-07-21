@@ -174,7 +174,7 @@ func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []entry.MemberBalance{{rYuto, 4500}, {rMemA, -4500}, {rMemB, 0}}
+	want := []entry.MemberBalance{{MemberID: rYuto, Balance: 4500}, {MemberID: rMemA, Balance: -4500}, {MemberID: rMemB, Balance: 0}}
 	for i, w := range want {
 		if snap.Balances[i] != w {
 			t.Fatalf("balance[%d] = %v, want %v", i, snap.Balances[i], w)

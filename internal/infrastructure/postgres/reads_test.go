@@ -69,7 +69,7 @@ func TestGetBalances_AllMembersOneSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []entry.MemberBalance{{rYuto, 8000}, {rMemA, -4000}, {rMemB, -4000}}
+	want := []entry.MemberBalance{{MemberID: rYuto, Balance: 8000}, {MemberID: rMemA, Balance: -4000}, {MemberID: rMemB, Balance: -4000}}
 	if len(snap.Balances) != 3 {
 		t.Fatalf("got %d balances, want 3: %v", len(snap.Balances), snap.Balances)
 	}
