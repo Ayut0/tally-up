@@ -41,15 +41,20 @@ func (s *Store) GetBalances(ctx context.Context, groupID uuid.UUID) (entry.Balan
 
 var _ entry.HistoryReader = (*Store)(nil)
 
+const (
+	defaultListLimit = 100
+	maxListLimit     = 500
+)
+
 // ListEntries pages the ledger in seq order. No transaction needed: visible
 // entries and postings are immutable (append-only), so two queries cannot
 // disagree about rows they both see.
 func (s *Store) ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq int64, limit int) ([]entry.Record, error) {
 	if limit < 1 {
-		limit = 100
+		limit = defaultListLimit
 	}
-	if limit > 500 {
-		limit = 500
+	if limit > maxListLimit {
+		limit = maxListLimit
 	}
 	rows, err := s.Pool.Query(ctx, `
 		SELECT id, seq, kind, reverses_id, payer_id, counterparty, total_amount,

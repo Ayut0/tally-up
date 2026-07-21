@@ -58,6 +58,12 @@ type Service struct {
 	Edits    entry.Editor
 }
 
+func (s *Service) releaseGate(ctx context.Context, key uuid.UUID) {
+	if err := s.Gate.Release(ctx, key); err != nil {
+		slog.Warn("release idempotency key", "key", key, "err", err)
+	}
+}
+
 func (s *Service) Reverse(ctx context.Context, cmd ReverseCommand) (Result, error) {
 	gate, stored, err := s.Gate.Acquire(ctx, cmd.IdempotencyKey, cmd.RequestHash)
 	if err != nil {
@@ -69,9 +75,7 @@ func (s *Service) Reverse(ctx context.Context, cmd ReverseCommand) (Result, erro
 
 	resp, err := s.Reverses.Reverse(ctx, cmd.IdempotencyKey, cmd.GroupID, cmd.OriginalID, cmd.ReversalID, cmd.RequestedBy)
 	if err != nil {
-		if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
-			slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)
-		}
+		s.releaseGate(ctx, cmd.IdempotencyKey)
 		return Result{}, err
 	}
 	return Result{Gate: entry.GateProceed, Body: resp}, nil
@@ -101,9 +105,7 @@ func (s *Service) Edit(ctx context.Context, cmd EditCommand) (Result, error) {
 		OccurredOn: cmd.OccurredOn, CreatedBy: cmd.PayerID,
 	}, postings)
 	if err != nil {
-		if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
-			slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)
-		}
+		s.releaseGate(ctx, cmd.IdempotencyKey)
 		return Result{}, err
 	}
 	return Result{Gate: entry.GateProceed, Body: resp}, nil

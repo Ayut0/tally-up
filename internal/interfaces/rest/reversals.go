@@ -70,16 +70,7 @@ func (s *Server) handleReverseEntry(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, "reversal failed")
 	default:
-		switch result.Gate {
-		case entry.GateReplay:
-			writeJSON(w, http.StatusOK, result.Body)
-		case entry.GateInFlight:
-			httpError(w, http.StatusConflict, "request in flight; retry shortly")
-		case entry.GateMismatch:
-			httpError(w, http.StatusUnprocessableEntity, "idempotency key reused with different payload")
-		default: // entry.GateProceed
-			writeJSON(w, http.StatusCreated, result.Body)
-		}
+		writeGateResult(w, result.Gate, result.Body)
 	}
 }
 
@@ -154,15 +145,6 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		httpError(w, http.StatusInternalServerError, "edit failed")
 	default:
-		switch result.Gate {
-		case entry.GateReplay:
-			writeJSON(w, http.StatusOK, result.Body)
-		case entry.GateInFlight:
-			httpError(w, http.StatusConflict, "request in flight; retry shortly")
-		case entry.GateMismatch:
-			httpError(w, http.StatusUnprocessableEntity, "idempotency key reused with different payload")
-		default:
-			writeJSON(w, http.StatusCreated, result.Body)
-		}
+		writeGateResult(w, result.Gate, result.Body)
 	}
 }
