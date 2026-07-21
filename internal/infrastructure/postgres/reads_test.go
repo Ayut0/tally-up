@@ -146,6 +146,7 @@ func TestListEntries_LimitClamped(t *testing.T) {
 	seedReadGroup(t, s)
 	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
 	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
 
 	one, err := s.ListEntries(context.Background(), rGroup, 0, 1)
 	if err != nil {
@@ -154,11 +155,32 @@ func TestListEntries_LimitClamped(t *testing.T) {
 	if len(one) != 1 {
 		t.Fatalf("limit 1 returned %d entries", len(one))
 	}
-	// Nonsense limits fall back into range rather than erroring.
-	if _, err := s.ListEntries(context.Background(), rGroup, 0, 0); err != nil {
+
+	// limit=2 should return exactly 2, proving the limit logic respects sub-default limits.
+	two, err := s.ListEntries(context.Background(), rGroup, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(two) != 2 {
+		t.Fatalf("limit 2 returned %d entries, want 2", len(two))
+	}
+
+	// limit=0 and limit=10000 don't error and return all available entries.
+	// The exact clamp targets (100 and 500) are not verified here without seeding
+	// 100+ and 500+ rows respectively.
+	zero, err := s.ListEntries(context.Background(), rGroup, 0, 0)
+	if err != nil {
 		t.Fatalf("limit 0: %v", err)
 	}
-	if _, err := s.ListEntries(context.Background(), rGroup, 0, 10_000); err != nil {
+	if len(zero) != 3 {
+		t.Fatalf("limit 0 returned %d entries, want 3 (all available)", len(zero))
+	}
+
+	large, err := s.ListEntries(context.Background(), rGroup, 0, 10_000)
+	if err != nil {
 		t.Fatalf("limit 10000: %v", err)
+	}
+	if len(large) != 3 {
+		t.Fatalf("limit 10000 returned %d entries, want 3 (all available)", len(large))
 	}
 }
