@@ -5,6 +5,7 @@ package entry
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -68,4 +69,45 @@ const (
 type IdempotencyGate interface {
 	Acquire(ctx context.Context, key uuid.UUID, requestHash string) (GateResult, []byte, error)
 	Release(ctx context.Context, key uuid.UUID) error
+}
+
+// MemberBalance is one member's net position: positive = is owed, negative
+// = owes.
+type MemberBalance struct {
+	MemberID uuid.UUID `json:"member_id"`
+	Balance  int64     `json:"balance"`
+}
+
+// BalanceSnapshot is every group member's balance plus the max entry seq
+// those balances reflect — both read from one SQL statement (one MVCC
+// snapshot), so AsOfSeq is exactly the ledger state the balances derive
+// from. This is the optimistic-concurrency token a future settle-up plan
+// builds on.
+type BalanceSnapshot struct {
+	Balances []MemberBalance `json:"balances"`
+	AsOfSeq  int64           `json:"as_of_seq"`
+}
+
+// Record is one entry plus its postings, as returned by ledger history.
+type Record struct {
+	ID           uuid.UUID        `json:"id"`
+	Seq          int64            `json:"seq"`
+	Kind         Kind             `json:"kind"`
+	ReversesID   *uuid.UUID       `json:"reverses_id,omitempty"`
+	PayerID      uuid.UUID        `json:"payer_id"`
+	Counterparty *uuid.UUID       `json:"counterparty,omitempty"`
+	TotalAmount  int64            `json:"total_amount"`
+	SplitRule    json.RawMessage  `json:"split_rule"`
+	Participants []uuid.UUID      `json:"participants"`
+	Memo         *string          `json:"memo,omitempty"`
+	OccurredOn   string           `json:"occurred_on"`
+	CreatedBy    uuid.UUID        `json:"created_by"`
+	CreatedAt    time.Time        `json:"created_at"`
+	Postings     []ledger.Posting `json:"postings"`
+}
+
+// BalanceReader is the read-side port for derived balances — a pure query,
+// no idempotency gate involved.
+type BalanceReader interface {
+	GetBalances(ctx context.Context, groupID uuid.UUID) (BalanceSnapshot, error)
 }

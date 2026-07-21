@@ -73,7 +73,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
 	s := postgres.TestStore(t)
 	seedGroup(t, s)
 	svc := &addentry.Service{Gate: s, Entries: s}
-	srv := httptest.NewServer(NewServer(svc))
+	srv := httptest.NewServer(NewServer(svc, s))
 	t.Cleanup(srv.Close)
 	return srv, s
 }
