@@ -17,6 +17,13 @@ import (
 // ErrDuplicateID means an entry with this client-generated id already exists.
 var ErrDuplicateID = errors.New("entry id already exists")
 
+// Sentinel errors for the correction path (Reverse/Edit).
+var (
+	ErrNotFound        = errors.New("entry not found in this group")
+	ErrAlreadyReversed = errors.New("entry already reversed")
+	ErrNotReversible   = errors.New("reversal entries cannot be reversed")
+)
+
 // Kind is the entry's type. Go has no sum type, so this is the idiomatic
 // approximation — a named string with the two valid values as constants
 // (mirroring ledger.SplitType). It documents the field and gives the values a
@@ -26,6 +33,7 @@ type Kind string
 const (
 	KindExpense    Kind = "expense"
 	KindSettlement Kind = "settlement"
+	KindReversal   Kind = "reversal"
 )
 
 // Input is everything Repository.Create needs to persist one entry and its
@@ -116,4 +124,11 @@ type BalanceReader interface {
 // pure query, no idempotency gate involved.
 type HistoryReader interface {
 	ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq int64, limit int) ([]Record, error)
+}
+
+// Reverser persists a reversal — the delete half of the append-only
+// correction model. Reverse appends a negated-postings entry referencing
+// the original, enforcing "reversed at most once" via a row lock on it.
+type Reverser interface {
+	Reverse(ctx context.Context, idempotencyKey uuid.UUID, groupID, originalID, reversalID, requestedBy uuid.UUID) ([]byte, error)
 }
