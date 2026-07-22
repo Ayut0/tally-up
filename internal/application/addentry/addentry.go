@@ -74,7 +74,7 @@ type Service struct {
 }
 
 func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
-	postings, splitJSON, participants, err := computePostings(cmd)
+	postings, splitJSON, participants, err := ComputePostings(cmd)
 	if err != nil {
 		return Result{}, err
 	}
@@ -104,7 +104,7 @@ func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
 	return Result{Gate: entry.GateProceed, Body: resp}, nil
 }
 
-func computePostings(cmd Command) (postings []ledger.Posting, splitJSON []byte, participants []uuid.UUID, err error) {
+func ComputePostings(cmd Command) (postings []ledger.Posting, splitJSON []byte, participants []uuid.UUID, err error) {
 	participants = cmd.Participants
 	switch cmd.Kind {
 	case entry.KindExpense:

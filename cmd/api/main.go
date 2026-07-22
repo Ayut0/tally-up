@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"tallyup/internal/application/addentry"
+	"tallyup/internal/application/correctentry"
 	"tallyup/internal/infrastructure/postgres"
 	"tallyup/internal/interfaces/rest"
 )
@@ -55,7 +56,8 @@ func main() {
 	}()
 
 	entries := &addentry.Service{Gate: s, Entries: s}
-	srv := &http.Server{Addr: ":" + port, Handler: rest.NewServer(entries)}
+	corrections := &correctentry.Service{Gate: s, Reverses: s}
+	srv := &http.Server{Addr: ":" + port, Handler: rest.NewServer(entries, s, s, corrections)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"tallyup/internal/application/addentry"
+	"tallyup/internal/application/correctentry"
 	"tallyup/internal/domain/ledger"
 	"tallyup/internal/infrastructure/postgres"
 )
@@ -72,8 +73,9 @@ func post(t *testing.T, srv *httptest.Server, key uuid.UUID, body []byte) (*http
 func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
 	s := postgres.TestStore(t)
 	seedGroup(t, s)
-	svc := &addentry.Service{Gate: s, Entries: s}
-	srv := httptest.NewServer(NewServer(svc))
+	entries := &addentry.Service{Gate: s, Entries: s}
+	corrections := &correctentry.Service{Gate: s, Reverses: s, Edits: s}
+	srv := httptest.NewServer(NewServer(entries, s, s, corrections))
 	t.Cleanup(srv.Close)
 	return srv, s
 }
