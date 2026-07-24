@@ -8,7 +8,7 @@ GO := CGO_ENABLED=0 go
 SEED_MEMBER_ID  := 00000000-0000-0000-0000-00000000000a
 SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1
 
-.PHONY: db-up db-down run seed smoke test
+.PHONY: db-up db-down run seed smoke test sqlc
 
 db-up: ## Start the local Postgres container
 	docker compose up -d db
@@ -34,3 +34,6 @@ smoke: ## POST one expense against a running `make run` server (run `make seed` 
 
 test: ## Run the full test suite against the local Postgres container (race detector, sequential packages)
 	TEST_DATABASE_URL='$(DATABASE_URL)' $(GO) test -p 1 ./... -race
+
+sqlc: ## Regenerate the typed query layer from query/*.sql (install: brew install sqlc)
+	sqlc generate
