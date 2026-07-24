@@ -18,7 +18,7 @@ Every unit of work follows `plan → implement → self-review → verify → re
    `test-driven-development`.
 3. **Self-review** — reset into reviewer mode and read your own diff before
    asking anyone else. → `requesting-code-review`.
-4. **Verify** — run the commands below and report the actual output, not a
+4. **Verify** — run the verify commands and report the actual output, not a
    claim. → `verification-before-completion`.
 5. **Report** — summarize outcome, verification evidence, trade-offs, and any
    open follow-ups.
@@ -34,24 +34,19 @@ Every unit of work follows `plan → implement → self-review → verify → re
 | Finishing, before merge | `requesting-code-review`, `verification-before-completion` |
 | Suspending work across sessions | `handoff` |
 
-## Project facts
+## Project map
 
-- **Module:** `tallyup` (Go 1.25). Entry point: `cmd/api`.
-- **DDD layers** under `internal/`:
-  - `domain/` — aggregates and invariants (`ledger`, `group`, `entry`).
-  - `application/` — use cases (`addentry`, `correctentry`).
-  - `infrastructure/` — adapters, incl. `infrastructure/postgres`.
-  - `interfaces/` — delivery, incl. `interfaces/rest`.
-- **Persistence:** Postgres, with sqlc generating the typed query layer. See
-  [docs/development.md](docs/development.md) for the sqlc workflow and paths.
+Module `tallyup` (Go 1.25), entry point `cmd/api`, Postgres for persistence.
+The code map — DDD layers and what each is responsible for — lives in
+[docs/mapping.md](docs/mapping.md); design rationale in
+[docs/architecture.md](docs/architecture.md).
 
 ## Verify
 
 Run the verify commands and report their actual output before you call a change
 done. Setup and the exact commands live in
 [docs/development.md](docs/development.md) — in short, `make db-up` then
-`make test`, plus `go vet ./...`. Tests need the Postgres container, so
-`go test ./...` alone will fail without `make db-up` first.
+`make test`, plus `go vet ./...`.
 
 ## Conventions
 
