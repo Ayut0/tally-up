@@ -42,22 +42,16 @@ Every unit of work follows `plan → implement → self-review → verify → re
   - `application/` — use cases (`addentry`, `correctentry`).
   - `infrastructure/` — adapters, incl. `infrastructure/postgres`.
   - `interfaces/` — delivery, incl. `interfaces/rest`.
-- **Persistence:** Postgres. sqlc generates the typed query layer.
-  - Config: `sqlc.yaml` (the source of truth for paths).
-  - Hand-written SQL: `internal/infrastructure/postgres/query/*.sql`, one file
-    per aggregate. Migrations: `internal/infrastructure/postgres/migrations/`.
-  - Workflow: edit a `query/*.sql` file → `make sqlc` to regenerate.
+- **Persistence:** Postgres, with sqlc generating the typed query layer. See
+  [docs/development.md](docs/development.md) for the sqlc workflow and paths.
 
-## Verify commands
+## Verify
 
-Verification runs through the `Makefile` — read the target comments there for
-the exact command each one expands to. Run `make db-up` to start the local
-Postgres container, `make test` for the suite, and `make sqlc` to regenerate
-the typed queries; run `go vet ./...` for static checks (no golangci config in
-this repo).
-
-Tests need that Postgres container: `go test ./...` alone will fail without
-`make db-up` first.
+Run the verify commands and report their actual output before you call a change
+done. Setup and the exact commands live in
+[docs/development.md](docs/development.md) — in short, `make db-up` then
+`make test`, plus `go vet ./...`. Tests need the Postgres container, so
+`go test ./...` alone will fail without `make db-up` first.
 
 ## Conventions
 
