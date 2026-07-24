@@ -67,6 +67,11 @@ done. Setup and the exact commands live in
 [docs/development.md](docs/development.md) — in short, `make db-up` then
 `make test`, plus `go vet ./...`.
 
+An independent, advisory CI reviewer runs on demand: comment `@claude review` on
+a PR (owner/member/collaborator only) to trigger it — see
+[.github/workflows/claude-review.yaml](.github/workflows/claude-review.yaml) and
+the review lens in [REVIEW.md](REVIEW.md).
+
 ## Conventions
 
 - **Branches:** `<prefix>/issue-<number>-<short-description>` (`feat/`, `bugfix/`,
