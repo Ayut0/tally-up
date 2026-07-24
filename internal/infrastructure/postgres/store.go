@@ -23,6 +23,10 @@ var migrationsFS embed.FS
 
 type Store struct {
 	Pool *pgxpool.Pool
+	// The idempotency gate is a repository; embedding it promotes Acquire,
+	// Release, and SweepStalePending onto Store so its callers keep their
+	// method surface while the gate runs on generated queries.
+	*IdempotencyRepository
 }
 
 // New connects, runs pending migrations, and returns the store.
@@ -38,7 +42,7 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
-	return &Store{Pool: pool}, nil
+	return &Store{Pool: pool, IdempotencyRepository: NewIdempotencyRepository(pool)}, nil
 }
 
 func Migrate(databaseURL string) error {

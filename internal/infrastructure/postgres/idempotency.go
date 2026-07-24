@@ -7,31 +7,45 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"tallyup/internal/domain/entry"
+	"tallyup/internal/infrastructure/postgres/sqlc"
 )
 
-var _ entry.IdempotencyGate = (*Store)(nil)
+var _ entry.IdempotencyGate = (*IdempotencyRepository)(nil)
 
-// Acquire implements the pending-row-first gate from architecture.md §4.
-// The pending insert commits immediately (its own implicit txn) so a crash
-// leaves a visible pending row for the janitor.
-func (s *Store) Acquire(ctx context.Context, key uuid.UUID, requestHash string) (entry.GateResult, []byte, error) {
-	ct, err := s.Pool.Exec(ctx,
-		`INSERT INTO idempotency_keys (key, request_hash, status) VALUES ($1, $2, 'pending')
-		 ON CONFLICT (key) DO NOTHING`, key, requestHash)
+// IdempotencyRepository is the pending-row-first gate from architecture.md §4,
+// backed by generated queries. Like every repository it resolves its query set
+// through the ctx-bound session (see BaseRepository), so the gate behaves the
+// same inside and outside a transaction.
+type IdempotencyRepository struct {
+	*BaseRepository
+}
+
+func NewIdempotencyRepository(pool *pgxpool.Pool) *IdempotencyRepository {
+	return &IdempotencyRepository{BaseRepository: NewBaseRepository(pool)}
+}
+
+// Acquire claims the key for this request. The pending insert commits
+// immediately (its own implicit txn) so a crash leaves a visible pending row
+// for the janitor. Winning the insert (one row affected) means proceed;
+// otherwise we classify the row we collided with.
+func (r *IdempotencyRepository) Acquire(ctx context.Context, key uuid.UUID, requestHash string) (entry.GateResult, []byte, error) {
+	q := r.queries(ctx)
+
+	inserted, err := q.InsertIdempotencyKey(ctx, sqlc.InsertIdempotencyKeyParams{
+		Key:         key,
+		RequestHash: requestHash,
+	})
 	if err != nil {
 		return 0, nil, err
 	}
-	if ct.RowsAffected() == 1 {
+	if inserted == 1 {
 		return entry.GateProceed, nil, nil
 	}
 
-	var storedHash, status string
-	var body []byte
-	err = s.Pool.QueryRow(ctx,
-		`SELECT request_hash, status, COALESCE(response_body, 'null'::jsonb)
-		 FROM idempotency_keys WHERE key = $1`, key).Scan(&storedHash, &status, &body)
+	row, err := q.GetIdempotencyOutcome(ctx, key)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Janitor deleted the row between our insert-conflict and this read;
 		// tell the client to retry rather than racing to re-own it here.
@@ -40,11 +54,11 @@ func (s *Store) Acquire(ctx context.Context, key uuid.UUID, requestHash string) 
 	if err != nil {
 		return 0, nil, err
 	}
-	if storedHash != requestHash {
+	if row.RequestHash != requestHash {
 		return entry.GateMismatch, nil, nil
 	}
-	if status == "succeeded" {
-		return entry.GateReplay, body, nil
+	if row.Status == "succeeded" {
+		return entry.GateReplay, row.ResponseBody, nil
 	}
 	return entry.GateInFlight, nil, nil
 }
@@ -52,21 +66,12 @@ func (s *Store) Acquire(ctx context.Context, key uuid.UUID, requestHash string) 
 // Release frees a pending key after a post-gate failure so the client can
 // retry immediately instead of waiting for the janitor. Succeeded keys are
 // never released: their response snapshot is the replay truth.
-func (s *Store) Release(ctx context.Context, key uuid.UUID) error {
-	_, err := s.Pool.Exec(ctx,
-		`DELETE FROM idempotency_keys WHERE key = $1 AND status = 'pending'`, key)
-	return err
+func (r *IdempotencyRepository) Release(ctx context.Context, key uuid.UUID) error {
+	return r.queries(ctx).DeletePendingIdempotencyKey(ctx, key)
 }
 
 // SweepStalePending deletes pending rows older than olderThan so crashed
 // requests can be retried cleanly.
-func (s *Store) SweepStalePending(ctx context.Context, olderThan time.Duration) (int64, error) {
-	ct, err := s.Pool.Exec(ctx,
-		`DELETE FROM idempotency_keys
-		 WHERE status = 'pending' AND created_at < now() - make_interval(secs => $1)`,
-		olderThan.Seconds())
-	if err != nil {
-		return 0, err
-	}
-	return ct.RowsAffected(), nil
+func (r *IdempotencyRepository) SweepStalePending(ctx context.Context, olderThan time.Duration) (int64, error) {
+	return r.queries(ctx).SweepStalePendingIdempotencyKeys(ctx, olderThan.Seconds())
 }
