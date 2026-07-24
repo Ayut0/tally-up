@@ -2,24 +2,26 @@
 
 tally-up is a DDD Go backend for **tab**, an n-person bill splitter. This file is
 the working agreement for any agent or contributor. It is intentionally thin: it
-routes to the [superpowers](https://github.com/obra/superpowers) skills for
+routes to the [matt-pocock skill suite](https://github.com/mattpocock/skills) for
 *how* to work, and only spells out the facts that are specific to this repo.
 
-If you have the superpowers plugin, invoke the named skill. If you don't, the
-one-line description tells you what that phase expects.
+If you have those skills installed, invoke the named skill. If you don't, the
+one-line description tells you what that phase expects. A few phases have no skill
+of their own — they're spelled out inline.
 
 ## The cycle
 
 Every unit of work follows `plan → implement → self-review → verify → report`:
 
-1. **Plan** — clarify intent and design before coding. → `brainstorming`, then
-   `writing-plans` for anything multi-step.
+1. **Plan** — clarify intent and design before coding. Scope the work with
+   `to-prd` / `to-issues`, then pressure-test the plan against the domain model
+   with `grill-with-docs`.
 2. **Implement** — write the change test-first where there's runtime behavior. →
-   `test-driven-development`.
-3. **Self-review** — reset into reviewer mode and read your own diff before
-   asking anyone else. → `requesting-code-review`.
-4. **Verify** — run the verify commands and report the actual output, not a
-   claim. → `verification-before-completion`.
+   `tdd`.
+3. **Self-review** — *(no skill)* reset into reviewer mode and read your own diff
+   before asking anyone else.
+4. **Verify** — *(no skill)* run the verify commands and report the actual
+   output, not a claim — see [Verify](#verify).
 5. **Report** — summarize outcome, verification evidence, trade-offs, and any
    open follow-ups.
 
@@ -27,12 +29,29 @@ Every unit of work follows `plan → implement → self-review → verify → re
 
 | When you're… | Use |
 | --- | --- |
-| Building a feature or changing behavior | `brainstorming` → `writing-plans` |
-| Executing an approved plan | `executing-plans` / `subagent-driven-development` |
-| Chasing a bug, test failure, or surprise | `systematic-debugging` |
-| Writing code or a bugfix | `test-driven-development` |
-| Finishing, before merge | `requesting-code-review`, `verification-before-completion` |
+| Turning an idea into scoped work | `to-prd` → `to-issues` |
+| Pressure-testing a plan against the domain | `grill-with-docs` |
+| Triaging an incoming issue | `triage` |
+| Writing code or a bugfix | `tdd` |
+| Chasing a bug, test failure, or surprise | `diagnose` |
+| Refactoring or improving structure | `improve-codebase-architecture` |
+| Zooming out to the whole system | `zoom-out` |
 | Suspending work across sessions | `handoff` |
+| Self-reviewing or verifying | *(no skill — see [The cycle](#the-cycle))* |
+
+## Agent skills
+
+Configuration the matt-pocock skills read to learn this repo's issue tracker
+and domain-doc layout.
+
+### Issue tracker
+
+Issues live as GitHub issues on `Ayut0/tally-up` (via the `gh` CLI). See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Domain docs
+
+Single-context repo. See [docs/agents/domain.md](docs/agents/domain.md).
 
 ## Project map
 
