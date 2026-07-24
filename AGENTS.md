@@ -50,15 +50,14 @@ Every unit of work follows `plan → implement → self-review → verify → re
 
 ## Verify commands
 
-Tests need a running Postgres container — `go test ./...` alone will fail
-without it.
+Verification runs through the `Makefile` — read the target comments there for
+the exact command each one expands to. Run `make db-up` to start the local
+Postgres container, `make test` for the suite, and `make sqlc` to regenerate
+the typed queries; run `go vet ./...` for static checks (no golangci config in
+this repo).
 
-```bash
-make db-up          # start local Postgres (docker compose), required for tests
-make test           # TEST_DATABASE_URL=... go test -p 1 ./... -race
-go vet ./...        # static checks (no golangci config in this repo)
-make sqlc           # regenerate typed queries after editing query/*.sql
-```
+Tests need that Postgres container: `go test ./...` alone will fail without
+`make db-up` first.
 
 ## Conventions
 
