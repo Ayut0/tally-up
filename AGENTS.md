@@ -141,6 +141,14 @@ conflict.
 - **Worktrees:** work each issue in its own git worktree.
 - **Syncing:** `git rebase origin/main`. Never `git merge main` or a plain
   `git pull` on a feature branch.
+- **Rewriting pushed history:** rebasing a branch that has already been pushed
+  rewrites its commits, so the follow-up push MUST be
+  `git push --force-with-lease` (never bare `--force`, which will clobber a
+  push you have not seen). An agent MUST ask the maintainer before rewriting
+  history on a pushed branch — including rebase, `--force-with-lease`,
+  `commit --amend`, and `reset --hard` — even when a reviewer or the Syncing
+  rule above calls for the rebase. The decision is the maintainer's: undoing a
+  force-push takes another force-push, and it can strand review threads.
 - **Commits/PRs:** open a PR per issue; link it to the issue it addresses.
 
 ## Escalation
