@@ -8,7 +8,7 @@ GO := CGO_ENABLED=0 go
 SEED_MEMBER_ID  := 00000000-0000-0000-0000-00000000000a
 SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1
 
-.PHONY: db-up db-down run seed smoke test sqlc
+.PHONY: db-up db-down run seed smoke test sqlc web-dev web-test web-build
 
 db-up: ## Start the local Postgres container
 	docker compose up -d db
@@ -37,3 +37,12 @@ test: ## Run the full test suite against the local Postgres container (race dete
 
 sqlc: ## Regenerate the typed query layer from query/*.sql (install: brew install sqlc)
 	sqlc generate
+
+web-dev: ## Run the Next.js dev server (web/ is a self-contained npm project; needs `cd web && npm install` once first)
+	cd web && npm run dev
+
+web-test: ## Run the web client's unit tests (vitest)
+	cd web && npm test
+
+web-build: ## Production build of the web client
+	cd web && npm run build
