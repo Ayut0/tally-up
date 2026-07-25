@@ -60,8 +60,11 @@ section below for what actually gets published.
 | **Minor** | Unclear naming that survives review. An error returned without context. A non-table-driven test whose siblings are table-driven. |
 | **Nit** | Typos, ordering, comment wording. |
 
-- Any **Critical** or **Major** finding MUST be fixed and re-reviewed before
-  the change is called done.
+- [`AGENTS.md`](../../../AGENTS.md) § Review Independence Gates owns the gate
+  itself: Critical and Major findings MUST be fixed before you report. This
+  table is what makes that rule usable — it says which findings are which.
+- A fixed Critical or Major finding MUST be re-reviewed; the fix is new code
+  nobody has reviewed.
 - **Minor** and **Nit** findings SHOULD be fixed, but MAY be deferred with a
   note.
 - The Approve / Request Changes verdict vocabulary is internal. It MUST NOT

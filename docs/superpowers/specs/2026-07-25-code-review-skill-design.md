@@ -5,9 +5,10 @@
 - **Status:** approved, pending implementation
 
 > Requirement-level keywords (**MUST**, **MUST NOT**, **SHOULD**, **MAY**) are
-> used here in the RFC-2119 sense. The table defining them for the repo lands
-> with [#78](https://github.com/Ayut0/tally-up/issues/78); this spec adopts the
-> vocabulary ahead of it deliberately, so the two land coherently.
+> used here in the RFC-2119 sense, as defined by `AGENTS.md` §
+> [Requirement Level Keywords](../../../AGENTS.md), which landed via
+> [#80](https://github.com/Ayut0/tally-up/pull/80) while this spec was in
+> review.
 
 ## Problem
 
@@ -127,9 +128,12 @@ reviewer that can't block has no use for four grades of "no".
   two**: self-review routes to `code-review-guideline`; verify keeps an inline
   pointer to the [Verify](#verify) section, since it remains skill-less.
 
-Adding the requirement-level keyword table itself stays with
-[#78](https://github.com/Ayut0/tally-up/issues/78) — this change uses the
-vocabulary but does not define it.
+The requirement-level keyword table is already on `main`
+([#80](https://github.com/Ayut0/tally-up/pull/80)); this change uses the
+vocabulary and does not redefine it. `main` also gained a
+**Review Independence Gates** section, which owns the "Critical/Major MUST be
+fixed before you report" rule — the skill's severity ladder cites it rather
+than restating it, and supplies the tier definitions that rule depends on.
 
 ### 4. `.github/workflows/claude-review.yaml` (edit)
 
@@ -169,13 +173,13 @@ because SAFETY 2's base-ref checkout already places the skill file on the runner
 | The CI job runs the official `code-review` plugin, whose own methodology may conflict with the skill. | Explicit precedence in the system prompt: `REVIEW.md` → skill → plugin defaults. |
 | Slimming `REVIEW.md` touches a CI-load-bearing file. | The workflow references it only by path; content changes cannot break the trigger. Verified by the `@claude review` run on the PR. |
 | Skill and `REVIEW.md` re-accumulate duplication over time. | The dividing rule is stated at the top of both files, so the next editor has a test to apply. |
-| Requirement keywords are used before `AGENTS.md` defines them. | Narrow and time-boxed: #78 adds the table. Flagged at the top of this spec. |
 
 ## Related
 
 - [#77](https://github.com/Ayut0/tally-up/issues/77) — advisory review
   auto-dispatch (independent).
 - [#78](https://github.com/Ayut0/tally-up/issues/78) — requirement-level keywords
-  in `AGENTS.md`. This spec uses them; #78 defines them.
+  in `AGENTS.md`. **Landed** on `main` via #80; this spec uses that vocabulary.
 - [#76](https://github.com/Ayut0/tally-up/issues/76) — the `/address`
-  orchestrator, whose self-review step would route to this skill.
+  orchestrator. **Landed** on `main` via #82; its self-review phase routes to
+  this skill through `AGENTS.md`.
