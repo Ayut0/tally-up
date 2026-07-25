@@ -149,8 +149,12 @@ model CreateEntryRequest {
 model EditEntryRequest {
   ...CreateEntryRequest;
 
-  /** Client-generated UUIDv7 for the reversal entry that retires the original. */
-  reversal_id: Uuid;
+  /**
+   * Client-generated UUIDv7 for the reversal entry that retires the original.
+   * Points the opposite way from `reverses_id`, which is a reversal's pointer
+   * at the entry it reverses.
+   */
+  reversal_entry_id: Uuid;
 }
 
 model ReverseEntryRequest {
@@ -192,12 +196,13 @@ model ReversalAck {
 }
 
 /**
- * Acknowledgement of an edit. `id`/`seq` are the *replacement* entry;
- * `reversal_id` is the reversal that retired the original.
+ * Acknowledgement of an edit. `id`/`seq` are the *replacement* entry, which
+ * reverses nothing and so has no `reverses_id` of its own; `reversal_entry_id`
+ * is the separate reversal that retired the original.
  */
 model EditAck {
   ...EntryAck;
-  reversal_id: Uuid;
+  reversal_entry_id: Uuid;
 }
 
 /** The write was accepted and appended to the ledger. */

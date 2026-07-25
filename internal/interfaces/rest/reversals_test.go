@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"sort"
 	"testing"
 
 	"github.com/google/uuid"
@@ -83,7 +85,7 @@ func TestEdit_Endpoint(t *testing.T) {
 	post(t, srv, uuid.New(), expenseBody(entryID)) // 12000 3-way
 
 	body, _ := json.Marshal(map[string]any{
-		"id": uuid.New(), "reversal_id": uuid.New(),
+		"id": uuid.New(), "reversal_entry_id": uuid.New(),
 		"kind": "expense", "payer_id": yuto, "total_amount": 9000,
 		"split_rule":   map[string]any{"type": "equal"},
 		"participants": []uuid.UUID{yuto, memA},
@@ -110,5 +112,64 @@ func TestEdit_Endpoint(t *testing.T) {
 	s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum)
 	if sum != 0 {
 		t.Fatalf("global sum %d, want 0", sum)
+	}
+}
+
+// The two correction endpoints hand back different pointers, and the names are
+// deliberately not interchangeable: a reversal names the entry it retires
+// (reverses_id), while an edit's replacement names the reversal that retired
+// the original (reversal_entry_id). A client cannot tell them apart by type —
+// both are UUID strings — so the wire names are the only thing distinguishing
+// them, and nothing else in the suite pins them.
+func TestCorrectionAcks_FieldNames(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	reversed := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(reversed))
+	resp, body := postReverse(t, srv, uuid.New(), reversed, uuid.New())
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("reverse: status %d, body %s", resp.StatusCode, body)
+	}
+	assertAckKeys(t, "reverse", body, "id", "seq", "reverses_id")
+
+	edited := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(edited))
+	editBody, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "reversal_entry_id": uuid.New(),
+		"kind": "expense", "payer_id": yuto, "total_amount": 9000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	req, _ := http.NewRequest("PUT",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, edited), bytes.NewReader(editBody))
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	editResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer editResp.Body.Close()
+	rb, _ := io.ReadAll(editResp.Body)
+	if editResp.StatusCode != http.StatusCreated {
+		t.Fatalf("edit: status %d, body %s", editResp.StatusCode, rb)
+	}
+	assertAckKeys(t, "edit", rb, "id", "seq", "reversal_entry_id")
+}
+
+func assertAckKeys(t *testing.T, label string, body []byte, want ...string) {
+	t.Helper()
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("%s ack: body %s: %v", label, body, err)
+	}
+	keys := make([]string, 0, len(got))
+	for k := range got {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	sorted := append([]string(nil), want...)
+	sort.Strings(sorted)
+	if !slices.Equal(keys, sorted) {
+		t.Fatalf("%s ack keys %v, want exactly %v", label, keys, sorted)
 	}
 }

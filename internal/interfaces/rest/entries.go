@@ -29,7 +29,10 @@ type createEntryRequest struct {
 	Participants []uuid.UUID      `json:"participants"`
 	Memo         string           `json:"memo,omitempty"`
 	OccurredOn   string           `json:"occurred_on"` // YYYY-MM-DD
-	ReversalID   uuid.UUID        `json:"reversal_id,omitempty"` // PUT (edit) only
+	// PUT (edit) only: the client-minted reversal that retires the original.
+	// Distinct from an entry's reverses_id, which points the other way — from a
+	// reversal at the entry it reverses.
+	ReversalID uuid.UUID `json:"reversal_entry_id,omitempty"`
 }
 
 func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {

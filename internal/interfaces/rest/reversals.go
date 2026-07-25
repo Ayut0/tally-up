@@ -104,7 +104,7 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ID == uuid.Nil || req.ReversalID == uuid.Nil {
-		httpError(w, http.StatusBadRequest, "id and reversal_id required")
+		httpError(w, http.StatusBadRequest, "id and reversal_entry_id required")
 		return
 	}
 	occurredOn, err := time.Parse("2006-01-02", req.OccurredOn)

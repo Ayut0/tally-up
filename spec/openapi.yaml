@@ -366,18 +366,19 @@ components:
       required:
         - id
         - seq
-        - reversal_id
+        - reversal_entry_id
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         seq:
           type: integer
           format: int64
-        reversal_id:
+        reversal_entry_id:
           $ref: '#/components/schemas/Uuid'
       description: |-
-        Acknowledgement of an edit. `id`/`seq` are the *replacement* entry;
-        `reversal_id` is the reversal that retired the original.
+        Acknowledgement of an edit. `id`/`seq` are the *replacement* entry, which
+        reverses nothing and so has no `reverses_id` of its own; `reversal_entry_id`
+        is the separate reversal that retired the original.
     EditEntryRequest:
       type: object
       required:
@@ -388,7 +389,7 @@ components:
         - split_rule
         - participants
         - occurred_on
-        - reversal_id
+        - reversal_entry_id
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -415,9 +416,12 @@ components:
           type: string
         occurred_on:
           $ref: '#/components/schemas/CalendarDate'
-        reversal_id:
+        reversal_entry_id:
           $ref: '#/components/schemas/Uuid'
-          description: Client-generated UUIDv7 for the reversal entry that retires the original.
+          description: |-
+            Client-generated UUIDv7 for the reversal entry that retires the original.
+            Points the opposite way from `reverses_id`, which is a reversal's pointer
+            at the entry it reverses.
       description: |-
         Editing is a correction, not a mutation: the original is reversed and a
         replacement is appended, so the ledger stays append-only.
