@@ -13,12 +13,20 @@ using Http;
 @server("http://localhost:8080", "Local development")
 namespace TabApi;
 
+// ---------------------------------------------------------------------------
+// Scalars
+// ---------------------------------------------------------------------------
+
 /** RFC 9562 UUID. This codebase mints v7 everywhere, so ids are time-ordered. */
 @format("uuid")
 scalar Uuid extends string;
 
 /** Calendar date in `YYYY-MM-DD`. */
 scalar CalendarDate extends plainDate;
+
+// ---------------------------------------------------------------------------
+// Split rules
+// ---------------------------------------------------------------------------
 
 /** How an entry's total is divided among its participants. */
 @discriminated(#{ envelope: "none", discriminatorPropertyName: "type" })
@@ -32,20 +40,24 @@ union SplitRule {
 /** Every participant owes the same share; the remainder is distributed deterministically. */
 model EqualSplit {}
 
-/** Exact minor-unit amount per member. Keys MUST be exactly the participant set. */
+/** Exact minor-unit amount per member, keyed by member id. */
 model ExactSplit {
   amounts: Record<int64>;
 }
 
-/** Relative weights per member. Keys MUST be exactly the participant set. */
+/** Relative weights per member, keyed by member id. */
 model SharesSplit {
   weights: Record<int64>;
 }
 
-/** Percentage weights per member. Keys MUST be exactly the participant set. */
+/** Percentage weights per member, keyed by member id. */
 model PercentSplit {
   weights: Record<int64>;
 }
+
+// ---------------------------------------------------------------------------
+// Ledger models
+// ---------------------------------------------------------------------------
 
 /** What kind of movement an entry records. */
 union EntryKind {
@@ -68,7 +80,10 @@ model EntryRecord {
   seq: int64;
 
   kind: EntryKind;
+
+  /** Set on a reversal entry: the entry it reverses. */
   reverses_id?: Uuid;
+
   payer_id: Uuid;
   counterparty?: Uuid;
   total_amount: int64;
@@ -80,6 +95,30 @@ model EntryRecord {
   created_at: utcDateTime;
   postings: Posting[];
 }
+
+/** One member's net position: positive = is owed, negative = owes. */
+model MemberBalance {
+  member_id: Uuid;
+  balance: int64;
+}
+
+/**
+ * Every group member's balance plus the max entry seq those balances reflect.
+ * Both are read in one SQL statement (one MVCC snapshot), so `as_of_seq` is
+ * exactly the ledger state the balances derive from.
+ */
+model BalanceSnapshot {
+  balances: MemberBalance[];
+  as_of_seq: int64;
+}
+
+model EntryList {
+  entries: EntryRecord[];
+}
+
+// ---------------------------------------------------------------------------
+// Requests
+// ---------------------------------------------------------------------------
 
 model CreateEntryRequest {
   /** Client-generated UUIDv7. Required — the server does not mint entry ids. */
@@ -95,15 +134,45 @@ model CreateEntryRequest {
   total_amount: int64;
 
   split_rule: SplitRule;
+
+  /** Must be non-empty and free of duplicates. */
   participants: Uuid[];
+
   memo?: string;
   occurred_on: CalendarDate;
 }
 
-@error
-model ApiError {
-  @statusCode statusCode: 400 | 409 | 422 | 500;
+/**
+ * Editing is a correction, not a mutation: the original is reversed and a
+ * replacement is appended, so the ledger stays append-only.
+ */
+model EditEntryRequest {
+  ...CreateEntryRequest;
+
+  /** Client-generated UUIDv7 for the reversal entry that retires the original. */
+  reversal_id: Uuid;
+}
+
+model ReverseEntryRequest {
+  /** Client-generated UUIDv7 for the reversal entry. */
+  id: Uuid;
+
+  /** Which member is deleting. v1 has no authenticated identity. */
+  requested_by: Uuid;
+}
+
+// ---------------------------------------------------------------------------
+// Responses
+// ---------------------------------------------------------------------------
+
+model ErrorBody {
   error: string;
+}
+
+@error
+model ErrorResponse<Status> {
+  @statusCode statusCode: Status;
+  @body body: ErrorBody;
 }
 
 /** The entry was accepted and written. */
@@ -122,6 +191,25 @@ model EntryReplayed {
 }
 
 /**
+ * Errors shared by every write path.
+ *
+ * - `400` malformed body, bad id, or missing `Idempotency-Key`
+ * - `409` a request with this key is in flight; retry shortly
+ * - `422` domain rejected the write, or the key was reused with a different payload
+ * - `500` the idempotency gate or the write itself failed
+ */
+alias WriteErrors = ErrorResponse<400> | ErrorResponse<409> | ErrorResponse<422> | ErrorResponse<500>;
+
+/** `404` on top of the shared write errors: the target entry does not exist. */
+alias CorrectionErrors = WriteErrors | ErrorResponse<404>;
+
+alias ReadErrors = ErrorResponse<400> | ErrorResponse<500>;
+
+// ---------------------------------------------------------------------------
+// Operations
+// ---------------------------------------------------------------------------
+
+/**
  * Record an expense or settlement.
  *
  * `Idempotency-Key` is one key per user intent, reused verbatim across retries.
@@ -135,4 +223,53 @@ op createEntry(
   @path group_id: Uuid,
   @header("Idempotency-Key") idempotencyKey: Uuid,
   @body entry: CreateEntryRequest,
-): EntryCreated | EntryReplayed | ApiError;
+): EntryCreated | EntryReplayed | WriteErrors;
+
+/**
+ * Reverse an entry. Appends a reversal rather than deleting, so history and
+ * balances stay derivable. Reversing an already-reversed entry is 409.
+ */
+@route("/groups/{group_id}/entries/{entry_id}/reverse")
+@post
+op reverseEntry(
+  @path group_id: Uuid,
+  @path entry_id: Uuid,
+  @header("Idempotency-Key") idempotencyKey: Uuid,
+  @body reversal: ReverseEntryRequest,
+): EntryCreated | EntryReplayed | CorrectionErrors;
+
+/**
+ * Edit an entry: reverse the original and append the replacement in one
+ * transaction. The response body is the replacement entry.
+ */
+@route("/groups/{group_id}/entries/{entry_id}")
+@put
+op editEntry(
+  @path group_id: Uuid,
+  @path entry_id: Uuid,
+  @header("Idempotency-Key") idempotencyKey: Uuid,
+  @body entry: EditEntryRequest,
+): EntryCreated | EntryReplayed | CorrectionErrors;
+
+/** Current net position of every group member, with the seq they reflect. */
+@route("/groups/{group_id}/balance")
+@get
+op getBalance(@path group_id: Uuid): BalanceSnapshot | ReadErrors;
+
+/**
+ * Page the ledger in `seq` order. Poll by passing the highest `seq` seen as
+ * `after_seq`.
+ *
+ * `limit` is clamped server-side, not rejected: values below 1 become 100, and
+ * values above 500 become 500.
+ */
+@route("/groups/{group_id}/entries")
+@get
+op listEntries(
+  @path group_id: Uuid,
+
+  /** Exclusive cursor. Absent means from the start of the ledger. */
+  @query after_seq?: int64,
+
+  @query limit?: int32,
+): EntryList | ReadErrors;

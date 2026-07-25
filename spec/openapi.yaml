@@ -10,6 +10,35 @@ info:
   version: 0.0.0
 tags: []
 paths:
+  /groups/{group_id}/balance:
+    get:
+      operationId: getBalance
+      description: Current net position of every group member, with the seq they reflect.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceSnapshot'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
   /groups/{group_id}/entries:
     post:
       operationId: createEntry
@@ -51,40 +80,244 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: '#/components/schemas/ErrorBody'
         '409':
           description: The request conflicts with the current state of the server.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: '#/components/schemas/ErrorBody'
         '422':
           description: Client error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: '#/components/schemas/ErrorBody'
         '500':
           description: Server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: '#/components/schemas/ErrorBody'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateEntryRequest'
+    get:
+      operationId: listEntries
+      description: |-
+        Page the ledger in `seq` order. Poll by passing the highest `seq` seen as
+        `after_seq`.
+
+        `limit` is clamped server-side, not rejected: values below 1 become 100, and
+        values above 500 become 500.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: after_seq
+          in: query
+          required: false
+          description: Exclusive cursor. Absent means from the start of the ledger.
+          schema:
+            type: integer
+            format: int64
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryList'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+  /groups/{group_id}/entries/{entry_id}:
+    put:
+      operationId: editEntry
+      description: |-
+        Edit an entry: reverse the original and append the replacement in one
+        transaction. The response body is the replacement entry.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: entry_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: |-
+            Replay: this `Idempotency-Key` already succeeded, and the body is the
+            snapshot from that original write. Not an error — treat as success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryRecord'
+        '201':
+          description: The entry was accepted and written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryRecord'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditEntryRequest'
+  /groups/{group_id}/entries/{entry_id}/reverse:
+    post:
+      operationId: reverseEntry
+      description: |-
+        Reverse an entry. Appends a reversal rather than deleting, so history and
+        balances stay derivable. Reversing an already-reversed entry is 409.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: entry_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: |-
+            Replay: this `Idempotency-Key` already succeeded, and the body is the
+            snapshot from that original write. Not an error — treat as success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryRecord'
+        '201':
+          description: The entry was accepted and written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryRecord'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReverseEntryRequest'
 components:
   schemas:
-    ApiError:
+    BalanceSnapshot:
       type: object
       required:
-        - error
+        - balances
+        - as_of_seq
       properties:
-        error:
-          type: string
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberBalance'
+        as_of_seq:
+          type: integer
+          format: int64
+      description: |-
+        Every group member's balance plus the max entry seq those balances reflect.
+        Both are read in one SQL statement (one MVCC snapshot), so `as_of_seq` is
+        exactly the ledger state the balances derive from.
     CalendarDate:
       type: string
       format: date
@@ -120,10 +353,54 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
+          description: Must be non-empty and free of duplicates.
         memo:
           type: string
         occurred_on:
           $ref: '#/components/schemas/CalendarDate'
+    EditEntryRequest:
+      type: object
+      required:
+        - id
+        - kind
+        - payer_id
+        - total_amount
+        - split_rule
+        - participants
+        - occurred_on
+        - reversal_id
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        kind:
+          $ref: '#/components/schemas/EntryKind'
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        counterparty:
+          $ref: '#/components/schemas/Uuid'
+          description: Required for settlements; the member being paid.
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        split_rule:
+          $ref: '#/components/schemas/SplitRule'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          description: Must be non-empty and free of duplicates.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        reversal_id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7 for the reversal entry that retires the original.
+      description: |-
+        Editing is a correction, not a mutation: the original is reversed and a
+        replacement is appended, so the ledger stays append-only.
     EntryKind:
       type: string
       enum:
@@ -131,6 +408,15 @@ components:
         - settlement
         - reversal
       description: What kind of movement an entry records.
+    EntryList:
+      type: object
+      required:
+        - entries
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntryRecord'
     EntryRecord:
       type: object
       required:
@@ -156,6 +442,7 @@ components:
           $ref: '#/components/schemas/EntryKind'
         reverses_id:
           $ref: '#/components/schemas/Uuid'
+          description: 'Set on a reversal entry: the entry it reverses.'
         payer_id:
           $ref: '#/components/schemas/Uuid'
         counterparty:
@@ -186,6 +473,13 @@ components:
     EqualSplit:
       type: object
       description: Every participant owes the same share; the remainder is distributed deterministically.
+    ErrorBody:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
     ExactSplit:
       type: object
       required:
@@ -196,7 +490,19 @@ components:
           unevaluatedProperties:
             type: integer
             format: int64
-      description: Exact minor-unit amount per member. Keys MUST be exactly the participant set.
+      description: Exact minor-unit amount per member, keyed by member id.
+    MemberBalance:
+      type: object
+      required:
+        - member_id
+        - balance
+      properties:
+        member_id:
+          $ref: '#/components/schemas/Uuid'
+        balance:
+          type: integer
+          format: int64
+      description: "One member's net position: positive = is owed, negative = owes."
     PercentSplit:
       type: object
       required:
@@ -207,7 +513,7 @@ components:
           unevaluatedProperties:
             type: integer
             format: int64
-      description: Percentage weights per member. Keys MUST be exactly the participant set.
+      description: Percentage weights per member, keyed by member id.
     Posting:
       type: object
       required:
@@ -220,6 +526,18 @@ components:
           type: integer
           format: int64
       description: One member's signed net amount for an entry. Postings for an entry sum to zero.
+    ReverseEntryRequest:
+      type: object
+      required:
+        - id
+        - requested_by
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7 for the reversal entry.
+        requested_by:
+          $ref: '#/components/schemas/Uuid'
+          description: Which member is deleting. v1 has no authenticated identity.
     SharesSplit:
       type: object
       required:
@@ -230,7 +548,7 @@ components:
           unevaluatedProperties:
             type: integer
             format: int64
-      description: Relative weights per member. Keys MUST be exactly the participant set.
+      description: Relative weights per member, keyed by member id.
     SplitRule:
       type: object
       oneOf:
