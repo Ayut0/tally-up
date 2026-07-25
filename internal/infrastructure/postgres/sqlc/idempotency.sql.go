@@ -67,6 +67,27 @@ func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotenc
 	return result.RowsAffected(), nil
 }
 
+const markIdempotencySucceeded = `-- name: MarkIdempotencySucceeded :one
+UPDATE idempotency_keys SET status = 'succeeded', response_body = $2
+WHERE key = $1
+RETURNING response_body
+`
+
+type MarkIdempotencySucceededParams struct {
+	Key          uuid.UUID
+	ResponseBody []byte
+}
+
+// Marks a pending key succeeded with its response snapshot, RETURNING the
+// JSONB-normalized bytes so the first response and every future replay read
+// byte-identical values from the same column.
+func (q *Queries) MarkIdempotencySucceeded(ctx context.Context, arg MarkIdempotencySucceededParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, markIdempotencySucceeded, arg.Key, arg.ResponseBody)
+	var response_body []byte
+	err := row.Scan(&response_body)
+	return response_body, err
+}
+
 const sweepStalePendingIdempotencyKeys = `-- name: SweepStalePendingIdempotencyKeys :execrows
 DELETE FROM idempotency_keys
 WHERE status = 'pending'
