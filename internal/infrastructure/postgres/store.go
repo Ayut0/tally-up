@@ -27,6 +27,10 @@ type Store struct {
 	// Release, and SweepStalePending onto Store so its callers keep their
 	// method surface while the gate runs on generated queries.
 	*IdempotencyRepository
+	// Embedding EntryRepository promotes Create onto Store the same way, so
+	// entry.Repository stays satisfied without callers threading a separate
+	// repository through.
+	*EntryRepository
 }
 
 // New connects, runs pending migrations, and returns the store.
@@ -42,7 +46,11 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
-	return &Store{Pool: pool, IdempotencyRepository: NewIdempotencyRepository(pool)}, nil
+	return &Store{
+		Pool:                  pool,
+		IdempotencyRepository: NewIdempotencyRepository(pool),
+		EntryRepository:       NewEntryRepository(pool),
+	}, nil
 }
 
 func Migrate(databaseURL string) error {

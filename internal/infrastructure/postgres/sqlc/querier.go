@@ -21,10 +21,21 @@ type Querier interface {
 	// the acquisition (replay / mismatch / in-flight). COALESCE keeps the body
 	// non-null for a not-yet-succeeded row.
 	GetIdempotencyOutcome(ctx context.Context, key uuid.UUID) (GetIdempotencyOutcomeRow, error)
+	// Appends one entry to the ledger, returning the seq assigned by the
+	// append-only BIGSERIAL. Callers translate a 23505 unique_violation (a
+	// reused client-generated id) into entry.ErrDuplicateID.
+	InsertEntry(ctx context.Context, arg InsertEntryParams) (*int64, error)
 	// Claims the key with a pending row. ON CONFLICT DO NOTHING means a losing
 	// racer inserts nothing; the caller reads the affected-row count (:execrows) to
 	// learn whether it won (1) or must classify an existing row (0).
 	InsertIdempotencyKey(ctx context.Context, arg InsertIdempotencyKeyParams) (int64, error)
+	// Appends one posting row for an entry. Callers must ensure a whole entry's
+	// postings sum to zero before calling this query.
+	InsertPosting(ctx context.Context, arg InsertPostingParams) error
+	// Marks a pending key succeeded with its response snapshot, RETURNING the
+	// JSONB-normalized bytes so the first response and every future replay read
+	// byte-identical values from the same column.
+	MarkIdempotencySucceeded(ctx context.Context, arg MarkIdempotencySucceededParams) ([]byte, error)
 	// Janitor sweep: deletes pending rows older than the given age so crashed
 	// requests can be retried cleanly. Returns the number of rows reclaimed.
 	SweepStalePendingIdempotencyKeys(ctx context.Context, olderThanSecs float64) (int64, error)

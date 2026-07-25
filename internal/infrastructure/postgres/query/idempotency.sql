@@ -14,6 +14,14 @@ SELECT request_hash, status, COALESCE(response_body, 'null'::jsonb) AS response_
 FROM idempotency_keys
 WHERE key = $1;
 
+-- name: MarkIdempotencySucceeded :one
+-- Marks a pending key succeeded with its response snapshot, RETURNING the
+-- JSONB-normalized bytes so the first response and every future replay read
+-- byte-identical values from the same column.
+UPDATE idempotency_keys SET status = 'succeeded', response_body = $2
+WHERE key = $1
+RETURNING response_body;
+
 -- name: DeletePendingIdempotencyKey :exec
 -- Releases a pending key after a post-gate failure so the client can retry
 -- immediately. Succeeded keys are never touched: their response is replay truth.
