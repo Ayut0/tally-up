@@ -1,0 +1,256 @@
+openapi: 3.1.0
+info:
+  title: tab API
+  description: |-
+    tab — n-person bill splitter.
+
+    This spec is the source of truth for the HTTP contract. The Go server
+    validates its responses against the emitted `openapi.yaml`; the web client
+    generates its types from it. Change the contract here first, then both sides.
+  version: 0.0.0
+tags: []
+paths:
+  /groups/{group_id}/entries:
+    post:
+      operationId: createEntry
+      description: |-
+        Record an expense or settlement.
+
+        `Idempotency-Key` is one key per user intent, reused verbatim across retries.
+        A retry that lands after the original succeeded returns 200 with the original
+        body; reusing a key with a different payload is 422; a concurrent in-flight
+        request with the same key is 409 and should be retried shortly.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: |-
+            Replay: this `Idempotency-Key` already succeeded, and the body is the
+            snapshot from that original write. Not an error — treat as success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryRecord'
+        '201':
+          description: The entry was accepted and written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryRecord'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntryRequest'
+components:
+  schemas:
+    ApiError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    CalendarDate:
+      type: string
+      format: date
+      description: Calendar date in `YYYY-MM-DD`.
+    CreateEntryRequest:
+      type: object
+      required:
+        - id
+        - kind
+        - payer_id
+        - total_amount
+        - split_rule
+        - participants
+        - occurred_on
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        kind:
+          $ref: '#/components/schemas/EntryKind'
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        counterparty:
+          $ref: '#/components/schemas/Uuid'
+          description: Required for settlements; the member being paid.
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        split_rule:
+          $ref: '#/components/schemas/SplitRule'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+    EntryKind:
+      type: string
+      enum:
+        - expense
+        - settlement
+        - reversal
+      description: What kind of movement an entry records.
+    EntryRecord:
+      type: object
+      required:
+        - id
+        - seq
+        - kind
+        - payer_id
+        - total_amount
+        - split_rule
+        - participants
+        - occurred_on
+        - created_by
+        - created_at
+        - postings
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        seq:
+          type: integer
+          format: int64
+          description: Monotonic per-group sequence; the cursor for `after_seq` polling.
+        kind:
+          $ref: '#/components/schemas/EntryKind'
+        reverses_id:
+          $ref: '#/components/schemas/Uuid'
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        counterparty:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+        split_rule:
+          $ref: '#/components/schemas/SplitRule'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        created_by:
+          $ref: '#/components/schemas/Uuid'
+        created_at:
+          type: string
+          format: date-time
+        postings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Posting'
+      description: An entry as persisted and returned by the server.
+    EqualSplit:
+      type: object
+      description: Every participant owes the same share; the remainder is distributed deterministically.
+    ExactSplit:
+      type: object
+      required:
+        - amounts
+      properties:
+        amounts:
+          type: object
+          unevaluatedProperties:
+            type: integer
+            format: int64
+      description: Exact minor-unit amount per member. Keys MUST be exactly the participant set.
+    PercentSplit:
+      type: object
+      required:
+        - weights
+      properties:
+        weights:
+          type: object
+          unevaluatedProperties:
+            type: integer
+            format: int64
+      description: Percentage weights per member. Keys MUST be exactly the participant set.
+    Posting:
+      type: object
+      required:
+        - member_id
+        - amount
+      properties:
+        member_id:
+          $ref: '#/components/schemas/Uuid'
+        amount:
+          type: integer
+          format: int64
+      description: One member's signed net amount for an entry. Postings for an entry sum to zero.
+    SharesSplit:
+      type: object
+      required:
+        - weights
+      properties:
+        weights:
+          type: object
+          unevaluatedProperties:
+            type: integer
+            format: int64
+      description: Relative weights per member. Keys MUST be exactly the participant set.
+    SplitRule:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/EqualSplit'
+        - $ref: '#/components/schemas/ExactSplit'
+        - $ref: '#/components/schemas/SharesSplit'
+        - $ref: '#/components/schemas/PercentSplit'
+      discriminator:
+        propertyName: type
+        mapping:
+          equal: '#/components/schemas/EqualSplit'
+          exact: '#/components/schemas/ExactSplit'
+          shares: '#/components/schemas/SharesSplit'
+          percent: '#/components/schemas/PercentSplit'
+      description: How an entry's total is divided among its participants.
+    Uuid:
+      type: string
+      format: uuid
+      description: RFC 9562 UUID. This codebase mints v7 everywhere, so ids are time-ordered.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+    variables: {}

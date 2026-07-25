@@ -1,0 +1,10 @@
+emit:
+  - "@typespec/openapi3"
+options:
+  "@typespec/openapi3":
+    emitter-output-dir: "{project-root}"
+    output-file: "openapi.yaml"
+    # 3.1 aligns with JSON Schema proper — matters for how kin-openapi (Go) and
+    # openapi-typescript read nullable and union types.
+    openapi-versions:
+      - 3.1.0

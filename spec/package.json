@@ -1,0 +1,16 @@
+{
+  "name": "spec",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeSpec source of truth for the tab HTTP API; emits openapi.yaml",
+  "scripts": {
+    "build": "tsp compile .",
+    "watch": "tsp compile . --watch",
+    "format": "tsp format \"**/*.tsp\""
+  },
+  "devDependencies": {
+    "@typespec/compiler": "^1.14.0",
+    "@typespec/http": "^1.14.0",
+    "@typespec/openapi3": "^1.14.0"
+  }
+}
