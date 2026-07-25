@@ -16,13 +16,38 @@ without `make db-up` first.
 
 ```bash
 make db-up          # start local Postgres (docker compose), required for tests
-make test           # TEST_DATABASE_URL=... CGO_ENABLED=0 go test -p 1 ./... -race
+make test           # TEST_DATABASE_URL=... go test -p 1 ./... -race
+                    # (adds CGO_ENABLED=0 on macOS only — see the Makefile)
 go vet ./...        # static checks (no golangci config in this repo)
 make sqlc           # regenerate typed queries after editing query/*.sql
 ```
 
 See the `Makefile` target comments for the other targets (`run`, `seed`,
 `smoke`, `db-down`).
+
+## CI
+
+[`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) runs `go build`,
+`go vet`, and the same `make test` on every pull request and every push to
+`main`. It is blocking; the `@claude review` reviewer is advisory and
+comment-triggered.
+
+**CI does not run DB-backed tests yet.** It invokes `make test-nodb`, which
+blanks `TEST_DATABASE_URL` so the tests that need Postgres skip; what runs is
+the domain and pure-logic coverage. Running the full suite is still on you
+locally: `make db-up && make test`.
+
+When the database is turned on in CI, the workflow gains a `services: postgres`
+block and sets `TALLYUP_REQUIRE_DB=1`. That variable flips a missing
+`TEST_DATABASE_URL` from a skip into a hard failure, so an environment that
+believes it is exercising the database but silently isn't fails loudly instead
+of reporting green. Set it locally too if you want the same strictness:
+
+```bash
+TALLYUP_REQUIRE_DB=1 make test    # fails rather than skips if the DB is missing
+```
+
+See `decideDBURL` in `internal/infrastructure/postgres/store.go`.
 
 ## sqlc workflow
 

@@ -2,13 +2,19 @@ DATABASE_URL ?= postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=d
 PORT ?= 8080
 
 # CGO_ENABLED=0 works around a macOS/Go toolchain dyld quirk on some setups
-# (missing LC_UUID load command); harmless elsewhere since this repo has no cgo deps.
+# (missing LC_UUID load command). It is scoped to macOS deliberately: on Linux
+# `go test -race` requires cgo and refuses to run without it, so leaking this
+# to CI breaks the test job.
+ifeq ($(shell uname -s),Darwin)
 GO := CGO_ENABLED=0 go
+else
+GO := go
+endif
 
 SEED_MEMBER_ID  := 00000000-0000-0000-0000-00000000000a
 SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1
 
-.PHONY: db-up db-down run seed smoke test sqlc web-dev web-test web-build
+.PHONY: db-up db-down run seed smoke test test-nodb sqlc web-dev web-test web-build
 
 db-up: ## Start the local Postgres container
 	docker compose up -d db
@@ -34,6 +40,12 @@ smoke: ## POST one expense against a running `make run` server (run `make seed` 
 
 test: ## Run the full test suite against the local Postgres container (race detector, sequential packages)
 	TEST_DATABASE_URL='$(DATABASE_URL)' $(GO) test -p 1 ./... -race
+
+test-nodb: ## Run only the tests that need no database — what CI runs today
+	@# Blanks DATABASE_URL so TEST_DATABASE_URL is empty and the DB-backed
+	@# tests skip. Without this they would target the local default (:5433)
+	@# and fail with "connection refused" wherever no Postgres is running.
+	$(MAKE) test DATABASE_URL=
 
 sqlc: ## Regenerate the typed query layer from query/*.sql (install: brew install sqlc)
 	sqlc generate
