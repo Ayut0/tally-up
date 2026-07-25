@@ -27,10 +27,15 @@ type Store struct {
 	// Release, and SweepStalePending onto Store so its callers keep their
 	// method surface while the gate runs on generated queries.
 	*IdempotencyRepository
-	// Embedding EntryRepository promotes Create onto Store the same way, so
-	// entry.Repository stays satisfied without callers threading a separate
-	// repository through.
+	// Embedding EntryRepository promotes Create, Reverse, and Edit onto Store
+	// the same way, so entry.Repository/Reverser/Editor stay satisfied without
+	// callers threading a separate repository through.
 	*EntryRepository
+	// Embedding ReadRepository promotes GetBalances and ListEntries onto
+	// Store, satisfying entry.BalanceReader/HistoryReader.
+	*ReadRepository
+	// Embedding IntegrityRepository promotes CheckIntegrity onto Store.
+	*IntegrityRepository
 }
 
 // New connects, runs pending migrations, and returns the store.
@@ -50,6 +55,8 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 		Pool:                  pool,
 		IdempotencyRepository: NewIdempotencyRepository(pool),
 		EntryRepository:       NewEntryRepository(pool),
+		ReadRepository:        NewReadRepository(pool),
+		IntegrityRepository:   NewIntegrityRepository(pool),
 	}, nil
 }
 

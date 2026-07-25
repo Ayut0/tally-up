@@ -44,49 +44,62 @@ func (r *EntryRepository) Create(ctx context.Context, key uuid.UUID, in entry.In
 	err := r.tx.Do(ctx, func(ctx context.Context) error {
 		q := r.queries(ctx)
 
-		// Everyone touched by this entry must belong to the group.
-		ids := dedup(touchedMembers(in))
-		cnt, err := q.CountGroupMembers(ctx, sqlc.CountGroupMembersParams{
-			GroupID: in.GroupID, MemberIds: ids,
-		})
+		seq, err := insertEntryAndPostings(ctx, q, in, postings)
 		if err != nil {
 			return err
-		}
-		if int(cnt) != len(ids) {
-			return group.ErrNotMember
-		}
-
-		seq, err := q.InsertEntry(ctx, sqlc.InsertEntryParams{
-			ID: in.ID, GroupID: in.GroupID, Kind: string(in.Kind), PayerID: in.PayerID,
-			Counterparty: in.Counterparty, TotalAmount: in.TotalAmount, SplitRule: in.SplitRule,
-			Participants: in.Participants, Memo: &in.Memo,
-			OccurredOn: pgtype.Date{Time: in.OccurredOn, Valid: true}, CreatedBy: in.CreatedBy,
-		})
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			return entry.ErrDuplicateID
-		}
-		if err != nil {
-			return err
-		}
-
-		for _, p := range postings {
-			if err := q.InsertPosting(ctx, sqlc.InsertPostingParams{
-				EntryID: in.ID, MemberID: p.MemberID, Amount: p.Amount,
-			}); err != nil {
-				return err
-			}
 		}
 
 		// RETURNING gives us the JSONB-normalized bytes, so this first response is
 		// byte-identical to every future replay read from the same column.
-		snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d}`, in.ID, *seq))
+		snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d}`, in.ID, seq))
 		resp, err = q.MarkIdempotencySucceeded(ctx, sqlc.MarkIdempotencySucceededParams{
 			Key: key, ResponseBody: snapshot,
 		})
 		return err
 	})
 	return resp, err
+}
+
+// insertEntryAndPostings validates group membership, appends one entry, and
+// appends its postings — the shared core of Create (above) and Edit's
+// replacement half (reversals.go). Caller owns the transaction and has
+// already zero-sum-checked postings.
+func insertEntryAndPostings(ctx context.Context, q *sqlc.Queries, in entry.Input, postings []ledger.Posting) (int64, error) {
+	// Everyone touched by this entry must belong to the group.
+	ids := dedup(touchedMembers(in))
+	cnt, err := q.CountGroupMembers(ctx, sqlc.CountGroupMembersParams{
+		GroupID: in.GroupID, MemberIds: ids,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if int(cnt) != len(ids) {
+		return 0, group.ErrNotMember
+	}
+
+	seq, err := q.InsertEntry(ctx, sqlc.InsertEntryParams{
+		ID: in.ID, GroupID: in.GroupID, Kind: string(in.Kind), PayerID: in.PayerID,
+		Counterparty: in.Counterparty, TotalAmount: in.TotalAmount, SplitRule: in.SplitRule,
+		Participants: in.Participants, Memo: &in.Memo,
+		OccurredOn: pgtype.Date{Time: in.OccurredOn, Valid: true}, CreatedBy: in.CreatedBy,
+	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+		return 0, entry.ErrDuplicateID
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	for _, p := range postings {
+		if err := q.InsertPosting(ctx, sqlc.InsertPostingParams{
+			EntryID: in.ID, MemberID: p.MemberID, Amount: p.Amount,
+		}); err != nil {
+			return 0, err
+		}
+	}
+
+	return *seq, nil
 }
 
 // touchedMembers returns payer, participants, and the optional counterparty

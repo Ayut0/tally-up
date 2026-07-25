@@ -11,12 +11,25 @@ import (
 )
 
 type Querier interface {
+	// Appends the reversal entry's postings as the exact negation of the
+	// original's, so the pair sums to zero.
+	CopyNegatedPostings(ctx context.Context, arg CopyNegatedPostingsParams) error
+	// Counts originals reversed more than once (should never happen given the
+	// FOR UPDATE guard in Reverse/Edit).
+	CountDoublyReversedOriginals(ctx context.Context) (int64, error)
+	// Per-entry zero-sum integrity check: counts entries whose own postings
+	// don't sum to zero.
+	CountEntriesWithNonzeroPostingSum(ctx context.Context) (int64, error)
 	// Counts how many of the given member ids belong to the group. Callers compare
 	// the count against the number of distinct ids they asked about.
 	CountGroupMembers(ctx context.Context, arg CountGroupMembersParams) (int64, error)
 	// Releases a pending key after a post-gate failure so the client can retry
 	// immediately. Succeeded keys are never touched: their response is replay truth.
 	DeletePendingIdempotencyKey(ctx context.Context, key uuid.UUID) error
+	// Every group member's net position plus the max entry seq those balances
+	// reflect, both from ONE statement (one MVCC snapshot) so as_of_seq is
+	// exactly the ledger state the balances derive from.
+	GetGroupBalances(ctx context.Context, groupID uuid.UUID) ([]GetGroupBalancesRow, error)
 	// Reads the row a conflicting Insert collided with, so the caller can classify
 	// the acquisition (replay / mismatch / in-flight). COALESCE keeps the body
 	// non-null for a not-yet-succeeded row.
@@ -32,10 +45,27 @@ type Querier interface {
 	// Appends one posting row for an entry. Callers must ensure a whole entry's
 	// postings sum to zero before calling this query.
 	InsertPosting(ctx context.Context, arg InsertPostingParams) error
+	// Appends a kind='reversal' entry copying the original's payer/counterparty/
+	// total/participants/occurred_on, returning the assigned seq.
+	InsertReversalEntry(ctx context.Context, arg InsertReversalEntryParams) (*int64, error)
+	// Reports whether any entry already reverses the given original.
+	IsAlreadyReversed(ctx context.Context, reversesID *uuid.UUID) (bool, error)
+	// Seq-ordered keyset page of entries. occurred_on stays a date column here;
+	// callers format it to the wire "YYYY-MM-DD" string.
+	ListEntriesAfterSeq(ctx context.Context, arg ListEntriesAfterSeqParams) ([]ListEntriesAfterSeqRow, error)
+	// Second-load of postings for a page of entry ids from ListEntriesAfterSeq.
+	ListPostingsForEntries(ctx context.Context, entryIds []uuid.UUID) ([]Posting, error)
+	// Locks the original entry against concurrent reversal attempts. FOR UPDATE
+	// serializes racers: the loser re-checks after the winner commits (row locks
+	// don't fire the append-only trigger — only real UPDATE/DELETE do).
+	LockEntryForUpdate(ctx context.Context, arg LockEntryForUpdateParams) (LockEntryForUpdateRow, error)
 	// Marks a pending key succeeded with its response snapshot, RETURNING the
 	// JSONB-normalized bytes so the first response and every future replay read
 	// byte-identical values from the same column.
 	MarkIdempotencySucceeded(ctx context.Context, arg MarkIdempotencySucceededParams) ([]byte, error)
+	// Global zero-sum integrity check: the sum of every posting, across every
+	// entry, must be zero.
+	SumAllPostings(ctx context.Context) (int64, error)
 	// Janitor sweep: deletes pending rows older than the given age so crashed
 	// requests can be retried cleanly. Returns the number of rows reclaimed.
 	SweepStalePendingIdempotencyKeys(ctx context.Context, olderThanSecs float64) (int64, error)

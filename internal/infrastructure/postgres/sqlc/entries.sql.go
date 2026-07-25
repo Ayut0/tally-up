@@ -12,6 +12,93 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyNegatedPostings = `-- name: CopyNegatedPostings :exec
+INSERT INTO postings (entry_id, member_id, amount)
+SELECT $1, p.member_id, -p.amount FROM postings p WHERE p.entry_id = $2
+`
+
+type CopyNegatedPostingsParams struct {
+	EntryID   uuid.UUID
+	EntryID_2 uuid.UUID
+}
+
+// Appends the reversal entry's postings as the exact negation of the
+// original's, so the pair sums to zero.
+func (q *Queries) CopyNegatedPostings(ctx context.Context, arg CopyNegatedPostingsParams) error {
+	_, err := q.db.Exec(ctx, copyNegatedPostings, arg.EntryID, arg.EntryID_2)
+	return err
+}
+
+const countDoublyReversedOriginals = `-- name: CountDoublyReversedOriginals :one
+SELECT count(*) FROM (
+    SELECT reverses_id FROM entries WHERE reverses_id IS NOT NULL
+    GROUP BY reverses_id HAVING count(*) > 1
+) bad
+`
+
+// Counts originals reversed more than once (should never happen given the
+// FOR UPDATE guard in Reverse/Edit).
+func (q *Queries) CountDoublyReversedOriginals(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countDoublyReversedOriginals)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countEntriesWithNonzeroPostingSum = `-- name: CountEntriesWithNonzeroPostingSum :one
+SELECT count(*) FROM (
+    SELECT entry_id FROM postings GROUP BY entry_id HAVING SUM(amount) <> 0
+) bad
+`
+
+// Per-entry zero-sum integrity check: counts entries whose own postings
+// don't sum to zero.
+func (q *Queries) CountEntriesWithNonzeroPostingSum(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countEntriesWithNonzeroPostingSum)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getGroupBalances = `-- name: GetGroupBalances :many
+SELECT gm.member_id,
+       COALESCE(b.balance, 0)::bigint AS balance,
+       (SELECT COALESCE(MAX(seq), 0) FROM entries e WHERE e.group_id = $1)::bigint AS as_of_seq
+FROM group_members gm
+LEFT JOIN balances b ON b.group_id = gm.group_id AND b.member_id = gm.member_id
+WHERE gm.group_id = $1
+ORDER BY gm.member_id
+`
+
+type GetGroupBalancesRow struct {
+	MemberID uuid.UUID
+	Balance  int64
+	AsOfSeq  int64
+}
+
+// Every group member's net position plus the max entry seq those balances
+// reflect, both from ONE statement (one MVCC snapshot) so as_of_seq is
+// exactly the ledger state the balances derive from.
+func (q *Queries) GetGroupBalances(ctx context.Context, groupID uuid.UUID) ([]GetGroupBalancesRow, error) {
+	rows, err := q.db.Query(ctx, getGroupBalances, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupBalancesRow
+	for rows.Next() {
+		var i GetGroupBalancesRow
+		if err := rows.Scan(&i.MemberID, &i.Balance, &i.AsOfSeq); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertEntry = `-- name: InsertEntry :one
 INSERT INTO entries (id, group_id, kind, payer_id, counterparty, total_amount,
                      split_rule, participants, memo, occurred_on, created_by)
@@ -71,4 +158,198 @@ type InsertPostingParams struct {
 func (q *Queries) InsertPosting(ctx context.Context, arg InsertPostingParams) error {
 	_, err := q.db.Exec(ctx, insertPosting, arg.EntryID, arg.MemberID, arg.Amount)
 	return err
+}
+
+const insertReversalEntry = `-- name: InsertReversalEntry :one
+INSERT INTO entries (id, group_id, kind, reverses_id, payer_id, counterparty,
+                     total_amount, split_rule, participants, occurred_on, created_by)
+VALUES ($1, $2, 'reversal', $3, $4, $5, $6, '{"type":"reversal"}', $7, $8, $9)
+RETURNING seq
+`
+
+type InsertReversalEntryParams struct {
+	ID           uuid.UUID
+	GroupID      uuid.UUID
+	ReversesID   *uuid.UUID
+	PayerID      uuid.UUID
+	Counterparty *uuid.UUID
+	TotalAmount  int64
+	Participants []uuid.UUID
+	OccurredOn   pgtype.Date
+	CreatedBy    uuid.UUID
+}
+
+// Appends a kind='reversal' entry copying the original's payer/counterparty/
+// total/participants/occurred_on, returning the assigned seq.
+func (q *Queries) InsertReversalEntry(ctx context.Context, arg InsertReversalEntryParams) (*int64, error) {
+	row := q.db.QueryRow(ctx, insertReversalEntry,
+		arg.ID,
+		arg.GroupID,
+		arg.ReversesID,
+		arg.PayerID,
+		arg.Counterparty,
+		arg.TotalAmount,
+		arg.Participants,
+		arg.OccurredOn,
+		arg.CreatedBy,
+	)
+	var seq *int64
+	err := row.Scan(&seq)
+	return seq, err
+}
+
+const isAlreadyReversed = `-- name: IsAlreadyReversed :one
+SELECT EXISTS(SELECT 1 FROM entries WHERE reverses_id = $1)
+`
+
+// Reports whether any entry already reverses the given original.
+func (q *Queries) IsAlreadyReversed(ctx context.Context, reversesID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isAlreadyReversed, reversesID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const listEntriesAfterSeq = `-- name: ListEntriesAfterSeq :many
+SELECT id, seq, kind, reverses_id, payer_id, counterparty, total_amount,
+       split_rule, participants, memo, occurred_on, created_by, created_at
+FROM entries
+WHERE group_id = $1 AND seq > $2
+ORDER BY seq
+LIMIT $3
+`
+
+type ListEntriesAfterSeqParams struct {
+	GroupID uuid.UUID
+	Seq     *int64
+	Limit   int32
+}
+
+type ListEntriesAfterSeqRow struct {
+	ID           uuid.UUID
+	Seq          *int64
+	Kind         string
+	ReversesID   *uuid.UUID
+	PayerID      uuid.UUID
+	Counterparty *uuid.UUID
+	TotalAmount  int64
+	SplitRule    []byte
+	Participants []uuid.UUID
+	Memo         *string
+	OccurredOn   pgtype.Date
+	CreatedBy    uuid.UUID
+	CreatedAt    pgtype.Timestamptz
+}
+
+// Seq-ordered keyset page of entries. occurred_on stays a date column here;
+// callers format it to the wire "YYYY-MM-DD" string.
+func (q *Queries) ListEntriesAfterSeq(ctx context.Context, arg ListEntriesAfterSeqParams) ([]ListEntriesAfterSeqRow, error) {
+	rows, err := q.db.Query(ctx, listEntriesAfterSeq, arg.GroupID, arg.Seq, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEntriesAfterSeqRow
+	for rows.Next() {
+		var i ListEntriesAfterSeqRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Seq,
+			&i.Kind,
+			&i.ReversesID,
+			&i.PayerID,
+			&i.Counterparty,
+			&i.TotalAmount,
+			&i.SplitRule,
+			&i.Participants,
+			&i.Memo,
+			&i.OccurredOn,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostingsForEntries = `-- name: ListPostingsForEntries :many
+SELECT entry_id, member_id, amount FROM postings
+WHERE entry_id = ANY($1::uuid[])
+ORDER BY entry_id, member_id
+`
+
+// Second-load of postings for a page of entry ids from ListEntriesAfterSeq.
+func (q *Queries) ListPostingsForEntries(ctx context.Context, entryIds []uuid.UUID) ([]Posting, error) {
+	rows, err := q.db.Query(ctx, listPostingsForEntries, entryIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Posting
+	for rows.Next() {
+		var i Posting
+		if err := rows.Scan(&i.EntryID, &i.MemberID, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockEntryForUpdate = `-- name: LockEntryForUpdate :one
+SELECT kind, payer_id, counterparty, total_amount, participants, occurred_on
+FROM entries WHERE id = $1 AND group_id = $2
+FOR UPDATE
+`
+
+type LockEntryForUpdateParams struct {
+	ID      uuid.UUID
+	GroupID uuid.UUID
+}
+
+type LockEntryForUpdateRow struct {
+	Kind         string
+	PayerID      uuid.UUID
+	Counterparty *uuid.UUID
+	TotalAmount  int64
+	Participants []uuid.UUID
+	OccurredOn   pgtype.Date
+}
+
+// Locks the original entry against concurrent reversal attempts. FOR UPDATE
+// serializes racers: the loser re-checks after the winner commits (row locks
+// don't fire the append-only trigger — only real UPDATE/DELETE do).
+func (q *Queries) LockEntryForUpdate(ctx context.Context, arg LockEntryForUpdateParams) (LockEntryForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, lockEntryForUpdate, arg.ID, arg.GroupID)
+	var i LockEntryForUpdateRow
+	err := row.Scan(
+		&i.Kind,
+		&i.PayerID,
+		&i.Counterparty,
+		&i.TotalAmount,
+		&i.Participants,
+		&i.OccurredOn,
+	)
+	return i, err
+}
+
+const sumAllPostings = `-- name: SumAllPostings :one
+SELECT COALESCE(SUM(amount), 0)::bigint FROM postings
+`
+
+// Global zero-sum integrity check: the sum of every posting, across every
+// entry, must be zero.
+func (q *Queries) SumAllPostings(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, sumAllPostings)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
