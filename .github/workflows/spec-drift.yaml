@@ -1,12 +1,18 @@
 name: Spec drift
 
-# Blocking check that spec/openapi.yaml is what spec/main.tsp actually compiles
-# to. #93's contract only works if the committed OpenAPI is trustworthy: the Go
+# Check that spec/openapi.yaml is what spec/main.tsp actually compiles to.
+# #93's contract only works if the committed OpenAPI is trustworthy: the Go
 # server validates against it (openapi_spec_test.go) and the web client
 # generates types from it, so a hand-edited or stale openapi.yaml would make
-# both sides trust something the source no longer says. Scoped to spec/ only —
-# self-contained, no Postgres or Go toolchain needed — so it does not depend on
-# #94 (the Go build/vet/test workflow, not yet merged).
+# both sides trust something the source no longer says.
+#
+# Stays a separate workflow from ci.yaml (#95): that one builds, vets, and
+# runs the Go tests that need no database, and never touches the TypeSpec/Node
+# toolchain, so a spec-only change wouldn't trigger it. This workflow is
+# self-contained — Node only, no Postgres or Go toolchain.
+#
+# Like ci.yaml, this reports but does not yet gate a merge — see ci.yaml's own
+# header on turning on branch protection.
 
 on:
   pull_request:
@@ -27,10 +33,13 @@ jobs:
     defaults:
       run:
         working-directory: spec
+    # Third-party actions pinned to commit SHAs, not tags — a tag is mutable,
+    # matching the practice ci.yaml already established (#95). Update the
+    # trailing comment alongside the SHA.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm

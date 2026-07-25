@@ -80,7 +80,7 @@ types (`reads.go`, `entries.go`) rather than encoding domain values directly.
 (`web/lib/api-types.ts`). Because that file carries no runtime code — it's
 pure type declarations — a contract regression can only be caught at compile
 time; `web/package.json`'s `test` script runs `tsc --noEmit` before `vitest
-run` specifically so `web/lib/api-types.test.ts`'s `satisfies`-style
+run` specifically so `web/lib/api-types.test.ts`'s typed object-literal
 assignments gate the suite instead of being silently stripped by vitest's
 esbuild transform.
 
@@ -89,9 +89,13 @@ esbuild transform.
 `.github/workflows/spec-drift.yaml` rebuilds `spec/openapi.yaml` from
 `spec/main.tsp` on any PR or `main` push touching `spec/**` and fails if the
 result differs from what's committed. It is deliberately narrow — Node
-only, no Postgres or Go toolchain — because this repo has no blocking CI at
-all yet (issue #94, open, is scoped to Go build/vet/test) and spec drift
-detection does not need to wait on it.
+only, no Postgres or Go toolchain — and stays a separate workflow from
+`.github/workflows/ci.yaml` (issue #94, merged as #95, while this work was
+in progress): `ci.yaml` builds, vets, and runs the Go tests that need no
+database; it never touches the TypeSpec/Node toolchain, so a spec change
+with no Go change wouldn't trigger it. Note that neither workflow gates a
+merge yet — `ci.yaml`'s own header records that branch protection hasn't
+been turned on for it — so both currently report rather than block.
 
 ### The contract is frozen before implementation changes it
 

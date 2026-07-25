@@ -311,7 +311,8 @@ op reverseEntry(
 
 /**
  * Edit an entry: reverse the original and append the replacement in one
- * transaction. The response body is the replacement entry.
+ * transaction. The response body is an EditAck, not the full replacement
+ * entry — same as create and reverse, re-read via list-entries to see it.
  */
 @route("/groups/{group_id}/entries/{entry_id}")
 @put

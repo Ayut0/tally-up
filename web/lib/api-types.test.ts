@@ -5,9 +5,10 @@ import type { components, paths } from "./api-types";
 // and carries no runtime code of its own — it's pure type declarations. That
 // means a contract change here can only be caught at compile time, not by
 // vitest's own transform (esbuild strips types without checking them). `npm
-// test` runs `tsc --noEmit` first specifically so this file's `satisfies`
-// assignments fail the build the moment the generated types drift from what
-// the rest of this suite assumes, before any test even executes.
+// test` runs `tsc --noEmit` first specifically so this file's typed object
+// literals — excess-property-checked against the generated schemas below —
+// fail the build the moment the generated types drift from what the rest of
+// this suite assumes, before any test even executes.
 
 describe("generated API types (spec/main.tsp -> spec/openapi.yaml)", () => {
   it("exposes the four route templates the spec declares", () => {
