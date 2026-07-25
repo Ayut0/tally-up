@@ -14,7 +14,7 @@ endif
 SEED_MEMBER_ID  := 00000000-0000-0000-0000-00000000000a
 SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1
 
-.PHONY: db-up db-down run seed smoke test test-nodb sqlc web-dev web-test web-build
+.PHONY: db-up db-down run seed smoke test test-nodb sqlc spec web-dev web-test web-build
 
 db-up: ## Start the local Postgres container
 	docker compose up -d db
@@ -49,6 +49,9 @@ test-nodb: ## Run only the tests that need no database — what CI runs today
 
 sqlc: ## Regenerate the typed query layer from query/*.sql (install: brew install sqlc)
 	sqlc generate
+
+spec: ## Regenerate spec/openapi.yaml from spec/*.tsp (spec/ is self-contained; needs `cd spec && npm install` once first)
+	cd spec && npm run build
 
 web-dev: ## Run the Next.js dev server (web/ is a self-contained npm project; needs `cd web && npm install` once first)
 	cd web && npm run dev
