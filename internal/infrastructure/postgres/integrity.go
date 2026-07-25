@@ -1,6 +1,10 @@
 package postgres
 
-import "context"
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 // IntegrityReport is the result of the architecture.md §5 integrity checks.
 // All-zero means the ledger's invariants hold.
@@ -14,24 +18,37 @@ func (r IntegrityReport) OK() bool {
 	return r.GlobalSum == 0 && r.EntriesWithNonzeroSum == 0 && r.DoublyReversedOriginals == 0
 }
 
-func (s *Store) CheckIntegrity(ctx context.Context) (IntegrityReport, error) {
+// IntegrityRepository runs the architecture.md §5 integrity checks over
+// generated queries. Each check is an independent statement, same as before.
+type IntegrityRepository struct {
+	*BaseRepository
+}
+
+func NewIntegrityRepository(pool *pgxpool.Pool) *IntegrityRepository {
+	return &IntegrityRepository{BaseRepository: NewBaseRepository(pool)}
+}
+
+func (r *IntegrityRepository) CheckIntegrity(ctx context.Context) (IntegrityReport, error) {
+	q := r.queries(ctx)
 	var rep IntegrityReport
-	if err := s.Pool.QueryRow(ctx,
-		`SELECT COALESCE(SUM(amount), 0) FROM postings`).Scan(&rep.GlobalSum); err != nil {
+
+	sum, err := q.SumAllPostings(ctx)
+	if err != nil {
 		return rep, err
 	}
-	if err := s.Pool.QueryRow(ctx, `
-		SELECT count(*) FROM (
-			SELECT entry_id FROM postings GROUP BY entry_id HAVING SUM(amount) <> 0
-		) bad`).Scan(&rep.EntriesWithNonzeroSum); err != nil {
+	rep.GlobalSum = sum
+
+	nonzero, err := q.CountEntriesWithNonzeroPostingSum(ctx)
+	if err != nil {
 		return rep, err
 	}
-	if err := s.Pool.QueryRow(ctx, `
-		SELECT count(*) FROM (
-			SELECT reverses_id FROM entries WHERE reverses_id IS NOT NULL
-			GROUP BY reverses_id HAVING count(*) > 1
-		) bad`).Scan(&rep.DoublyReversedOriginals); err != nil {
+	rep.EntriesWithNonzeroSum = int(nonzero)
+
+	doublyReversed, err := q.CountDoublyReversedOriginals(ctx)
+	if err != nil {
 		return rep, err
 	}
+	rep.DoublyReversedOriginals = int(doublyReversed)
+
 	return rep, nil
 }
