@@ -32,9 +32,9 @@ See the `Makefile` target comments for the other targets (`run`, `seed`,
 `main`. It is blocking; the `@claude review` reviewer is advisory and
 comment-triggered.
 
-**CI does not run DB-backed tests yet.** It invokes `make test DATABASE_URL=`,
-so with no `TEST_DATABASE_URL` the tests that need Postgres skip and what runs
-is the domain and pure-logic coverage. Running the full suite is still on you
+**CI does not run DB-backed tests yet.** It invokes `make test-nodb`, which
+blanks `TEST_DATABASE_URL` so the tests that need Postgres skip; what runs is
+the domain and pure-logic coverage. Running the full suite is still on you
 locally: `make db-up && make test`.
 
 When the database is turned on in CI, the workflow gains a `services: postgres`

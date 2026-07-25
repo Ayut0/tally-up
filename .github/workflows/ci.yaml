@@ -55,12 +55,10 @@ jobs:
       # Delegated to the Makefile so the test invocation has exactly one
       # definition and cannot drift from what contributors run locally.
       #
-      # DATABASE_URL is deliberately empty: with no TEST_DATABASE_URL, the
-      # DB-backed tests skip (see decideDBURL in
-      # internal/infrastructure/postgres/store.go) and what runs here is the
-      # domain and pure-logic coverage. Turning the database on is a follow-up:
-      # add a `services: postgres` block, point DATABASE_URL at it, and set
+      # The DB-backed tests skip here; what runs is the domain and pure-logic
+      # coverage. Turning the database on is a follow-up (#100): add a
+      # `services: postgres` block, run plain `make test` against it, and set
       # TALLYUP_REQUIRE_DB=1 so a mis-wired database fails the job instead of
       # silently skipping every integration test.
-      - name: Test (no database)
-        run: make test DATABASE_URL=
+      - name: Test
+        run: make test-nodb
