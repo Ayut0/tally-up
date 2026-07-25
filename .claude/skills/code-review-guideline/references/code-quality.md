@@ -115,7 +115,7 @@ Code is read far more often than written; a line that takes ten seconds to
 decode taxes every future reader.
 
 - SHOULD flag a one-liner that takes more than ten seconds to parse when a
-  named-steps version would read more clearly — Minor/Nit.
+  named-steps version would read more clearly — Minor.
 - SHOULD flag a generic type parameter on a function with exactly one
   concrete usage in the diff — Minor. Replace with the concrete type.
 
