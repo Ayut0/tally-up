@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.0
 info:
   title: tab API
   description: |-
@@ -426,7 +426,8 @@ components:
         kind:
           $ref: '#/components/schemas/EntryKind'
         reverses_id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: 'Set on a reversal entry: the entry it reverses.'
         payer_id:
           $ref: '#/components/schemas/Uuid'
@@ -464,7 +465,8 @@ components:
         - occurred_on
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
         payer_id:
           $ref: '#/components/schemas/Uuid'
@@ -494,7 +496,7 @@ components:
       properties:
         amounts:
           type: object
-          unevaluatedProperties:
+          additionalProperties:
             type: integer
             format: int64
       description: Exact minor-unit amount per member, keyed by member id.
@@ -511,7 +513,8 @@ components:
         - reversal_entry_id
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
         payer_id:
           $ref: '#/components/schemas/Uuid'
@@ -548,7 +551,8 @@ components:
         - participants
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
         payer_id:
           $ref: '#/components/schemas/Uuid'
@@ -591,7 +595,7 @@ components:
       properties:
         weights:
           type: object
-          unevaluatedProperties:
+          additionalProperties:
             type: integer
             format: int64
       description: Percentage weights per member, keyed by member id.
@@ -629,10 +633,12 @@ components:
         - requested_by
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7 for the reversal entry.
         requested_by:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Which member is deleting. v1 has no authenticated identity.
     SettlementEdit:
       type: object
@@ -646,7 +652,8 @@ components:
         - reversal_entry_id
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
         payer_id:
           $ref: '#/components/schemas/Uuid'
@@ -663,7 +670,8 @@ components:
           enum:
             - settlement
         counterparty:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: The member being paid.
         reversal_entry_id:
           $ref: '#/components/schemas/Uuid'
@@ -678,7 +686,8 @@ components:
         - counterparty
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
         payer_id:
           $ref: '#/components/schemas/Uuid'
@@ -695,7 +704,8 @@ components:
           enum:
             - settlement
         counterparty:
-          $ref: '#/components/schemas/Uuid'
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
           description: The member being paid.
       description: |-
         A settlement: a direct payment from `payer_id` to `counterparty`, with no
@@ -709,7 +719,7 @@ components:
       properties:
         weights:
           type: object
-          unevaluatedProperties:
+          additionalProperties:
             type: integer
             format: int64
       description: Relative weights per member, keyed by member id.
