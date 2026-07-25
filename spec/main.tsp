@@ -175,19 +175,45 @@ model ErrorResponse<Status> {
   @body body: ErrorBody;
 }
 
-/** The entry was accepted and written. */
-model EntryCreated {
+/**
+ * Write acknowledgement. Writes return the new entry's id and the ledger
+ * sequence it was assigned — *not* the full entry. Re-read the ledger via
+ * list-entries to see the record itself; `seq` is the cursor to read from.
+ */
+model EntryAck {
+  id: Uuid;
+  seq: int64;
+}
+
+/** Acknowledgement of a reversal, naming the entry it retired. */
+model ReversalAck {
+  ...EntryAck;
+  reverses_id: Uuid;
+}
+
+/**
+ * Acknowledgement of an edit. `id`/`seq` are the *replacement* entry;
+ * `reversal_id` is the reversal that retired the original.
+ */
+model EditAck {
+  ...EntryAck;
+  reversal_id: Uuid;
+}
+
+/** The write was accepted and appended to the ledger. */
+model Created<Body> {
   @statusCode statusCode: 201;
-  @body entry: EntryRecord;
+  @body body: Body;
 }
 
 /**
  * Replay: this `Idempotency-Key` already succeeded, and the body is the
- * snapshot from that original write. Not an error — treat as success.
+ * snapshot stored from that original write, byte-identical to what the first
+ * request returned. Not an error — treat as success.
  */
-model EntryReplayed {
+model Replayed<Body> {
   @statusCode statusCode: 200;
-  @body entry: EntryRecord;
+  @body body: Body;
 }
 
 /**
@@ -223,7 +249,7 @@ op createEntry(
   @path group_id: Uuid,
   @header("Idempotency-Key") idempotencyKey: Uuid,
   @body entry: CreateEntryRequest,
-): EntryCreated | EntryReplayed | WriteErrors;
+): Created<EntryAck> | Replayed<EntryAck> | WriteErrors;
 
 /**
  * Reverse an entry. Appends a reversal rather than deleting, so history and
@@ -236,7 +262,7 @@ op reverseEntry(
   @path entry_id: Uuid,
   @header("Idempotency-Key") idempotencyKey: Uuid,
   @body reversal: ReverseEntryRequest,
-): EntryCreated | EntryReplayed | CorrectionErrors;
+): Created<ReversalAck> | Replayed<ReversalAck> | CorrectionErrors;
 
 /**
  * Edit an entry: reverse the original and append the replacement in one
@@ -249,7 +275,7 @@ op editEntry(
   @path entry_id: Uuid,
   @header("Idempotency-Key") idempotencyKey: Uuid,
   @body entry: EditEntryRequest,
-): EntryCreated | EntryReplayed | CorrectionErrors;
+): Created<EditAck> | Replayed<EditAck> | CorrectionErrors;
 
 /** Current net position of every group member, with the seq they reflect. */
 @route("/groups/{group_id}/balance")

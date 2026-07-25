@@ -64,17 +64,18 @@ paths:
         '200':
           description: |-
             Replay: this `Idempotency-Key` already succeeded, and the body is the
-            snapshot from that original write. Not an error — treat as success.
+            snapshot stored from that original write, byte-identical to what the first
+            request returned. Not an error — treat as success.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryRecord'
+                $ref: '#/components/schemas/EntryAck'
         '201':
-          description: The entry was accepted and written.
+          description: The write was accepted and appended to the ledger.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryRecord'
+                $ref: '#/components/schemas/EntryAck'
         '400':
           description: The server could not understand the request due to invalid syntax.
           content:
@@ -179,17 +180,18 @@ paths:
         '200':
           description: |-
             Replay: this `Idempotency-Key` already succeeded, and the body is the
-            snapshot from that original write. Not an error — treat as success.
+            snapshot stored from that original write, byte-identical to what the first
+            request returned. Not an error — treat as success.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryRecord'
+                $ref: '#/components/schemas/EditAck'
         '201':
-          description: The entry was accepted and written.
+          description: The write was accepted and appended to the ledger.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryRecord'
+                $ref: '#/components/schemas/EditAck'
         '400':
           description: The server could not understand the request due to invalid syntax.
           content:
@@ -252,17 +254,18 @@ paths:
         '200':
           description: |-
             Replay: this `Idempotency-Key` already succeeded, and the body is the
-            snapshot from that original write. Not an error — treat as success.
+            snapshot stored from that original write, byte-identical to what the first
+            request returned. Not an error — treat as success.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryRecord'
+                $ref: '#/components/schemas/ReversalAck'
         '201':
-          description: The entry was accepted and written.
+          description: The write was accepted and appended to the ledger.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryRecord'
+                $ref: '#/components/schemas/ReversalAck'
         '400':
           description: The server could not understand the request due to invalid syntax.
           content:
@@ -358,6 +361,23 @@ components:
           type: string
         occurred_on:
           $ref: '#/components/schemas/CalendarDate'
+    EditAck:
+      type: object
+      required:
+        - id
+        - seq
+        - reversal_id
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        seq:
+          type: integer
+          format: int64
+        reversal_id:
+          $ref: '#/components/schemas/Uuid'
+      description: |-
+        Acknowledgement of an edit. `id`/`seq` are the *replacement* entry;
+        `reversal_id` is the reversal that retired the original.
     EditEntryRequest:
       type: object
       required:
@@ -401,6 +421,21 @@ components:
       description: |-
         Editing is a correction, not a mutation: the original is reversed and a
         replacement is appended, so the ledger stays append-only.
+    EntryAck:
+      type: object
+      required:
+        - id
+        - seq
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        seq:
+          type: integer
+          format: int64
+      description: |-
+        Write acknowledgement. Writes return the new entry's id and the ledger
+        sequence it was assigned — *not* the full entry. Re-read the ledger via
+        list-entries to see the record itself; `seq` is the cursor to read from.
     EntryKind:
       type: string
       enum:
@@ -526,6 +561,21 @@ components:
           type: integer
           format: int64
       description: One member's signed net amount for an entry. Postings for an entry sum to zero.
+    ReversalAck:
+      type: object
+      required:
+        - id
+        - seq
+        - reverses_id
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        seq:
+          type: integer
+          format: int64
+        reverses_id:
+          $ref: '#/components/schemas/Uuid'
+      description: Acknowledgement of a reversal, naming the entry it retired.
     ReverseEntryRequest:
       type: object
       required:
