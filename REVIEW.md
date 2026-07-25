@@ -1,35 +1,52 @@
 # tally-up — review policy
 
-Highest-priority, review-only instructions for the independent CI reviewer
-(`.github/workflows/claude-review.yaml`, triggered by `@claude review` on a PR).
-For the full working agreement see [AGENTS.md](AGENTS.md); this file is only the
-review lens.
+Highest-priority instructions for a **posted** review — the independent CI
+reviewer (`.github/workflows/claude-review.yaml`, triggered by `@claude review`
+on a pull request). This file governs the posted artifact only.
+
+*How* to review — reviewer-mode reset, diff scoping, the severity ladder,
+evidence format, and this repo's DDD and sqlc lenses — lives in
+[`.claude/skills/code-review-guideline/SKILL.md`](.claude/skills/code-review-guideline/SKILL.md).
+Where that file and this one disagree about a posted review, **this file wins**.
+
+> The dividing rule: a rule that is true whether or not anyone else sees the
+> review belongs in the skill. A rule about the posted artifact belongs here.
+
+For the full working agreement see [AGENTS.md](AGENTS.md).
 
 ## Stance
 
-- **Advisory and correctness-first.** You do not gate merges. Prefer a few
-  high-confidence findings over noise. Don't re-litigate formatting or style the
-  tooling already enforces (`gofmt`, `go vet`).
-- Anchor findings to the diff. Say what's wrong, why it matters, and — where you
-  can — the smallest fix.
+- **Advisory.** The reviewer MUST NOT gate merges — leave the merge decision to
+  a human.
+- The review MUST be COMMENT-type. Never `APPROVE`, never `REQUEST_CHANGES`.
+- Prefer a few high-confidence findings over noise.
 
-## What to weigh
+## Labels
 
-- **DDD boundaries.** Respect the layer map in
-  [docs/mapping.md](docs/mapping.md). Flag dependencies pointing the wrong way
-  across domain / application / infrastructure / interface boundaries, and
-  domain logic leaking into handlers or persistence.
-- **sqlc.** Never approve hand-edits to generated query code. Schema/query
-  changes belong in `query/*.sql` plus a `make sqlc` regeneration, not in the
-  generated files.
-- **Escalation triggers.** Changes touching **migrations, data loss, or auth**
-  warrant a short ADR in `docs/adr/`. Flag when one is missing.
-- **Verification.** The source-of-truth checks are `make db-up` + `make test`
-  and `go vet ./...` (see [docs/development.md](docs/development.md)). When a
-  change needs verification you can't run on the runner, say so rather than
-  assuming it passes.
+Every posted finding MUST carry exactly one label:
+
+| Label | Meaning |
+| --- | --- |
+| **Important** | Act on this before merge. |
+| **Nit** | Optional — the author MAY ignore it. |
+
+- The summary MUST open with a one-line tally: `2 Important, 3 Nits`.
+- The skill's internal ladder MUST NOT appear in posted output. Critical and
+  Major collapse to **Important**; Minor and Nit collapse to **Nit**.
+- An acceptance criterion of the linked issue that the diff leaves unmet or
+  unverifiable MUST be reported **Important**.
+- There is no nit cap — report every finding. Repeated identical nits MAY share
+  a single comment.
+
+## Do not report
+
+- Anything the tooling already enforces: `gofmt`, `go vet`.
+- Generated files and lockfiles. Flag the *source* change instead — a
+  `query/*.sql` edit, or `sqlc.yaml`.
+- Pre-existing problems the diff does not touch.
 
 ## Out of scope
 
-- Running the build or test suite (you review by reading the diff and base tree).
-- Approving or blocking — leave the merge decision to a human.
+- Running the build or test suite. The reviewer reads the diff and the base
+  tree. When a change needs verification the reviewer cannot run, it MUST say
+  so rather than assume it passes.

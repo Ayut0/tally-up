@@ -6,8 +6,11 @@ routes to the [matt-pocock skill suite](https://github.com/mattpocock/skills) fo
 *how* to work, and only spells out the facts that are specific to this repo.
 
 If you have those skills installed, invoke the named skill. If you don't, the
-one-line description tells you what that phase expects. A few phases have no skill
-of their own — they're spelled out inline.
+one-line description tells you what that phase expects. Two skills — `/address`
+and `code-review-guideline` — live in this repo rather than the suite; the
+reviewer skill in particular has to, because the CI reviewer reads it off a
+checkout. **Verify** and **Report** have no skill at all; they're spelled out
+inline.
 
 ## Requirement Level Keywords
 
@@ -39,10 +42,11 @@ expectations, then inspect only the minimal context that classification needs.
 2. **Implement** — write the change test-first where there's runtime behavior,
    staying within the narrowest scope that satisfies the request (SHOULD). →
    `tdd`.
-3. **Self-review** — *(no skill)* you MUST reset into reviewer mode and read
-   your own diff — judging the actual diff, not your intent — as a distinct
-   phase before asking anyone else. See
-   [Review Independence Gates](#review-independence-gates).
+3. **Self-review** — you MUST reset into reviewer mode and read your own diff
+   — judging the actual diff, not your intent — as a distinct phase before
+   asking anyone else. → `code-review-guideline` (in this repo, at
+   [.claude/skills/code-review-guideline/SKILL.md](.claude/skills/code-review-guideline/SKILL.md)).
+   See [Review Independence Gates](#review-independence-gates).
 4. **Verify** — *(no skill)* you MUST run the verify commands and report the
    actual output, not a claim — see [Verify](#verify).
 5. **Report** — you MUST summarize, at completion: changed files,
@@ -77,7 +81,8 @@ additionally route through the independent reviewer described in
 | Refactoring or improving structure | `improve-codebase-architecture` |
 | Zooming out to the whole system | `zoom-out` |
 | Suspending work across sessions | `handoff` |
-| Self-reviewing or verifying | *(no skill — see [The cycle](#the-cycle) and [Review Independence Gates](#review-independence-gates))* |
+| Self-reviewing, or reviewing a PR | `code-review-guideline` (in-repo) |
+| Verifying | *(no skill — see [Verify](#verify) and [Review Independence Gates](#review-independence-gates))* |
 
 ## Skill Maintenance
 
@@ -123,8 +128,11 @@ done. Setup and the exact commands live in
 
 An independent, advisory CI reviewer runs on demand: comment `@claude review` on
 a PR (owner/member/collaborator only) to trigger it — see
-[.github/workflows/claude-review.yaml](.github/workflows/claude-review.yaml) and
-the review lens in [REVIEW.md](REVIEW.md).
+[.github/workflows/claude-review.yaml](.github/workflows/claude-review.yaml).
+It follows the same methodology you do —
+[.claude/skills/code-review-guideline/SKILL.md](.claude/skills/code-review-guideline/SKILL.md)
+— under the posted-review policy in [REVIEW.md](REVIEW.md), which wins on
+conflict.
 
 ## Conventions
 
@@ -133,6 +141,14 @@ the review lens in [REVIEW.md](REVIEW.md).
 - **Worktrees:** work each issue in its own git worktree.
 - **Syncing:** `git rebase origin/main`. Never `git merge main` or a plain
   `git pull` on a feature branch.
+- **Rewriting pushed history:** rebasing a branch that has already been pushed
+  rewrites its commits, so the follow-up push MUST be
+  `git push --force-with-lease` (never bare `--force`, which will clobber a
+  push you have not seen). An agent MUST ask the maintainer before rewriting
+  history on a pushed branch — including rebase, `--force-with-lease`,
+  `commit --amend`, and `reset --hard` — even when a reviewer or the Syncing
+  rule above calls for the rebase. The decision is the maintainer's: undoing a
+  force-push takes another force-push, and it can strand review threads.
 - **Commits/PRs:** open a PR per issue; link it to the issue it addresses.
 
 ## Escalation
