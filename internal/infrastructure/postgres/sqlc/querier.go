@@ -6,12 +6,28 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
 	// Counts how many of the given member ids belong to the group. Callers compare
 	// the count against the number of distinct ids they asked about.
 	CountGroupMembers(ctx context.Context, arg CountGroupMembersParams) (int64, error)
+	// Releases a pending key after a post-gate failure so the client can retry
+	// immediately. Succeeded keys are never touched: their response is replay truth.
+	DeletePendingIdempotencyKey(ctx context.Context, key uuid.UUID) error
+	// Reads the row a conflicting Insert collided with, so the caller can classify
+	// the acquisition (replay / mismatch / in-flight). COALESCE keeps the body
+	// non-null for a not-yet-succeeded row.
+	GetIdempotencyOutcome(ctx context.Context, key uuid.UUID) (GetIdempotencyOutcomeRow, error)
+	// Claims the key with a pending row. ON CONFLICT DO NOTHING means a losing
+	// racer inserts nothing; the caller reads the affected-row count (:execrows) to
+	// learn whether it won (1) or must classify an existing row (0).
+	InsertIdempotencyKey(ctx context.Context, arg InsertIdempotencyKeyParams) (int64, error)
+	// Janitor sweep: deletes pending rows older than the given age so crashed
+	// requests can be retried cleanly. Returns the number of rows reclaimed.
+	SweepStalePendingIdempotencyKeys(ctx context.Context, olderThanSecs float64) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)
