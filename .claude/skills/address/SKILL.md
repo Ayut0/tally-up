@@ -22,20 +22,20 @@ findings. It does not restate any phase's rules — see AGENTS.md, `tdd`, and
 | `continue` (bare) | Resume — see [Resuming](#resuming) | Wherever the resumed state points |
 
 Assume the operator has already checked out the branch/worktree for the
-target, per AGENTS.md's worktree convention — this skill does not create
+target, per AGENTS.md's worktree convention — this skill MUST NOT create
 one.
 
 ## Plan
 
 Read the issue/PR (`gh issue view <n> --comments` / `gh pr view <n>`) and
 linked docs (docs/mapping.md, docs/architecture.md, relevant ADRs). If the
-spec leaves a genuine product/UX/scope decision unstated, ask the human
-before writing the plan — don't guess.
+spec leaves a genuine product/UX/scope decision unstated, you MUST ask the
+human before writing the plan — you MUST NOT guess.
 
 Use Claude Code's plan mode for the plan-approval gate: enter it, write the
-plan, then exit it for approval. Do not proceed to Implement until the human
-approves — this is AGENTS.md's "Plan" phase, backed by the harness's native
-plan mode instead of a bespoke protocol.
+plan, then exit it for approval. You MUST NOT proceed to Implement until the
+human approves — this is AGENTS.md's "Plan" phase, backed by the harness's
+native plan mode instead of a bespoke protocol.
 
 ## Implement, self-review, verify
 
@@ -62,9 +62,10 @@ plan mode instead of a bespoke protocol.
 
 Once the review posts (check `gh pr view <n> --comments` a few minutes
 after triggering), fix every blocking finding, re-run whatever verify
-commands the fix touches, push, and re-trigger with the same comment. Cap
-this loop at 5 rounds; on the 5th without convergence, stop and report to
-the human instead of retrying again — a stuck review needs a human call.
+commands the fix touches, push, and re-trigger with the same comment. You
+MUST cap this loop at 5 rounds; on the 5th without convergence, you MUST
+stop and report to the human instead of retrying again — a stuck review
+needs a human call.
 
 ## Resuming (`continue`)
 
