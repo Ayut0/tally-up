@@ -34,10 +34,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # Third-party actions are pinned to commit SHAs, not tags. A tag is mutable:
+    # whoever controls the repo can repoint v7 at new code, which would then run
+    # here with access to this job. The trailing comment is the human-readable
+    # version — update both together.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
