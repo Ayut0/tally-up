@@ -327,40 +327,18 @@ components:
       description: Calendar date in `YYYY-MM-DD`.
     CreateEntryRequest:
       type: object
-      required:
-        - id
-        - kind
-        - payer_id
-        - total_amount
-        - split_rule
-        - participants
-        - occurred_on
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
-        kind:
-          $ref: '#/components/schemas/EntryKind'
-        payer_id:
-          $ref: '#/components/schemas/Uuid'
-        counterparty:
-          $ref: '#/components/schemas/Uuid'
-          description: Required for settlements; the member being paid.
-        total_amount:
-          type: integer
-          format: int64
-          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
-        split_rule:
-          $ref: '#/components/schemas/SplitRule'
-        participants:
-          type: array
-          items:
-            $ref: '#/components/schemas/Uuid'
-          description: Must be non-empty and free of duplicates.
-        memo:
-          type: string
-        occurred_on:
-          $ref: '#/components/schemas/CalendarDate'
+      oneOf:
+        - $ref: '#/components/schemas/ExpenseEntry'
+        - $ref: '#/components/schemas/SettlementEntry'
+      discriminator:
+        propertyName: kind
+        mapping:
+          expense: '#/components/schemas/ExpenseEntry'
+          settlement: '#/components/schemas/SettlementEntry'
+      description: |-
+        What the client sends to record a new entry. `kind: "reversal"` cannot be
+        created this way — a reversal is always the side effect of the `/reverse`
+        or edit endpoints, never a direct POST.
     EditAck:
       type: object
       required:
@@ -381,50 +359,18 @@ components:
         is the separate reversal that retired the original.
     EditEntryRequest:
       type: object
-      required:
-        - id
-        - kind
-        - payer_id
-        - total_amount
-        - split_rule
-        - participants
-        - occurred_on
-        - reversal_entry_id
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
-        kind:
-          $ref: '#/components/schemas/EntryKind'
-        payer_id:
-          $ref: '#/components/schemas/Uuid'
-        counterparty:
-          $ref: '#/components/schemas/Uuid'
-          description: Required for settlements; the member being paid.
-        total_amount:
-          type: integer
-          format: int64
-          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
-        split_rule:
-          $ref: '#/components/schemas/SplitRule'
-        participants:
-          type: array
-          items:
-            $ref: '#/components/schemas/Uuid'
-          description: Must be non-empty and free of duplicates.
-        memo:
-          type: string
-        occurred_on:
-          $ref: '#/components/schemas/CalendarDate'
-        reversal_entry_id:
-          $ref: '#/components/schemas/Uuid'
-          description: |-
-            Client-generated UUIDv7 for the reversal entry that retires the original.
-            Points the opposite way from `reverses_id`, which is a reversal's pointer
-            at the entry it reverses.
+      oneOf:
+        - $ref: '#/components/schemas/ExpenseEdit'
+        - $ref: '#/components/schemas/SettlementEdit'
+      discriminator:
+        propertyName: kind
+        mapping:
+          expense: '#/components/schemas/ExpenseEdit'
+          settlement: '#/components/schemas/SettlementEdit'
       description: |-
         Editing is a correction, not a mutation: the original is reversed and a
-        replacement is appended, so the ledger stays append-only.
+        replacement is appended, so the ledger stays append-only. Same kind-shaped
+        split as CreateEntryRequest, plus the reversal that retires the original.
     EntryAck:
       type: object
       required:
@@ -509,6 +455,28 @@ components:
           items:
             $ref: '#/components/schemas/Posting'
       description: An entry as persisted and returned by the server.
+    EntryRequestCommon:
+      type: object
+      required:
+        - id
+        - payer_id
+        - total_amount
+        - occurred_on
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+      description: Fields every new entry carries regardless of kind.
     EqualSplit:
       type: object
       description: Every participant owes the same share; the remainder is distributed deterministically.
@@ -530,6 +498,80 @@ components:
             type: integer
             format: int64
       description: Exact minor-unit amount per member, keyed by member id.
+    ExpenseEdit:
+      type: object
+      required:
+        - id
+        - payer_id
+        - total_amount
+        - occurred_on
+        - kind
+        - split_rule
+        - participants
+        - reversal_entry_id
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        kind:
+          type: string
+          enum:
+            - expense
+        split_rule:
+          $ref: '#/components/schemas/SplitRule'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          description: Must be non-empty and free of duplicates.
+        reversal_entry_id:
+          $ref: '#/components/schemas/Uuid'
+    ExpenseEntry:
+      type: object
+      required:
+        - id
+        - payer_id
+        - total_amount
+        - occurred_on
+        - kind
+        - split_rule
+        - participants
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        kind:
+          type: string
+          enum:
+            - expense
+        split_rule:
+          $ref: '#/components/schemas/SplitRule'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          description: Must be non-empty and free of duplicates.
+      description: 'An expense: `total_amount` is divided among `participants` per `split_rule`.'
     MemberBalance:
       type: object
       required:
@@ -592,6 +634,74 @@ components:
         requested_by:
           $ref: '#/components/schemas/Uuid'
           description: Which member is deleting. v1 has no authenticated identity.
+    SettlementEdit:
+      type: object
+      required:
+        - id
+        - payer_id
+        - total_amount
+        - occurred_on
+        - kind
+        - counterparty
+        - reversal_entry_id
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        kind:
+          type: string
+          enum:
+            - settlement
+        counterparty:
+          $ref: '#/components/schemas/Uuid'
+          description: The member being paid.
+        reversal_entry_id:
+          $ref: '#/components/schemas/Uuid'
+    SettlementEntry:
+      type: object
+      required:
+        - id
+        - payer_id
+        - total_amount
+        - occurred_on
+        - kind
+        - counterparty
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        kind:
+          type: string
+          enum:
+            - settlement
+        counterparty:
+          $ref: '#/components/schemas/Uuid'
+          description: The member being paid.
+      description: |-
+        A settlement: a direct payment from `payer_id` to `counterparty`, with no
+        split. The server derives postings and participants from `payer_id` and
+        `counterparty` alone (addentry.ComputePostings) — `split_rule` does not
+        apply and is not accepted here.
     SharesSplit:
       type: object
       required:

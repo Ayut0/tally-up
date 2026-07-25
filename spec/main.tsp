@@ -120,42 +120,82 @@ model EntryList {
 // Requests
 // ---------------------------------------------------------------------------
 
-model CreateEntryRequest {
+/** Fields every new entry carries regardless of kind. */
+model EntryRequestCommon {
   /** Client-generated UUIDv7. Required — the server does not mint entry ids. */
   id: Uuid;
 
-  kind: EntryKind;
   payer_id: Uuid;
-
-  /** Required for settlements; the member being paid. */
-  counterparty?: Uuid;
 
   /** Minor currency units. Must be in `(0, 100_000_000_000]`. */
   total_amount: int64;
-
-  split_rule: SplitRule;
-
-  /** Must be non-empty and free of duplicates. */
-  participants: Uuid[];
 
   memo?: string;
   occurred_on: CalendarDate;
 }
 
+/** An expense: `total_amount` is divided among `participants` per `split_rule`. */
+model ExpenseEntry {
+  ...EntryRequestCommon;
+  kind: "expense";
+  split_rule: SplitRule;
+
+  /** Must be non-empty and free of duplicates. */
+  participants: Uuid[];
+}
+
+/**
+ * A settlement: a direct payment from `payer_id` to `counterparty`, with no
+ * split. The server derives postings and participants from `payer_id` and
+ * `counterparty` alone (addentry.ComputePostings) — `split_rule` does not
+ * apply and is not accepted here.
+ */
+model SettlementEntry {
+  ...EntryRequestCommon;
+  kind: "settlement";
+
+  /** The member being paid. */
+  counterparty: Uuid;
+}
+
+/**
+ * What the client sends to record a new entry. `kind: "reversal"` cannot be
+ * created this way — a reversal is always the side effect of the `/reverse`
+ * or edit endpoints, never a direct POST.
+ */
+@discriminated(#{ envelope: "none", discriminatorPropertyName: "kind" })
+union CreateEntryRequest {
+  expense: ExpenseEntry,
+  settlement: SettlementEntry,
+}
+
 /**
  * Editing is a correction, not a mutation: the original is reversed and a
- * replacement is appended, so the ledger stays append-only.
+ * replacement is appended, so the ledger stays append-only. Same kind-shaped
+ * split as CreateEntryRequest, plus the reversal that retires the original.
  */
-model EditEntryRequest {
-  ...CreateEntryRequest;
-
-  /**
-   * Client-generated UUIDv7 for the reversal entry that retires the original.
-   * Points the opposite way from `reverses_id`, which is a reversal's pointer
-   * at the entry it reverses.
-   */
-  reversal_entry_id: Uuid;
+@discriminated(#{ envelope: "none", discriminatorPropertyName: "kind" })
+union EditEntryRequest {
+  expense: ExpenseEdit,
+  settlement: SettlementEdit,
 }
+
+model ExpenseEdit {
+  ...ExpenseEntry;
+  reversal_entry_id: ReversalEntryId;
+}
+
+model SettlementEdit {
+  ...SettlementEntry;
+  reversal_entry_id: ReversalEntryId;
+}
+
+/**
+ * Client-generated UUIDv7 for the reversal entry that retires the original.
+ * Points the opposite way from `reverses_id`, which is a reversal's pointer
+ * at the entry it reverses.
+ */
+alias ReversalEntryId = Uuid;
 
 model ReverseEntryRequest {
   /** Client-generated UUIDv7 for the reversal entry. */

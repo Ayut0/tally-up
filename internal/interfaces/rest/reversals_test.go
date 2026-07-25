@@ -21,6 +21,7 @@ func postReverse(t *testing.T, srv *httptest.Server, key uuid.UUID, entryID, rev
 	req, _ := http.NewRequest("POST",
 		srv.URL+fmt.Sprintf("/groups/%s/entries/%s/reverse", gID, entryID),
 		bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", key.String())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -93,6 +94,7 @@ func TestEdit_Endpoint(t *testing.T) {
 	})
 	req, _ := http.NewRequest("PUT",
 		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, entryID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", uuid.New().String())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -143,6 +145,7 @@ func TestCorrectionAcks_FieldNames(t *testing.T) {
 	})
 	req, _ := http.NewRequest("PUT",
 		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, edited), bytes.NewReader(editBody))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", uuid.New().String())
 	editResp, err := http.DefaultClient.Do(req)
 	if err != nil {
