@@ -63,3 +63,21 @@ the plan but proposed papering over it at the call site (`make test GO=go`).
 platform X (`ifeq ($(shell uname -s),Darwin)`) rather than making every caller pass
 an override. "Harmless elsewhere" in a comment is a hypothesis, not a finding —
 treat it as unverified until something actually runs elsewhere.
+
+## 2026-07-25 — A technically-correct correction can still miss the point
+
+**What happened:** The user said "I don't have a DB available at this point except
+local one. We can create a follow up issue and circle back." I answered that CI
+provisions its own throwaway Postgres, so no database was needed on their side —
+true, and it dissolved the stated *reason*. They picked "proceed as scoped" from
+the options I offered. Two rounds of work later they said it again: "We don't have
+to run test against our store at this moment as I said." The scope then had to be
+unwound — service container removed, guard re-keyed from `CI` to an explicit
+opt-in, PR body rewritten, a new follow-up issue filed.
+
+**Rule:** When someone gives a constraint plus a reason, refuting the reason does
+not dispose of the constraint. Answer the factual point, then ask what they want
+to happen — do not treat "your stated reason doesn't apply" as "therefore we
+proceed my way." The phrase "as I said" is the tell that a preference was
+overridden rather than heard, and by then the rework is already paid for.
+Offering a menu whose recommended option is my position is not the same as asking.
