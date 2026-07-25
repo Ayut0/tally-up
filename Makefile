@@ -2,8 +2,14 @@ DATABASE_URL ?= postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=d
 PORT ?= 8080
 
 # CGO_ENABLED=0 works around a macOS/Go toolchain dyld quirk on some setups
-# (missing LC_UUID load command); harmless elsewhere since this repo has no cgo deps.
+# (missing LC_UUID load command). It is scoped to macOS deliberately: on Linux
+# `go test -race` requires cgo and refuses to run without it, so leaking this
+# to CI breaks the test job.
+ifeq ($(shell uname -s),Darwin)
 GO := CGO_ENABLED=0 go
+else
+GO := go
+endif
 
 SEED_MEMBER_ID  := 00000000-0000-0000-0000-00000000000a
 SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1

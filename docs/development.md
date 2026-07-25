@@ -16,7 +16,8 @@ without `make db-up` first.
 
 ```bash
 make db-up          # start local Postgres (docker compose), required for tests
-make test           # TEST_DATABASE_URL=... CGO_ENABLED=0 go test -p 1 ./... -race
+make test           # TEST_DATABASE_URL=... go test -p 1 ./... -race
+                    # (adds CGO_ENABLED=0 on macOS only — see the Makefile)
 go vet ./...        # static checks (no golangci config in this repo)
 make sqlc           # regenerate typed queries after editing query/*.sql
 ```
