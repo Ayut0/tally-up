@@ -116,7 +116,7 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 	result, err := s.corrections.Edit(r.Context(), correctentry.EditCommand{
 		GroupID: groupID, OriginalID: originalID, ReversalID: req.ReversalID,
 		ID: req.ID, Kind: req.Kind, PayerID: req.PayerID, Counterparty: req.Counterparty,
-		TotalAmount: req.TotalAmount, SplitRule: req.SplitRule, Participants: req.Participants,
+		TotalAmount: req.TotalAmount, SplitRule: req.SplitRule.toDomain(), Participants: req.Participants,
 		Memo: req.Memo, OccurredOn: occurredOn,
 		IdempotencyKey: key, RequestHash: requestHash,
 	})
