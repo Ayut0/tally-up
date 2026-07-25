@@ -48,7 +48,7 @@ func reverseWithinTx(ctx context.Context, q *sqlc.Queries, groupID, originalID, 
 	}
 
 	if err := q.CopyNegatedPostings(ctx, sqlc.CopyNegatedPostingsParams{
-		EntryID: reversalID, EntryID_2: originalID,
+		ReversalEntryID: reversalID, OriginalEntryID: originalID,
 	}); err != nil {
 		return 0, err
 	}

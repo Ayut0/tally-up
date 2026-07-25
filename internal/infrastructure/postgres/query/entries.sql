@@ -65,7 +65,8 @@ RETURNING seq;
 -- Appends the reversal entry's postings as the exact negation of the
 -- original's, so the pair sums to zero.
 INSERT INTO postings (entry_id, member_id, amount)
-SELECT $1, p.member_id, -p.amount FROM postings p WHERE p.entry_id = $2;
+SELECT sqlc.arg(reversal_entry_id), p.member_id, -p.amount
+FROM postings p WHERE p.entry_id = sqlc.arg(original_entry_id);
 
 -- name: SumAllPostings :one
 -- Global zero-sum integrity check: the sum of every posting, across every

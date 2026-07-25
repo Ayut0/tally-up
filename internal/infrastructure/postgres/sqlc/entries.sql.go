@@ -14,18 +14,19 @@ import (
 
 const copyNegatedPostings = `-- name: CopyNegatedPostings :exec
 INSERT INTO postings (entry_id, member_id, amount)
-SELECT $1, p.member_id, -p.amount FROM postings p WHERE p.entry_id = $2
+SELECT $1, p.member_id, -p.amount
+FROM postings p WHERE p.entry_id = $2
 `
 
 type CopyNegatedPostingsParams struct {
-	EntryID   uuid.UUID
-	EntryID_2 uuid.UUID
+	ReversalEntryID uuid.UUID
+	OriginalEntryID uuid.UUID
 }
 
 // Appends the reversal entry's postings as the exact negation of the
 // original's, so the pair sums to zero.
 func (q *Queries) CopyNegatedPostings(ctx context.Context, arg CopyNegatedPostingsParams) error {
-	_, err := q.db.Exec(ctx, copyNegatedPostings, arg.EntryID, arg.EntryID_2)
+	_, err := q.db.Exec(ctx, copyNegatedPostings, arg.ReversalEntryID, arg.OriginalEntryID)
 	return err
 }
 
