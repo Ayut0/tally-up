@@ -118,12 +118,14 @@ The layer map is [`docs/mapping.md`](../../../docs/mapping.md).
 
 ### Escalation triggers
 
-- Changes touching **migrations, data loss, or auth** MUST carry a short ADR in
-  [`docs/adr/`](../../../docs/adr/). Flag a missing one.
+[`AGENTS.md`](../../../AGENTS.md) § Escalation owns which changes escalate —
+currently migrations, data loss, and auth. Flag such a change that carries no
+ADR in [`docs/adr/`](../../../docs/adr/).
 
 ### Branch hygiene
 
-- One issue per branch. Flag a diff that mixes work for a second issue.
+[`AGENTS.md`](../../../AGENTS.md) § Conventions owns the branch rules. Flag a
+diff that breaks them — most often one that mixes work for a second issue.
 
 ## Posted reviews
 
