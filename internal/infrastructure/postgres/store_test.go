@@ -52,36 +52,37 @@ func (d dbURLDecision) String() string {
 	return fmt.Sprintf("dbURLDecision(%d)", int(d))
 }
 
-// TestDecideDBURL pins the fail-closed rule that keeps CI honest: without a
-// database, tests skip locally but MUST fail under CI. A CI run that silently
-// skips every DB-backed test reports green while asserting nothing.
+// TestDecideDBURL pins the opt-in fail-closed rule: a missing database skips by
+// default, but fails wherever TALLYUP_REQUIRE_DB says DB coverage is expected.
+// Somewhere that believes it exercises the database but silently doesn't would
+// otherwise report green while asserting nothing.
 //
 // These cases are pure — no database, no env mutation — so they run anywhere.
 func TestDecideDBURL(t *testing.T) {
 	const url = "postgres://tallyup:tallyup@localhost:5433/tallyup_test?sslmode=disable"
 
 	tests := []struct {
-		name string
-		url  string
-		ci   string
-		want dbURLDecision
+		name      string
+		url       string
+		requireDB string
+		want      dbURLDecision
 	}{
-		{"url set, not CI", url, "", dbProceed},
-		{"url set, in CI", url, "true", dbProceed},
-		{"no url, CI=true", "", "true", dbFail},
-		{"no url, CI=1", "", "1", dbFail},
-		{"no url, not CI", "", "", dbSkip},
+		{"url set, not required", url, "", dbProceed},
+		{"url set, required", url, "1", dbProceed},
+		{"no url, required=1", "", "1", dbFail},
+		{"no url, required=true", "", "true", dbFail},
+		{"no url, not required", "", "", dbSkip},
 
-		// `export CI=false` is a real habit from the JS ecosystem, and this
-		// repo has a web/ directory — so it must not be read as "in CI".
-		{"no url, CI=false", "", "false", dbSkip},
-		{"no url, CI=0", "", "0", dbSkip},
+		// Turning the demand off by value must work as well as by absence,
+		// so a wrapper script can pass the var through unconditionally.
+		{"no url, required=false", "", "false", dbSkip},
+		{"no url, required=0", "", "0", dbSkip},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := decideDBURL(tt.url, tt.ci); got != tt.want {
-				t.Errorf("decideDBURL(%q, %q) = %v, want %v", tt.url, tt.ci, got, tt.want)
+			if got := decideDBURL(tt.url, tt.requireDB); got != tt.want {
+				t.Errorf("decideDBURL(%q, %q) = %v, want %v", tt.url, tt.requireDB, got, tt.want)
 			}
 		})
 	}

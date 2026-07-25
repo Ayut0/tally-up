@@ -1,11 +1,14 @@
 name: CI
 
-# The deterministic guard for tally-up: build, vet, and the full Go suite
-# against a real Postgres, on every pull request and every push to main.
+# The deterministic guard for tally-up: build, vet, and the Go tests that need
+# no database, on every pull request and every push to main.
 #
 # This is deliberately a different role from claude-review.yaml. That reviewer
 # is advisory, comment-triggered, and applies judgement; this check is
 # mechanical, automatic, and blocking. Neither substitutes for the other.
+#
+# SCOPE: DB-backed tests do not run here yet — see the Test step. That is a
+# deliberate staging decision, not an oversight.
 #
 # Operator setup: make `test` a required status check for `main`
 # (Settings -> Branches -> branch protection). Until that is done this workflow
@@ -31,24 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # Mirrors docker-compose.yaml — same image, same credentials — so a CI
-    # failure reproduces locally with `make db-up`. Only the port differs:
-    # 5432 on the runner, 5433 locally to dodge a host Postgres.
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: tallyup
-          POSTGRES_PASSWORD: tallyup
-          POSTGRES_DB: tallyup_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v7
 
@@ -65,11 +50,13 @@ jobs:
 
       # Delegated to the Makefile so the test invocation has exactly one
       # definition and cannot drift from what contributors run locally.
-      # Migrations need no step of their own: postgres.New runs them on connect.
       #
-      # GitHub sets CI=true, which makes postgres.TestStore fail rather than
-      # skip if the database is ever unwired — see decideDBURL. Without that,
-      # a broken DATABASE_URL here would report green with every DB-backed test
-      # silently skipped.
-      - name: Test
-        run: make test DATABASE_URL='postgres://tallyup:tallyup@localhost:5432/tallyup_test?sslmode=disable'
+      # DATABASE_URL is deliberately empty: with no TEST_DATABASE_URL, the
+      # DB-backed tests skip (see decideDBURL in
+      # internal/infrastructure/postgres/store.go) and what runs here is the
+      # domain and pure-logic coverage. Turning the database on is a follow-up:
+      # add a `services: postgres` block, point DATABASE_URL at it, and set
+      # TALLYUP_REQUIRE_DB=1 so a mis-wired database fails the job instead of
+      # silently skipping every integration test.
+      - name: Test (no database)
+        run: make test DATABASE_URL=

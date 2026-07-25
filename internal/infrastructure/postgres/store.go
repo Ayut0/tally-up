@@ -81,41 +81,48 @@ type dbURLDecision int
 
 const (
 	dbProceed dbURLDecision = iota // URL present — connect and run
-	dbSkip                         // no URL, not CI — skip, so local `go test` works without Docker
-	dbFail                         // no URL but in CI — fail, because a skipped suite is a false green
+	dbSkip                         // no URL, none demanded — skip, so `go test` works without Docker
+	dbFail                         // no URL but one was demanded — fail, because skipping would be a false green
 )
 
+// requireDBEnv, when set to anything but "false" or "0", turns a missing
+// TEST_DATABASE_URL from a skip into a failure.
+const requireDBEnv = "TALLYUP_REQUIRE_DB"
+
 // decideDBURL reports what TestStore should do, given the raw values of
-// TEST_DATABASE_URL and CI.
+// TEST_DATABASE_URL and TALLYUP_REQUIRE_DB.
 //
-// Locally, a missing URL skips: `go test ./...` stays usable without Docker
-// running. Under CI it must fail instead — a workflow that forgets to wire the
-// database would otherwise skip every DB-backed test and still report green,
-// which is the exact failure mode this guard exists to prevent.
+// A missing URL skips by default, so `go test ./...` stays usable without
+// Docker running. Where DB coverage is expected, setting TALLYUP_REQUIRE_DB
+// makes the same condition fail instead — an environment that believes it is
+// exercising the database, but silently isn't, reports green while asserting
+// nothing.
 //
-// "false" and "0" are honoured rather than treated as merely non-empty: the
-// JS ecosystem trained people to `export CI=false` as a workaround, and this
-// repo ships a web/ directory, so a contributor plausibly has it set. Reading
-// that as "in CI" would turn their DB-less `go test` into a hard failure.
-func decideDBURL(url, ci string) dbURLDecision {
+// The opt-in is explicit rather than keyed off CI because CI does not run
+// DB-backed tests yet. When it does, the workflow sets this var; until then a
+// skip there is intended, not a defect.
+//
+// "false" and "0" are honoured rather than treated as merely non-empty, so the
+// var can be turned off by value as well as by absence.
+func decideDBURL(url, requireDB string) dbURLDecision {
 	if url != "" {
 		return dbProceed
 	}
-	if ci != "" && ci != "false" && ci != "0" {
+	if requireDB != "" && requireDB != "false" && requireDB != "0" {
 		return dbFail
 	}
 	return dbSkip
 }
 
 // TestStore returns a migrated store against TEST_DATABASE_URL with all tables
-// truncated. Without the env var it skips locally and fails under CI — see
-// decideDBURL.
+// truncated. Without the env var it skips, unless TALLYUP_REQUIRE_DB demands
+// otherwise — see decideDBURL.
 func TestStore(t *testing.T) *Store {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
-	switch decideDBURL(url, os.Getenv("CI")) {
+	switch decideDBURL(url, os.Getenv(requireDBEnv)) {
 	case dbFail:
-		t.Fatal("TEST_DATABASE_URL unset in CI: integration tests must not skip")
+		t.Fatalf("TEST_DATABASE_URL unset while %s is set: DB-backed tests must not skip here", requireDBEnv)
 	case dbSkip:
 		t.Skip("TEST_DATABASE_URL not set; run `make db-up` and export it")
 	}
