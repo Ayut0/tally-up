@@ -119,6 +119,11 @@ The layer map is [`docs/mapping.md`](../../../docs/mapping.md).
   the generated files.
 - Flag a changed `query/*.sql` whose generated output was not regenerated.
 
+### Code quality
+
+Language-level naming, comment, and complexity checks that apply regardless
+of layer — [`references/code-quality.md`](references/code-quality.md).
+
 ### Escalation triggers
 
 [`AGENTS.md`](../../../AGENTS.md) § Escalation owns which changes escalate —
