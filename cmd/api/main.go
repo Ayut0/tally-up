@@ -46,7 +46,7 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if n, err := s.SweepStalePending(ctx, time.Minute); err != nil {
+				if n, err := s.Idempotency.SweepStalePending(ctx, time.Minute); err != nil {
 					slog.Warn("janitor sweep", "err", err)
 				} else if n > 0 {
 					slog.Info("janitor swept stale pending keys", "count", n)
@@ -55,9 +55,9 @@ func main() {
 		}
 	}()
 
-	entries := &addentry.Service{Gate: s, Entries: s}
-	corrections := &correctentry.Service{Gate: s, Reverses: s}
-	srv := &http.Server{Addr: ":" + port, Handler: rest.NewServer(entries, s, s, corrections)}
+	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
+	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
+	srv := &http.Server{Addr: ":" + port, Handler: rest.NewServer(entries, s.Reads, s.Reads, corrections)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
