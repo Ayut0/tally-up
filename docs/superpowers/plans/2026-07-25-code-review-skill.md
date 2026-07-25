@@ -489,11 +489,21 @@ SAFETY properties documented in the file MUST survive untouched.
 Run:
 
 ```bash
-python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/claude-review.yaml')); print('YAML OK')"
+ruby -ryaml -e "d=YAML.safe_load(File.read('.github/workflows/claude-review.yaml'), aliases: true); puts 'YAML OK'; puts 'jobs: '+d['jobs'].keys.join(','); puts 'triggers: '+d[true].keys.join(',')"
 ```
 
-Expected: `YAML OK`. A broken quote in the folded `>-` block is the likely
-failure mode.
+Expected:
+
+```
+YAML OK
+jobs: review
+triggers: issue_comment
+```
+
+A broken quote in the folded `>-` block is the likely failure mode. Ruby is
+used rather than `python3 -c "import yaml"` because PyYAML is not installed on
+this machine's system Python; Ruby ships YAML in its stdlib. (`d[true]` is not
+a typo — YAML parses the `on:` key as the boolean `true`.)
 
 - [ ] **Step 3: Verify the safety properties are untouched**
 
