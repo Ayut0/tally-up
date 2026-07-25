@@ -9,21 +9,55 @@ If you have those skills installed, invoke the named skill. If you don't, the
 one-line description tells you what that phase expects. A few phases have no skill
 of their own — they're spelled out inline.
 
+## Requirement Level Keywords
+
+This file and the docs it links use these words with a specific meaning:
+
+| Keyword | Synonym | Meaning |
+| ------- | ------- | ------- |
+| "MUST" | "REQUIRED" | Non-negotiable requirement; no exceptions. |
+| "MUST NOT" |  | Non-negotiable prohibition; no exceptions. |
+| "SHOULD" | "RECOMMENDED" | Strongly preferred; deviation is allowed only after weighing the implications. |
+| "SHOULD NOT" | "NOT RECOMMENDED" | Strongly discouraged; allowed only after weighing the implications. |
+| "MAY" | "OPTIONAL" | Genuinely optional; no preference implied. |
+
 ## The cycle
 
-Every unit of work follows `plan → implement → self-review → verify → report`:
+Every unit of work follows `plan → implement → self-review → verify → report`.
+Before planning, you MUST classify the request (bugfix, feature, refactor,
+docs, triage) and define success criteria, affected surface, and verification
+expectations, then inspect only the minimal context that classification needs.
 
 1. **Plan** — clarify intent and design before coding. Scope the work with
    `to-prd` / `to-issues`, then pressure-test the plan against the domain model
    with `grill-with-docs`.
-2. **Implement** — write the change test-first where there's runtime behavior. →
+2. **Implement** — write the change test-first where there's runtime behavior,
+   staying within the narrowest scope that satisfies the request (SHOULD). →
    `tdd`.
-3. **Self-review** — *(no skill)* reset into reviewer mode and read your own diff
-   before asking anyone else.
-4. **Verify** — *(no skill)* run the verify commands and report the actual
-   output, not a claim — see [Verify](#verify).
-5. **Report** — summarize outcome, verification evidence, trade-offs, and any
-   open follow-ups.
+3. **Self-review** — *(no skill)* you MUST reset into reviewer mode and read
+   your own diff — judging the actual diff, not your intent — as a distinct
+   phase before asking anyone else. See
+   [Review Independence Gates](#review-independence-gates).
+4. **Verify** — *(no skill)* you MUST run the verify commands and report the
+   actual output, not a claim — see [Verify](#verify).
+5. **Report** — you MUST summarize, at completion: changed files,
+   verification status, trade-offs, residual risk, and deferred follow-ups;
+   and state whether skill maintenance (see
+   [Skill Maintenance](#skill-maintenance)) was done, skipped, or blocked.
+   Progress updates SHOULD stay concise and decision-focused; detailed
+   command/iteration logs are OPTIONAL — include them only when asked or
+   outcome-critical. Ask a concrete question when a decision needs product,
+   scope, or domain input you can't infer.
+
+## Review Independence Gates
+
+A single agent cannot self-certify non-trivial work. The self-review step in
+[The cycle](#the-cycle) MUST be a distinct reset into reviewer mode against
+`git diff` — judge the diff and observed behavior, not what you meant to do —
+and Critical/Major findings from it MUST be fixed before you report. High-risk
+changes (migrations, data loss, auth — see [Escalation](#escalation)) MUST
+additionally route through the independent reviewer described in
+[Verify](#verify) before the work is reported done.
 
 ## Skill routing
 
@@ -37,7 +71,21 @@ Every unit of work follows `plan → implement → self-review → verify → re
 | Refactoring or improving structure | `improve-codebase-architecture` |
 | Zooming out to the whole system | `zoom-out` |
 | Suspending work across sessions | `handoff` |
-| Self-reviewing or verifying | *(no skill — see [The cycle](#the-cycle))* |
+| Self-reviewing or verifying | *(no skill — see [The cycle](#the-cycle) and [Review Independence Gates](#review-independence-gates))* |
+
+## Skill Maintenance
+
+The [Skill routing](#skill-routing) table is the source of truth for which
+skill covers which phase — you SHOULD update it whenever a skill is added,
+renamed, or dropped from the matt-pocock suite, and a routing entry MUST NOT
+duplicate guidance that already lives in the skill itself. When authoring or
+editing a skill, consult `write-a-skill`. The matt-pocock skills live in an
+external suite (`~/.agents/skills`), so "maintenance" here mostly means
+keeping this table and the inline *(no skill)* prose current, not editing
+upstream skills. Propose an update when a task exposes a reusable convention,
+outdated guidance, or a recurring review finding (SHOULD); state in the
+report when maintenance was skipped for lack of generalizable learning (MUST
+— see [The cycle](#the-cycle)).
 
 ## Agent skills
 
