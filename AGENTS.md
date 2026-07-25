@@ -23,6 +23,11 @@ This file and the docs it links use these words with a specific meaning:
 
 ## The cycle
 
+`/address` is the entry point that drives one unit of work — a GitHub issue,
+a pull request, or a free-form prompt — through this cycle end-to-end (see
+[.claude/skills/address/SKILL.md](.claude/skills/address/SKILL.md)); the
+phases below are what it composes.
+
 Every unit of work follows `plan → implement → self-review → verify → report`.
 Before planning, you MUST classify the request (bugfix, feature, refactor,
 docs, triage) and define success criteria, affected surface, and verification
@@ -63,6 +68,7 @@ additionally route through the independent reviewer described in
 
 | When you're… | Use |
 | --- | --- |
+| Delivering a unit of work end-to-end (issue, PR, or prompt) | `/address` (orchestrates the phases below) |
 | Turning an idea into scoped work | `to-prd` → `to-issues` |
 | Pressure-testing a plan against the domain | `grill-with-docs` |
 | Triaging an incoming issue | `triage` |
