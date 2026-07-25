@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -113,7 +112,7 @@ func touchedMembers(in entry.Input) []uuid.UUID {
 }
 
 // assertZeroSum is shared with Edit (reversals.go), whose replacement entry
-// still runs through insertEntryWithinTx below.
+// still runs through insertEntryAndPostings above.
 func assertZeroSum(postings []ledger.Posting) error {
 	var sum int64
 	for _, p := range postings {
@@ -123,47 +122,4 @@ func assertZeroSum(postings []ledger.Posting) error {
 		return fmt.Errorf("postings sum to %d, refusing to write", sum)
 	}
 	return nil
-}
-
-// insertEntryWithinTx validates membership and appends one entry with its
-// postings. Caller owns the transaction and has already zero-sum-checked.
-// Used by Edit (reversals.go); Create (above) runs the sqlc-generated
-// equivalent instead.
-func insertEntryWithinTx(ctx context.Context, tx pgx.Tx, in entry.Input, postings []ledger.Posting) (int64, error) {
-	// Everyone touched by this entry must belong to the group.
-	ids := dedup(touchedMembers(in))
-	var cnt int
-	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM group_members WHERE group_id=$1 AND member_id = ANY($2)`,
-		in.GroupID, ids).Scan(&cnt); err != nil {
-		return 0, err
-	}
-	if cnt != len(ids) {
-		return 0, group.ErrNotMember
-	}
-
-	var seq int64
-	err := tx.QueryRow(ctx, `
-		INSERT INTO entries (id, group_id, kind, payer_id, counterparty, total_amount,
-		                     split_rule, participants, memo, occurred_on, created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-		RETURNING seq`,
-		in.ID, in.GroupID, in.Kind, in.PayerID, in.Counterparty, in.TotalAmount,
-		in.SplitRule, in.Participants, in.Memo, in.OccurredOn, in.CreatedBy).Scan(&seq)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-		return 0, entry.ErrDuplicateID
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	for _, p := range postings {
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO postings (entry_id, member_id, amount) VALUES ($1,$2,$3)`,
-			in.ID, p.MemberID, p.Amount); err != nil {
-			return 0, err
-		}
-	}
-	return seq, nil
 }
