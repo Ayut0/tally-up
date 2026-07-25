@@ -76,13 +76,48 @@ func Migrate(databaseURL string) error {
 	return nil
 }
 
-// TestStore returns a migrated store against TEST_DATABASE_URL with all
-// tables truncated, or skips the test when the env var is unset.
+// dbURLDecision is what TestStore should do for a given environment.
+type dbURLDecision int
+
+const (
+	dbProceed dbURLDecision = iota // URL present — connect and run
+	dbSkip                         // no URL, not CI — skip, so local `go test` works without Docker
+	dbFail                         // no URL but in CI — fail, because a skipped suite is a false green
+)
+
+// decideDBURL reports what TestStore should do, given the raw values of
+// TEST_DATABASE_URL and CI.
+//
+// Locally, a missing URL skips: `go test ./...` stays usable without Docker
+// running. Under CI it must fail instead — a workflow that forgets to wire the
+// database would otherwise skip every DB-backed test and still report green,
+// which is the exact failure mode this guard exists to prevent.
+//
+// "false" and "0" are honoured rather than treated as merely non-empty: the
+// JS ecosystem trained people to `export CI=false` as a workaround, and this
+// repo ships a web/ directory, so a contributor plausibly has it set. Reading
+// that as "in CI" would turn their DB-less `go test` into a hard failure.
+func decideDBURL(url, ci string) dbURLDecision {
+	if url != "" {
+		return dbProceed
+	}
+	if ci != "" && ci != "false" && ci != "0" {
+		return dbFail
+	}
+	return dbSkip
+}
+
+// TestStore returns a migrated store against TEST_DATABASE_URL with all tables
+// truncated. Without the env var it skips locally and fails under CI — see
+// decideDBURL.
 func TestStore(t *testing.T) *Store {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set; run `docker compose up -d db` and export it")
+	switch decideDBURL(url, os.Getenv("CI")) {
+	case dbFail:
+		t.Fatal("TEST_DATABASE_URL unset in CI: integration tests must not skip")
+	case dbSkip:
+		t.Skip("TEST_DATABASE_URL not set; run `make db-up` and export it")
 	}
 	s, err := New(context.Background(), url)
 	if err != nil {
