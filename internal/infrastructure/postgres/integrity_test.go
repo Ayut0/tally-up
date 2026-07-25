@@ -21,7 +21,7 @@ func TestCheckIntegrity_CleanLedger(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rep, err := s.CheckIntegrity(context.Background())
+	rep, err := s.Integrity.CheckIntegrity(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,10 +50,10 @@ func TestGetBalances_MatchesFullLedgerReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res, _, err := s.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
+	if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
 		t.Fatalf("gate: %v %v", res, err)
 	}
-	if _, err := s.Edit(context.Background(), key, rGroup, e2, revID, entry.Input{
+	if _, err := s.Entries.Edit(context.Background(), key, rGroup, e2, revID, entry.Input{
 		ID: newID, GroupID: rGroup, Kind: entry.KindExpense, PayerID: rMemB,
 		TotalAmount: 600, SplitRule: []byte(`{"type":"equal"}`),
 		Participants: []uuid.UUID{rMemB, rYuto},
@@ -63,13 +63,13 @@ func TestGetBalances_MatchesFullLedgerReplay(t *testing.T) {
 	}
 
 	// Derived: the balances view via GetBalances.
-	snap, err := s.GetBalances(context.Background(), rGroup)
+	snap, err := s.Reads.GetBalances(context.Background(), rGroup)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Replayed: fold every entry's postings from full ledger history.
-	entries, err := s.ListEntries(context.Background(), rGroup, 0, 500)
+	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 500)
 	if err != nil {
 		t.Fatal(err)
 	}

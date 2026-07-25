@@ -17,10 +17,10 @@ import (
 func reverse(t *testing.T, s *Store, originalID uuid.UUID) ([]byte, error) {
 	t.Helper()
 	key := uuid.New()
-	if res, _, err := s.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
+	if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
 		t.Fatalf("gate: %v %v", res, err)
 	}
-	return s.Reverse(context.Background(), key, rGroup, originalID, uuid.New(), rYuto)
+	return s.Entries.Reverse(context.Background(), key, rGroup, originalID, uuid.New(), rYuto)
 }
 
 func TestReverse_NegatesAndZeroes(t *testing.T) {
@@ -34,7 +34,7 @@ func TestReverse_NegatesAndZeroes(t *testing.T) {
 	}
 
 	// The reversal cancels the original: every balance returns to zero.
-	snap, err := s.GetBalances(context.Background(), rGroup)
+	snap, err := s.Reads.GetBalances(context.Background(), rGroup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestReverse_NegatesAndZeroes(t *testing.T) {
 	}
 
 	// The reversal entry references the original and copies its occurred_on.
-	entries, err := s.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestReverse_ReversalNotReversible(t *testing.T) {
 	if _, err := reverse(t, s, orig); err != nil {
 		t.Fatal(err)
 	}
-	entries, _ := s.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _ := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
 	revID := entries[len(entries)-1].ID
 	if _, err := reverse(t, s, revID); !errors.Is(err, entry.ErrNotReversible) {
 		t.Fatalf("got %v, want ErrNotReversible", err)
@@ -109,11 +109,11 @@ func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			key, revID := uuid.New(), uuid.New()
-			if res, _, err := s.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
+			if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
 				errs <- err
 				return
 			}
-			_, err := s.Reverse(context.Background(), key, rGroup, orig, revID, rYuto)
+			_, err := s.Entries.Reverse(context.Background(), key, rGroup, orig, revID, rYuto)
 			errs <- err
 		}()
 	}
@@ -157,10 +157,10 @@ func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res, _, err := s.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
+	if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
 		t.Fatalf("gate: %v %v", res, err)
 	}
-	if _, err := s.Edit(context.Background(), key, rGroup, orig, revID, entry.Input{
+	if _, err := s.Entries.Edit(context.Background(), key, rGroup, orig, revID, entry.Input{
 		ID: newID, GroupID: rGroup, Kind: entry.KindExpense, PayerID: rYuto,
 		TotalAmount: 9000, SplitRule: []byte(`{"type":"equal"}`),
 		Participants: []uuid.UUID{rYuto, rMemA},
@@ -170,7 +170,7 @@ func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
 	}
 
 	// Net effect: only the corrected entry counts. yuto +4500, a -4500, b 0.
-	snap, err := s.GetBalances(context.Background(), rGroup)
+	snap, err := s.Reads.GetBalances(context.Background(), rGroup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,17 +182,17 @@ func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
 	}
 
 	// Ledger shape: original + reversal + replacement = 3 entries.
-	entries, _ := s.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _ := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
 	if len(entries) != 3 {
 		t.Fatalf("%d entries, want 3", len(entries))
 	}
 
 	// The original cannot be edited twice.
 	key2 := uuid.New()
-	if res, _, err := s.Acquire(context.Background(), key2, key2.String()); err != nil || res != entry.GateProceed {
+	if res, _, err := s.Idempotency.Acquire(context.Background(), key2, key2.String()); err != nil || res != entry.GateProceed {
 		t.Fatalf("gate: %v %v", res, err)
 	}
-	_, err = s.Edit(context.Background(), key2, rGroup, orig, uuid.New(), entry.Input{
+	_, err = s.Entries.Edit(context.Background(), key2, rGroup, orig, uuid.New(), entry.Input{
 		ID: uuid.New(), GroupID: rGroup, Kind: entry.KindExpense, PayerID: rYuto,
 		TotalAmount: 100, SplitRule: []byte(`{"type":"equal"}`),
 		Participants: []uuid.UUID{rYuto},
