@@ -31,6 +31,7 @@ type Store struct {
 
 	Idempotency *IdempotencyRepository
 	Entries     *EntryRepository
+	Groups      *GroupRepository
 	Reads       *ReadRepository
 	Integrity   *IntegrityRepository
 }
@@ -52,6 +53,7 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 		Pool:        pool,
 		Idempotency: NewIdempotencyRepository(pool),
 		Entries:     NewEntryRepository(pool),
+		Groups:      NewGroupRepository(pool),
 		Reads:       NewReadRepository(pool),
 		Integrity:   NewIntegrityRepository(pool),
 	}, nil

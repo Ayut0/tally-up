@@ -38,10 +38,18 @@ type Querier interface {
 	// append-only BIGSERIAL. Callers translate a 23505 unique_violation (a
 	// reused client-generated id) into entry.ErrDuplicateID.
 	InsertEntry(ctx context.Context, arg InsertEntryParams) (*int64, error)
+	// Appends one group. Callers translate a 23505 unique_violation (a reused
+	// client-generated id) into group.ErrDuplicateID.
+	InsertGroup(ctx context.Context, arg InsertGroupParams) error
+	// Links a member into a group.
+	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	// Claims the key with a pending row. ON CONFLICT DO NOTHING means a losing
 	// racer inserts nothing; the caller reads the affected-row count (:execrows) to
 	// learn whether it won (1) or must classify an existing row (0).
 	InsertIdempotencyKey(ctx context.Context, arg InsertIdempotencyKeyParams) (int64, error)
+	// Appends one member. The id is server-minted (uuid.NewV7 — the members
+	// table has no DB-generated default), unlike a group or entry id.
+	InsertMember(ctx context.Context, arg InsertMemberParams) error
 	// Appends one posting row for an entry. Callers must ensure a whole entry's
 	// postings sum to zero before calling this query.
 	InsertPosting(ctx context.Context, arg InsertPostingParams) error
@@ -63,6 +71,10 @@ type Querier interface {
 	// JSONB-normalized bytes so the first response and every future replay read
 	// byte-identical values from the same column.
 	MarkIdempotencySucceeded(ctx context.Context, arg MarkIdempotencySucceededParams) ([]byte, error)
+	// Fetches a group by id. Callers translate pgx.ErrNoRows into group.ErrNotFound.
+	SelectGroup(ctx context.Context, id uuid.UUID) (SelectGroupRow, error)
+	// All members of a group, ordered by member id for a stable response shape.
+	SelectGroupMembers(ctx context.Context, groupID uuid.UUID) ([]Member, error)
 	// Global zero-sum integrity check: the sum of every posting, across every
 	// entry, must be zero.
 	SumAllPostings(ctx context.Context) (int64, error)

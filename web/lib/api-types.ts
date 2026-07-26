@@ -4,6 +4,44 @@
  */
 
 export interface paths {
+    "/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Create a group and its initial members in one call. Same idempotency
+         *     contract as createEntry: a retry that lands after the original succeeded
+         *     returns 200 with the original body.
+         */
+        post: operations["createGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Fetch a group and its members. */
+        get: operations["getGroup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/groups/{group_id}/balance": {
         parameters: {
             query?: never;
@@ -118,6 +156,17 @@ export interface components {
          *     or edit endpoints, never a direct POST.
          */
         CreateEntryRequest: components["schemas"]["ExpenseEntry"] | components["schemas"]["SettlementEntry"];
+        /**
+         * @description What the client sends to create a group and its initial members in one
+         *     call. `id` is client-generated, same reload-safety rationale as an entry's
+         *     id (architecture.md §4): a page reload loses in-flight idempotency-key
+         *     state, but the id itself still guards against a duplicate create.
+         */
+        CreateGroupRequest: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            member_names: string[];
+        };
         /**
          * @description Acknowledgement of an edit. `id`/`seq` are the *replacement* entry, which
          *     reverses nothing and so has no `reverses_id` of its own; `reversal_entry_id`
@@ -254,6 +303,16 @@ export interface components {
             /** @description Must be non-empty and free of duplicates. */
             participants: components["schemas"]["Uuid"][];
         };
+        /** @description A group and its members, as persisted and returned by the server. */
+        GroupRecord: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            members: components["schemas"]["Member"][];
+        };
+        Member: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+        };
         /** @description One member's net position: positive = is owed, negative = owes. */
         MemberBalance: {
             member_id: components["schemas"]["Uuid"];
@@ -362,6 +421,130 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    createGroup: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["schemas"]["Uuid"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGroupRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Replay: this `Idempotency-Key` already succeeded, and the body is the
+             *     snapshot stored from that original write, byte-identical to what the first
+             *     request returned. Not an error — treat as success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRecord"];
+                };
+            };
+            /** @description The write was accepted and appended to the ledger. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRecord"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRecord"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getBalance: {
         parameters: {
             query?: never;

@@ -44,6 +44,7 @@ make db-down  # stop Postgres when done
 ```
 
 Override `DATABASE_URL` or `PORT` per-invocation, e.g. `make run PORT=8081`.
+`CORS_ORIGIN` sets the allowed origin for the web client (default `*` if unset).
 
 ### Running the API locally
 

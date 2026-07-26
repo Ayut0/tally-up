@@ -14,6 +14,7 @@ import (
 
 	"tallyup/internal/application/addentry"
 	"tallyup/internal/application/correctentry"
+	"tallyup/internal/application/creategroup"
 	"tallyup/internal/domain/ledger"
 	"tallyup/internal/infrastructure/postgres"
 )
@@ -76,7 +77,8 @@ func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
 	seedGroup(t, s)
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
-	srv := httptest.NewServer(validatingHandler(t, NewServer(entries, s.Reads, s.Reads, corrections)))
+	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
+	srv := httptest.NewServer(validatingHandler(t, NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, "*")))
 	t.Cleanup(srv.Close)
 	return srv, s
 }
