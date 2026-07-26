@@ -10,6 +10,100 @@ info:
   version: 0.0.0
 tags: []
 paths:
+  /groups:
+    post:
+      operationId: createGroup
+      description: |-
+        Create a group and its initial members in one call. Same idempotency
+        contract as createEntry: a retry that lands after the original succeeded
+        returns 200 with the original body.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: |-
+            Replay: this `Idempotency-Key` already succeeded, and the body is the
+            snapshot stored from that original write, byte-identical to what the first
+            request returned. Not an error — treat as success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupRecord'
+        '201':
+          description: The write was accepted and appended to the ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupRecord'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+  /groups/{group_id}:
+    get:
+      operationId: getGroup
+      description: Fetch a group and its members.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupRecord'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
   /groups/{group_id}/balance:
     get:
       operationId: getBalance
@@ -340,6 +434,26 @@ components:
         What the client sends to record a new entry. `kind: "reversal"` cannot be
         created this way — a reversal is always the side effect of the `/reverse`
         or edit endpoints, never a direct POST.
+    CreateGroupRequest:
+      type: object
+      required:
+        - id
+        - name
+        - member_names
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        member_names:
+          type: array
+          items:
+            type: string
+      description: |-
+        What the client sends to create a group and its initial members in one
+        call. `id` is client-generated, same reload-safety rationale as an entry's
+        id (architecture.md §4): a page reload loses in-flight idempotency-key
+        state, but the id itself still guards against a duplicate create.
     EditAck:
       type: object
       required:
@@ -577,6 +691,32 @@ components:
             $ref: '#/components/schemas/Uuid'
           description: Must be non-empty and free of duplicates.
       description: 'An expense: `total_amount` is divided among `participants` per `split_rule`.'
+    GroupRecord:
+      type: object
+      required:
+        - id
+        - name
+        - members
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/Member'
+      description: A group and its members, as persisted and returned by the server.
+    Member:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
     MemberBalance:
       type: object
       required:

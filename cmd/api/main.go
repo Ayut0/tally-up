@@ -13,6 +13,7 @@ import (
 
 	"tallyup/internal/application/addentry"
 	"tallyup/internal/application/correctentry"
+	"tallyup/internal/application/creategroup"
 	"tallyup/internal/infrastructure/postgres"
 	"tallyup/internal/interfaces/rest"
 )
@@ -67,9 +68,10 @@ func run() error {
 
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
+	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           rest.NewServer(entries, s.Reads, s.Reads, corrections),
+		Handler:           rest.NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, os.Getenv("CORS_ORIGIN")),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

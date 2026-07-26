@@ -25,6 +25,34 @@ scalar Uuid extends string;
 scalar CalendarDate extends plainDate;
 
 // ---------------------------------------------------------------------------
+// Group models
+// ---------------------------------------------------------------------------
+
+model Member {
+  id: Uuid;
+  name: string;
+}
+
+/** A group and its members, as persisted and returned by the server. */
+model GroupRecord {
+  id: Uuid;
+  name: string;
+  members: Member[];
+}
+
+/**
+ * What the client sends to create a group and its initial members in one
+ * call. `id` is client-generated, same reload-safety rationale as an entry's
+ * id (architecture.md §4): a page reload loses in-flight idempotency-key
+ * state, but the id itself still guards against a duplicate create.
+ */
+model CreateGroupRequest {
+  id: Uuid;
+  name: string;
+  member_names: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Split rules
 // ---------------------------------------------------------------------------
 
@@ -276,9 +304,29 @@ alias CorrectionErrors = WriteErrors | ErrorResponse<404>;
 
 alias ReadErrors = ErrorResponse<400> | ErrorResponse<500>;
 
+/** `404` on top of the shared read errors: the target group does not exist. */
+alias GroupReadErrors = ReadErrors | ErrorResponse<404>;
+
 // ---------------------------------------------------------------------------
 // Operations
 // ---------------------------------------------------------------------------
+
+/**
+ * Create a group and its initial members in one call. Same idempotency
+ * contract as createEntry: a retry that lands after the original succeeded
+ * returns 200 with the original body.
+ */
+@route("/groups")
+@post
+op createGroup(
+  @header("Idempotency-Key") idempotencyKey: Uuid,
+  @body group: CreateGroupRequest,
+): Created<GroupRecord> | Replayed<GroupRecord> | WriteErrors;
+
+/** Fetch a group and its members. */
+@route("/groups/{group_id}")
+@get
+op getGroup(@path group_id: Uuid): GroupRecord | GroupReadErrors;
 
 /**
  * Record an expense or settlement.
