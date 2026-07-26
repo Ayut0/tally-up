@@ -1,0 +1,16 @@
+# Only github-actions is watched for now — that's the ecosystem #95/#101
+# created the need for (pinning to commit SHAs trades "can be repointed" for
+# "never updates automatically" unless something flags a stale pin).
+#
+# gomod (/, pgx/golang-migrate/google-uuid) and npm (/web, Next 16/React 19)
+# are deliberately left out: enabling all three at once on a repo with no
+# prior Dependabot history would produce a burst of PRs. Add them
+# deliberately, one at a time, as their own follow-up issues.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

@@ -32,6 +32,12 @@ See the `Makefile` target comments for the other targets (`run`, `seed`,
 `main`. It is blocking; the `@claude review` reviewer is advisory and
 comment-triggered.
 
+Third-party actions in these workflows are pinned to commit SHAs rather than
+mutable tags (a tag can be repointed by whoever controls the action repo).
+[`.github/dependabot.yml`](../.github/dependabot.yml) watches for new tags on
+pinned actions and opens a PR to bump them — pins are updated by Dependabot,
+not by hand.
+
 **CI does not run DB-backed tests yet.** It invokes `make test-nodb`, which
 blanks `TEST_DATABASE_URL` so the tests that need Postgres skip; what runs is
 the domain and pure-logic coverage. Running the full suite is still on you
