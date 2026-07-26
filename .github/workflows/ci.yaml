@@ -1,7 +1,8 @@
 name: CI
 
-# The deterministic guard for tally-up: build, vet, and the Go tests that need
-# no database, on every pull request and every push to main.
+# The deterministic guard for tally-up: two jobs, `test` (build, vet, and the
+# Go tests that need no database) and `web` (lint, build, and test the Next.js
+# client), on every pull request and every push to main.
 #
 # This is deliberately a different role from claude-review.yaml. That reviewer
 # is advisory, comment-triggered, and applies judgement; this check is
@@ -10,9 +11,9 @@ name: CI
 # SCOPE: DB-backed tests do not run here yet — see the Test step. That is a
 # deliberate staging decision, not an oversight.
 #
-# Operator setup: make `test` a required status check for `main`
-# (Settings -> Branches -> branch protection). Until that is done this workflow
-# reports but does not gate.
+# Operator setup: make `test` (and, per #96, `web`) a required status check
+# for `main` (Settings -> Branches -> branch protection). Until that is done
+# this workflow reports but does not gate.
 
 on:
   pull_request:
@@ -69,3 +70,40 @@ jobs:
       # silently skipping every integration test.
       - name: Test
         run: make test-nodb
+
+  # Follow-up to #94, which deliberately deferred this: `web/` had no
+  # devDependency on vitest and zero test files, so wiring it in then would
+  # have produced a permanently red required check. #88 landed real tests
+  # (web/lib/split.test.ts) and #96 adds the missing vitest/jsdom deps, so
+  # this job now has something real to run.
+  #
+  # Operator setup: as with the `test` job above, this reports but is not
+  # yet a required status check for `main` — that's a deliberate open
+  # decision for the maintainer (#96), not made here.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test

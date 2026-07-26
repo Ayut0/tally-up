@@ -28,10 +28,13 @@ See the `Makefile` target comments for the other targets (`run`, `seed`,
 
 ## CI
 
-[`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) runs `go build`,
-`go vet`, `golangci-lint`, and the same `make test` on every pull request and
-every push to `main`. It is blocking; the `@claude review` reviewer is
-advisory and comment-triggered.
+[`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) runs two jobs on
+every pull request and every push to `main`: `test` (`go build`, `go vet`,
+`golangci-lint`, `make test-nodb`) and `web` (`npm ci`, `npm run lint`,
+`npm run build`, `npm test` in `web/`). Both are blocking; the `@claude
+review` reviewer is advisory and comment-triggered. Neither job is yet a
+required status check on `main` — that's a deliberate open decision left to
+the maintainer (see the `test`/`web` job comments in ci.yaml).
 
 Third-party actions in these workflows are pinned to commit SHAs rather than
 mutable tags (a tag can be repointed by whoever controls the action repo).
