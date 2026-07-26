@@ -2,6 +2,22 @@ import type { components } from "./api-types";
 
 type SplitRule = components["schemas"]["SplitRule"];
 
+/**
+ * Named constants for SplitRule's discriminant, instead of bare string
+ * literals scattered through this file. Not a TS `enum`: a real enum's
+ * members are a distinct nominal type and wouldn't be directly assignable
+ * to the `"equal" | "exact" | ...` literal union the generated api-types.ts
+ * declares (spec/openapi.yaml is the single source of truth for these
+ * values, per #93) — this `as const` object's property types collapse to
+ * those exact literals, so it stays interchangeable with SplitRule["type"].
+ */
+export const SplitMode = {
+  Equal: "equal",
+  Exact: "exact",
+  Shares: "shares",
+  Percent: "percent",
+} as const satisfies Record<string, SplitRule["type"]>;
+
 type BuildInputs = {
   total?: number;
   amounts?: Record<string, number>;
@@ -15,30 +31,33 @@ export function buildSplitRule(
   inputs: BuildInputs,
 ): SplitRule | string {
   switch (mode) {
-    case "equal":
-      return { type: "equal" };
-    case "exact": {
+    case SplitMode.Equal:
+      return { type: SplitMode.Equal };
+    case SplitMode.Exact: {
       const amounts = pick(inputs.amounts, participants);
       if (typeof amounts === "string") return amounts;
+      if (Object.values(amounts).some((v) => v < 0 || !Number.isInteger(v)))
+        return "amounts must be whole yen, and none may be negative";
+      if (inputs.total === undefined) return "total amount required";
       const sum = Object.values(amounts).reduce((a, b) => a + b, 0);
       if (sum !== inputs.total) return `amounts sum to ¥${sum}, total is ¥${inputs.total}`;
-      return { type: "exact", amounts };
+      return { type: SplitMode.Exact, amounts };
     }
-    case "shares": {
+    case SplitMode.Shares: {
       const weights = pick(inputs.weights, participants);
       if (typeof weights === "string") return weights;
       if (Object.values(weights).some((v) => v <= 0 || !Number.isInteger(v)))
         return "shares must be positive whole numbers";
-      return { type: "shares", weights };
+      return { type: SplitMode.Shares, weights };
     }
-    case "percent": {
+    case SplitMode.Percent: {
       const weights = pick(inputs.weights, participants);
       if (typeof weights === "string") return weights;
       if (Object.values(weights).some((v) => v <= 0 || !Number.isInteger(v)))
         return "percentages must be positive whole numbers";
       const sum = Object.values(weights).reduce((a, b) => a + b, 0);
       if (sum !== 100) return `percentages sum to ${sum}, must be 100`;
-      return { type: "percent", weights };
+      return { type: SplitMode.Percent, weights };
     }
   }
 }
@@ -66,14 +85,14 @@ export function previewShares(
   rule: SplitRule,
   participants: string[],
 ): Record<string, number> {
-  if (rule.type === "exact") {
+  if (rule.type === SplitMode.Exact) {
     const out: Record<string, number> = {};
     for (const p of participants) out[p] = rule.amounts[p] ?? 0;
     return out;
   }
   const weights: Record<string, number> = {};
   for (const p of participants) {
-    weights[p] = rule.type === "equal" ? 1 : (rule.weights[p] ?? 0);
+    weights[p] = rule.type === SplitMode.Equal ? 1 : (rule.weights[p] ?? 0);
   }
   const totalWeight = participants.reduce((a, p) => a + weights[p]!, 0);
   const shares: Record<string, number> = {};
