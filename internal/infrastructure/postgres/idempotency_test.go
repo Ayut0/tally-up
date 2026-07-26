@@ -25,7 +25,9 @@ func TestGate_DuplicatePendingIsInFlight(t *testing.T) {
 	s := TestStore(t)
 	key := uuid.New()
 	ctx := context.Background()
-	s.Idempotency.Acquire(ctx, key, "hash1")
+	if _, _, err := s.Idempotency.Acquire(ctx, key, "hash1"); err != nil {
+		t.Fatal(err)
+	}
 	res, _, err := s.Idempotency.Acquire(ctx, key, "hash1")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +41,9 @@ func TestGate_SucceededKeyReplaysStoredResponse(t *testing.T) {
 	s := TestStore(t)
 	key := uuid.New()
 	ctx := context.Background()
-	s.Idempotency.Acquire(ctx, key, "hash1")
+	if _, _, err := s.Idempotency.Acquire(ctx, key, "hash1"); err != nil {
+		t.Fatal(err)
+	}
 	_, err := s.Pool.Exec(ctx,
 		`UPDATE idempotency_keys SET status='succeeded', response_body='{"id":"x","seq":1}' WHERE key=$1`, key)
 	if err != nil {
@@ -61,7 +65,9 @@ func TestGate_HashMismatchRejected(t *testing.T) {
 	s := TestStore(t)
 	key := uuid.New()
 	ctx := context.Background()
-	s.Idempotency.Acquire(ctx, key, "hash1")
+	if _, _, err := s.Idempotency.Acquire(ctx, key, "hash1"); err != nil {
+		t.Fatal(err)
+	}
 	res, _, err := s.Idempotency.Acquire(ctx, key, "DIFFERENT")
 	if err != nil {
 		t.Fatal(err)
@@ -75,8 +81,12 @@ func TestSweepStalePending(t *testing.T) {
 	s := TestStore(t)
 	ctx := context.Background()
 	stale, fresh := uuid.New(), uuid.New()
-	s.Idempotency.Acquire(ctx, stale, "h")
-	s.Idempotency.Acquire(ctx, fresh, "h")
+	if _, _, err := s.Idempotency.Acquire(ctx, stale, "h"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Idempotency.Acquire(ctx, fresh, "h"); err != nil {
+		t.Fatal(err)
+	}
 	_, err := s.Pool.Exec(ctx,
 		`UPDATE idempotency_keys SET created_at = now() - interval '10 minutes' WHERE key=$1`, stale)
 	if err != nil {
@@ -104,7 +114,9 @@ func TestReleaseIdempotencyKey_PendingOnly(t *testing.T) {
 
 	// A released pending key can be re-acquired immediately.
 	key := uuid.New()
-	s.Idempotency.Acquire(ctx, key, "h")
+	if _, _, err := s.Idempotency.Acquire(ctx, key, "h"); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Idempotency.Release(ctx, key); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +126,9 @@ func TestReleaseIdempotencyKey_PendingOnly(t *testing.T) {
 
 	// A succeeded key must never be released — the response snapshot is truth.
 	done := uuid.New()
-	s.Idempotency.Acquire(ctx, done, "h")
+	if _, _, err := s.Idempotency.Acquire(ctx, done, "h"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.Pool.Exec(ctx,
 		`UPDATE idempotency_keys SET status='succeeded', response_body='{}' WHERE key=$1`, done); err != nil {
 		t.Fatal(err)

@@ -66,7 +66,7 @@ func post(t *testing.T, srv *httptest.Server, key uuid.UUID, body []byte) (*http
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	rb, _ := io.ReadAll(resp.Body)
 	return resp, rb
 }
@@ -96,7 +96,9 @@ func TestCreateExpense_HappyPath(t *testing.T) {
 		t.Fatalf("postings sum %d, want 0", sum)
 	}
 	var n int
-	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 1 {
 		t.Fatalf("%d entries, want 1", n)
 	}
@@ -114,7 +116,9 @@ func TestCreateExpense_ReplaySameKeySameBody(t *testing.T) {
 		t.Fatalf("replay body differs: %s vs %s", body1, body2)
 	}
 	var n int
-	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 1 {
 		t.Fatalf("%d entries after replay, want 1", n)
 	}
@@ -285,14 +289,14 @@ func TestConcurrency_SameKey50x_ExactlyOneEntry(t *testing.T) {
 
 	const workers = 50
 	statuses := make(chan int, workers)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			resp, _ := post(t, srv, key, body)
 			statuses <- resp.StatusCode
 		}()
 	}
 	counts := map[int]int{}
-	for i := 0; i < workers; i++ {
+	for range workers {
 		counts[<-statuses]++
 	}
 
@@ -305,7 +309,9 @@ func TestConcurrency_SameKey50x_ExactlyOneEntry(t *testing.T) {
 	}
 
 	var n int
-	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 1 {
 		t.Fatalf("%d entries, want exactly 1", n)
 	}
@@ -322,7 +328,7 @@ func TestConcurrency_DistinctKeys50x_AllLand(t *testing.T) {
 
 	const workers = 50
 	done := make(chan struct{}, workers)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer func() { done <- struct{}{} }()
 			resp, body := post(t, srv, uuid.New(), expenseBody(uuid.New()))
@@ -331,14 +337,18 @@ func TestConcurrency_DistinctKeys50x_AllLand(t *testing.T) {
 			}
 		}()
 	}
-	for i := 0; i < workers; i++ {
+	for range workers {
 		<-done
 	}
 
 	var n int
 	var sum int64
-	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
-	s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
 	if n != workers {
 		t.Fatalf("%d entries, want %d", n, workers)
 	}

@@ -52,6 +52,13 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Linter set decided in #98 (config: .golangci.yaml). golangci-lint's
+      # own version is pinned to match the Makefile's `lint` target, so a new
+      # release can't turn this job red on an unrelated PR.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.6.2
+
       # Delegated to the Makefile so the test invocation has exactly one
       # definition and cannot drift from what contributors run locally.
       #

@@ -2,6 +2,7 @@ package rest
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -79,7 +80,9 @@ func (s *Server) handleGetBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(newBalanceResponse(snap))
+	if err := json.NewEncoder(w).Encode(newBalanceResponse(snap)); err != nil {
+		slog.Warn("write balance response", "err", err)
+	}
 }
 
 func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
@@ -100,5 +103,7 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 		resp.Entries[i] = newEntryResponse(rec)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Warn("write entries response", "err", err)
+	}
 }

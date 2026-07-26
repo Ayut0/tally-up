@@ -18,7 +18,8 @@ without `make db-up` first.
 make db-up          # start local Postgres (docker compose), required for tests
 make test           # TEST_DATABASE_URL=... go test -p 1 ./... -race
                     # (adds CGO_ENABLED=0 on macOS only — see the Makefile)
-go vet ./...        # static checks (no golangci config in this repo)
+go vet ./...        # static checks
+make lint           # golangci-lint, config in .golangci.yaml — see the CI section below
 make sqlc           # regenerate typed queries after editing query/*.sql
 ```
 
@@ -28,15 +29,27 @@ See the `Makefile` target comments for the other targets (`run`, `seed`,
 ## CI
 
 [`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) runs `go build`,
-`go vet`, and the same `make test` on every pull request and every push to
-`main`. It is blocking; the `@claude review` reviewer is advisory and
-comment-triggered.
+`go vet`, `golangci-lint`, and the same `make test` on every pull request and
+every push to `main`. It is blocking; the `@claude review` reviewer is
+advisory and comment-triggered.
 
 Third-party actions in these workflows are pinned to commit SHAs rather than
 mutable tags (a tag can be repointed by whoever controls the action repo).
 [`.github/dependabot.yml`](../.github/dependabot.yml) watches for new tags on
 pinned actions and opens a PR to bump them — pins are updated by Dependabot,
 not by hand.
+
+**Linter set:** `.golangci.yaml` enables `standard` (errcheck, govet,
+ineffassign, staticcheck, unused) plus `bodyclose`, `errchkjson`, `exhaustive`,
+`gocritic`, `gosec`, `modernize`, and `noctx`, with test files exempted from
+the four that mainly guard production code (`gosec`, `noctx`, `bodyclose`,
+`errchkjson`). This was decided in #98 by measuring `--default=all` against
+the repo (177 findings) and scoping down to what's worth enforcing (42); see
+that issue for the reasoning behind each inclusion/exclusion and the two
+decisions still deliberately left open (`revive`'s exported-comment rule,
+`wrapcheck` adoption). The golangci-lint version itself is pinned — in the
+Makefile's `GOLANGCI_LINT_VERSION` and the CI step's `version:` input,
+kept in sync — so a new release can't turn CI red on an unrelated PR.
 
 **CI does not run DB-backed tests yet.** It invokes `make test-nodb`, which
 blanks `TEST_DATABASE_URL` so the tests that need Postgres skip; what runs is

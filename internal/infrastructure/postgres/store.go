@@ -9,6 +9,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -65,7 +66,11 @@ func Migrate(databaseURL string) error {
 	if err != nil {
 		return err
 	}
-	defer m.Close()
+	defer func() {
+		if srcErr, dbErr := m.Close(); srcErr != nil || dbErr != nil {
+			slog.Warn("migrate close", "source_err", srcErr, "db_err", dbErr)
+		}
+	}()
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
 	}
@@ -121,6 +126,7 @@ func TestStore(t *testing.T) *Store {
 		t.Fatalf("TEST_DATABASE_URL unset while %s is set: DB-backed tests must not skip here", requireDBEnv)
 	case dbSkip:
 		t.Skip("TEST_DATABASE_URL not set; run `make db-up` and export it")
+	case dbProceed: // URL present — nothing to do, proceed to connect below
 	}
 	s, err := New(context.Background(), url)
 	if err != nil {

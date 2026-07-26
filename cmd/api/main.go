@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,13 +18,23 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("fatal", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run holds everything that used to live in main directly. Splitting it out
+// means an early failure returns an error instead of calling os.Exit itself,
+// so every defer above the failure point (notably signal.NotifyContext's
+// stop and the pool close) still runs.
+func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		slog.Error("DATABASE_URL required")
-		os.Exit(1)
+		return errors.New("DATABASE_URL required")
 	}
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -32,8 +43,7 @@ func main() {
 
 	s, err := postgres.New(ctx, dbURL)
 	if err != nil {
-		slog.Error("postgres init", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("postgres init: %w", err)
 	}
 	defer s.Pool.Close()
 
@@ -57,17 +67,23 @@ func main() {
 
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
-	srv := &http.Server{Addr: ":" + port, Handler: rest.NewServer(entries, s.Reads, s.Reads, corrections)}
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           rest.NewServer(entries, s.Reads, s.Reads, corrections),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		srv.Shutdown(shutdownCtx) // drains in-flight requests/transactions
+		if err := srv.Shutdown(shutdownCtx); err != nil { // drains in-flight requests/transactions
+			slog.Warn("graceful shutdown", "err", err)
+		}
 	}()
 
 	slog.Info("tallyup api listening", "port", port)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("server: %w", err)
 	}
+	return nil
 }

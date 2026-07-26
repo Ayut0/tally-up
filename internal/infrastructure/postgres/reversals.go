@@ -70,7 +70,7 @@ func (r *EntryRepository) Reverse(ctx context.Context, key uuid.UUID, groupID, o
 			return err
 		}
 
-		snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d,"reverses_id":%q}`, reversalID, seq, originalID))
+		snapshot := fmt.Appendf(nil, `{"id":%q,"seq":%d,"reverses_id":%q}`, reversalID, seq, originalID)
 		resp, err = q.MarkIdempotencySucceeded(ctx, sqlc.MarkIdempotencySucceededParams{
 			Key: key, ResponseBody: snapshot,
 		})
@@ -105,7 +105,7 @@ func (r *EntryRepository) Edit(ctx context.Context, key uuid.UUID, groupID, orig
 		// id/seq are the replacement; reversal_entry_id is the reversal that
 		// retired the original. Deliberately not reverses_id — the replacement
 		// reverses nothing, it is a fresh entry.
-		snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d,"reversal_entry_id":%q}`, in.ID, seq, reversalID))
+		snapshot := fmt.Appendf(nil, `{"id":%q,"seq":%d,"reversal_entry_id":%q}`, in.ID, seq, reversalID)
 		resp, err = q.MarkIdempotencySucceeded(ctx, sqlc.MarkIdempotencySucceededParams{
 			Key: key, ResponseBody: snapshot,
 		})

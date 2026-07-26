@@ -3,6 +3,7 @@ package ledger
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/google/uuid"
@@ -108,9 +109,7 @@ func computeShares(total int64, rule SplitRule, participants []uuid.UUID) (map[u
 			return nil, fmt.Errorf("exact amounts sum to %d, total is %d", sum, total)
 		}
 		out := make(map[uuid.UUID]int64, len(rule.Amounts))
-		for m, a := range rule.Amounts {
-			out[m] = a
-		}
+		maps.Copy(out, rule.Amounts)
 		return out, nil
 	default:
 		return nil, fmt.Errorf("unknown split type %q", rule.Type)
