@@ -26,6 +26,12 @@ linters:
         - (github.com/jackc/pgx/v5.Tx).Rollback
 
   exclusions:
+    # node_modules is gitignored, not part of the repo, but a populated
+    # web/node_modules (after `cd web && npm ci`) can contain a vendored
+    # stray .go file (e.g. the "flatted" package's Go build) that `./...`
+    # would otherwise pick up and lint (#113).
+    paths:
+      - node_modules
     rules:
       # These 4 linters exist to catch production mistakes (unclosed response
       # bodies, missing request contexts, unsafe error wrapping, credential
