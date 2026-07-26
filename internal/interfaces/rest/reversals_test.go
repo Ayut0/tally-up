@@ -27,7 +27,7 @@ func postReverse(t *testing.T, srv *httptest.Server, key uuid.UUID, entryID, rev
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	rb, _ := io.ReadAll(resp.Body)
 	return resp, rb
 }
@@ -53,7 +53,9 @@ func TestReverse_Endpoint(t *testing.T) {
 	}
 
 	var sum int64
-	s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
 	if sum != 0 {
 		t.Fatalf("global sum %d after reversal, want 0", sum)
 	}
@@ -74,7 +76,9 @@ func TestReverse_ReplayIdempotent(t *testing.T) {
 		t.Fatalf("replay differs: %s vs %s", body1, body2)
 	}
 	var n int
-	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries WHERE kind='reversal'`).Scan(&n)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries WHERE kind='reversal'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 1 {
 		t.Fatalf("%d reversals, want 1", n)
 	}
@@ -106,12 +110,16 @@ func TestEdit_Endpoint(t *testing.T) {
 	}
 
 	var n int
-	s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT count(*) FROM entries`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 3 {
 		t.Fatalf("%d entries after edit, want 3 (original + reversal + replacement)", n)
 	}
 	var sum int64
-	s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum)
+	if err := s.Pool.QueryRow(context.Background(), `SELECT COALESCE(SUM(amount),0) FROM postings`).Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
 	if sum != 0 {
 		t.Fatalf("global sum %d, want 0", sum)
 	}
@@ -151,7 +159,7 @@ func TestCorrectionAcks_FieldNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer editResp.Body.Close()
+	defer func() { _ = editResp.Body.Close() }()
 	rb, _ := io.ReadAll(editResp.Body)
 	if editResp.StatusCode != http.StatusCreated {
 		t.Fatalf("edit: status %d, body %s", editResp.StatusCode, rb)

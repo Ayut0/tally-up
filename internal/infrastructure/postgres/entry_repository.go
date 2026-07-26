@@ -50,7 +50,7 @@ func (r *EntryRepository) Create(ctx context.Context, key uuid.UUID, in entry.In
 
 		// RETURNING gives us the JSONB-normalized bytes, so this first response is
 		// byte-identical to every future replay read from the same column.
-		snapshot := []byte(fmt.Sprintf(`{"id":%q,"seq":%d}`, in.ID, seq))
+		snapshot := fmt.Appendf(nil, `{"id":%q,"seq":%d}`, in.ID, seq)
 		resp, err = q.MarkIdempotencySucceeded(ctx, sqlc.MarkIdempotencySucceededParams{
 			Key: key, ResponseBody: snapshot,
 		})

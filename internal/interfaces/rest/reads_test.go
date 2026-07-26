@@ -16,7 +16,7 @@ func getJSON(t *testing.T, url string, out any) *http.Response {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if err := json.Unmarshal(body, out); err != nil {
 		t.Fatalf("unmarshal %s: %v", body, err)
@@ -72,6 +72,9 @@ func TestListEntries_Endpoint(t *testing.T) {
 	}
 
 	resp = getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/entries?after_seq=%d", gID, page.Entries[0].Seq), &page)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("incremental fetch status %d", resp.StatusCode)
+	}
 	if len(page.Entries) != 1 {
 		t.Fatalf("incremental fetch got %d entries, want 1", len(page.Entries))
 	}

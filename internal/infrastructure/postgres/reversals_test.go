@@ -104,10 +104,8 @@ func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 	const workers = 10
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range workers {
+		wg.Go(func() {
 			key, revID := uuid.New(), uuid.New()
 			if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
 				errs <- err
@@ -115,7 +113,7 @@ func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 			}
 			_, err := s.Entries.Reverse(context.Background(), key, rGroup, orig, revID, rYuto)
 			errs <- err
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -136,8 +134,10 @@ func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 	}
 
 	var n int
-	s.Pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM entries WHERE reverses_id = $1`, orig).Scan(&n)
+	if err := s.Pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM entries WHERE reverses_id = $1`, orig).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 1 {
 		t.Fatalf("%d reversal entries exist, want exactly 1", n)
 	}

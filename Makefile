@@ -14,7 +14,11 @@ endif
 SEED_MEMBER_ID  := 00000000-0000-0000-0000-00000000000a
 SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1
 
-.PHONY: db-up db-down run seed smoke test test-nodb sqlc spec web-dev web-test web-build
+# Pinned here and in .github/workflows/ci.yaml's Lint step so a new
+# golangci-lint release can't turn CI red on an unrelated PR — see #98.
+GOLANGCI_LINT_VERSION := v2.6.2
+
+.PHONY: db-up db-down run seed smoke test test-nodb sqlc spec lint web-dev web-test web-build
 
 db-up: ## Start the local Postgres container
 	docker compose up -d db
@@ -49,6 +53,9 @@ test-nodb: ## Run only the tests that need no database — what CI runs today
 
 sqlc: ## Regenerate the typed query layer from query/*.sql (install: brew install sqlc)
 	sqlc generate
+
+lint: ## Run golangci-lint (config: .golangci.yaml, linter choice recorded in #98)
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
 
 spec: ## Regenerate spec/openapi.yaml from spec/*.tsp (spec/ is self-contained; needs `cd spec && npm install` once first)
 	cd spec && npm run build

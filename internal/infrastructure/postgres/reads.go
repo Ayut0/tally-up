@@ -62,7 +62,8 @@ func (r *ReadRepository) ListEntries(ctx context.Context, groupID uuid.UUID, aft
 
 	q := r.queries(ctx)
 	rows, err := q.ListEntriesAfterSeq(ctx, sqlc.ListEntriesAfterSeqParams{
-		GroupID: groupID, Seq: &afterSeq, Limit: int32(limit),
+		GroupID: groupID, Seq: &afterSeq,
+		Limit: int32(limit), //nolint:gosec // clamped to maxListLimit (500) above; cannot overflow int32
 	})
 	if err != nil {
 		return nil, err

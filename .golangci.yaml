@@ -1,0 +1,47 @@
+version: "2"
+
+# Linter set decided in #98: `standard` (errcheck, govet, ineffassign,
+# staticcheck, unused) plus 7 bug-finding linters, measured against this repo
+# before adoption. See #98 for the measurement (177 findings with every
+# linter enabled, 42 with this set) and the two decisions left open
+# (revive's exported-comment rule, wrapcheck adoption).
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errchkjson
+    - exhaustive
+    - gocritic
+    - gosec
+    - modernize
+    - noctx
+
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    errcheck:
+      exclude-functions:
+        # transaction.go documents this Rollback as a deliberate no-op safety
+        # net once Commit succeeds — not an oversight.
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+
+  exclusions:
+    rules:
+      # These 4 linters exist to catch production mistakes (unclosed response
+      # bodies, missing request contexts, unsafe error wrapping, credential
+      # leaks via gosec rules not relevant to tests). Applying them to test
+      # helpers that make throwaway HTTP calls against an httptest.Server adds
+      # noise without catching anything real.
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+          - bodyclose
+          - errchkjson
+
+issues:
+  # golangci-lint's defaults (max-same-issues: 3, max-issues-per-linter: 50)
+  # silently truncate output once a pattern repeats — #98 found 42 real
+  # findings where a default run reported 27. Disabled so CI never hides one.
+  max-same-issues: 0
+  max-issues-per-linter: 0
