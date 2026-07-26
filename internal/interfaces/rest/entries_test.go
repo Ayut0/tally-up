@@ -60,6 +60,7 @@ func expenseBody(entryID uuid.UUID) []byte {
 func post(t *testing.T, srv *httptest.Server, key uuid.UUID, body []byte) (*http.Response, []byte) {
 	t.Helper()
 	req, _ := http.NewRequest("POST", srv.URL+fmt.Sprintf("/groups/%s/entries", gID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", key.String())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -75,7 +76,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
 	seedGroup(t, s)
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
-	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, corrections))
+	srv := httptest.NewServer(validatingHandler(t, NewServer(entries, s.Reads, s.Reads, corrections)))
 	t.Cleanup(srv.Close)
 	return srv, s
 }

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && vitest run",
+    "gen:api-types": "openapi-typescript ../spec/openapi.yaml -o lib/api-types.ts"
   },
   "dependencies": {
     "next": "16.2.11",
@@ -21,7 +23,11 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "js-yaml": "^4.3.0"
   }
 }

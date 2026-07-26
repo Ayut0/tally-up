@@ -1,0 +1,14 @@
+emit:
+  - "@typespec/openapi3"
+options:
+  "@typespec/openapi3":
+    emitter-output-dir: "{project-root}"
+    output-file: "openapi.yaml"
+    # 3.0, not 3.1: @typespec/openapi3 emits Record<T> (used by SplitRule's
+    # weights/amounts) as `unevaluatedProperties` under 3.1, a keyword
+    # openapi-typescript does not understand — it silently types the map's
+    # values as `never`, making weights/amounts uncomposable in the generated
+    # client. 3.0's `additionalProperties` is read correctly everywhere.
+    # Verified: web/lib/api-types.test.ts pins the resulting shape.
+    openapi-versions:
+      - 3.0.0

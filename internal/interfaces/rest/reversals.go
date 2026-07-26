@@ -104,7 +104,7 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ID == uuid.Nil || req.ReversalID == uuid.Nil {
-		httpError(w, http.StatusBadRequest, "id and reversal_id required")
+		httpError(w, http.StatusBadRequest, "id and reversal_entry_id required")
 		return
 	}
 	occurredOn, err := time.Parse("2006-01-02", req.OccurredOn)
@@ -116,7 +116,7 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 	result, err := s.corrections.Edit(r.Context(), correctentry.EditCommand{
 		GroupID: groupID, OriginalID: originalID, ReversalID: req.ReversalID,
 		ID: req.ID, Kind: req.Kind, PayerID: req.PayerID, Counterparty: req.Counterparty,
-		TotalAmount: req.TotalAmount, SplitRule: req.SplitRule, Participants: req.Participants,
+		TotalAmount: req.TotalAmount, SplitRule: req.SplitRule.toDomain(), Participants: req.Participants,
 		Memo: req.Memo, OccurredOn: occurredOn,
 		IdempotencyKey: key, RequestHash: requestHash,
 	})

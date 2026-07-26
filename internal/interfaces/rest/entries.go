@@ -19,17 +19,37 @@ import (
 
 const maxBodyBytes = 1 << 20
 
+// splitRuleRequest is this layer's own wire shape for split_rule — the spec's
+// kind-discriminated union (spec/main.tsp) — decoded and explicitly converted
+// to ledger.SplitRule rather than decoding straight into the domain type. A
+// mismatched combination (e.g. type: "shares" with no weights) still surfaces
+// as a 422 from ledger.ComputePostings's coversExactly check, same as before;
+// this only stops a domain field rename from silently changing what the wire
+// accepts.
+type splitRuleRequest struct {
+	Type    ledger.SplitType    `json:"type"`
+	Amounts map[uuid.UUID]int64 `json:"amounts,omitempty"`
+	Weights map[uuid.UUID]int64 `json:"weights,omitempty"`
+}
+
+func (r splitRuleRequest) toDomain() ledger.SplitRule {
+	return ledger.SplitRule{Type: r.Type, Amounts: r.Amounts, Weights: r.Weights}
+}
+
 type createEntryRequest struct {
 	ID           uuid.UUID        `json:"id"`
 	Kind         entry.Kind       `json:"kind"`
 	PayerID      uuid.UUID        `json:"payer_id"`
 	Counterparty *uuid.UUID       `json:"counterparty,omitempty"`
 	TotalAmount  int64            `json:"total_amount"`
-	SplitRule    ledger.SplitRule `json:"split_rule"`
+	SplitRule    splitRuleRequest `json:"split_rule"`
 	Participants []uuid.UUID      `json:"participants"`
 	Memo         string           `json:"memo,omitempty"`
 	OccurredOn   string           `json:"occurred_on"` // YYYY-MM-DD
-	ReversalID   uuid.UUID        `json:"reversal_id,omitempty"` // PUT (edit) only
+	// PUT (edit) only: the client-minted reversal that retires the original.
+	// Distinct from an entry's reverses_id, which points the other way — from a
+	// reversal at the entry it reverses.
+	ReversalID uuid.UUID `json:"reversal_entry_id,omitempty"`
 }
 
 func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +89,7 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 	result, err := s.entries.AddEntry(r.Context(), addentry.Command{
 		ID: req.ID, GroupID: groupID, Kind: req.Kind, PayerID: req.PayerID,
 		Counterparty: req.Counterparty, TotalAmount: req.TotalAmount,
-		SplitRule: req.SplitRule, Participants: req.Participants, Memo: req.Memo,
+		SplitRule: req.SplitRule.toDomain(), Participants: req.Participants, Memo: req.Memo,
 		// CreatedBy is hardwired to PayerID for now, conflating "who recorded the
 		// entry" with "who paid" — placeholder pending real auth.
 		OccurredOn: occurredOn, CreatedBy: req.PayerID,
