@@ -1,5 +1,6 @@
 import type { components } from "./api-types";
 
+/** Thrown for any non-2xx response, or once postIdempotent's retries are exhausted (status 0). */
 export class ApiError extends Error {
   status: number;
 
@@ -9,6 +10,7 @@ export class ApiError extends Error {
   }
 }
 
+/** Prefixes `path` with `NEXT_PUBLIC_API_URL`, defaulting to the Go server's dev address. */
 export function apiUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
   return `${base}${path}`;
@@ -23,10 +25,18 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => ({ error: res.statusText }))) as { error: string };
+  const body = (await res.json().catch(() => ({ error: res.statusText }))) as components["schemas"]["ErrorBody"];
   return body.error;
 }
 
+/**
+ * POSTs with an `Idempotency-Key` header, per the client contract in
+ * docs/architecture.md §4: a network error or 5xx retries up to 3 times on
+ * the SAME key (300/900/2700ms backoff); a 409 (another request with this
+ * key is in flight) retries up to 3 times at a fixed 500ms; any other 4xx
+ * throws immediately, since a replayed key with a different payload is a
+ * client bug, not a flake.
+ */
 export async function postIdempotent<T>(path: string, body: unknown, key: string): Promise<T> {
   let attempt = 0;
   let inFlightAttempt = 0;
@@ -80,14 +90,17 @@ async function getJSON<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Fetches a group and its members. */
 export function getGroup(groupId: string): Promise<components["schemas"]["GroupRecord"]> {
   return getJSON(`/groups/${groupId}`);
 }
 
+/** Fetches every member's current balance, plus the ledger seq those balances reflect. */
 export function getBalance(groupId: string): Promise<components["schemas"]["BalanceSnapshot"]> {
   return getJSON(`/groups/${groupId}/balance`);
 }
 
+/** Pages the ledger in seq order; pass the highest seq seen as `afterSeq` to poll for new entries. */
 export function listEntries(
   groupId: string,
   afterSeq?: number,
@@ -96,6 +109,7 @@ export function listEntries(
   return getJSON(`/groups/${groupId}/entries${query}`);
 }
 
+/** Creates a group and its initial members in one idempotent call. */
 export function createGroup(
   id: string,
   name: string,
@@ -106,6 +120,7 @@ export function createGroup(
   return postIdempotent("/groups", body, key);
 }
 
+/** Records an expense or settlement entry idempotently. */
 export function addEntry(
   groupId: string,
   entry: components["schemas"]["CreateEntryRequest"],
