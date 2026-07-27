@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { entryAckSchema } from "./api-schemas";
 import { addEntry, createGroup, getBalance, getGroup, listEntries, postIdempotent } from "./api";
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -22,7 +23,7 @@ describe("postIdempotent", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: "e1", seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1");
+    const result = await postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
 
     expect(result).toEqual({ id: "e1", seq: 1 });
     const [, init] = fetchMock.mock.calls[0]!;
@@ -36,7 +37,7 @@ describe("postIdempotent", () => {
       .mockResolvedValueOnce(jsonResponse(200, { id: "e1", seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1");
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
     await vi.advanceTimersByTimeAsync(300);
     const result = await promise;
 
@@ -55,7 +56,7 @@ describe("postIdempotent", () => {
       .mockResolvedValueOnce(jsonResponse(201, { id: "e1", seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1");
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
     await vi.advanceTimersByTimeAsync(500);
     const result = await promise;
 
@@ -67,7 +68,7 @@ describe("postIdempotent", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(409, { error: "in flight" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1");
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
     promise.catch(() => {});
 
     await vi.advanceTimersByTimeAsync(500);
@@ -85,7 +86,7 @@ describe("postIdempotent", () => {
       .mockResolvedValueOnce(jsonResponse(201, { id: "e1", seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1");
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
     await vi.advanceTimersByTimeAsync(300);
     const result = await promise;
 
@@ -101,7 +102,7 @@ describe("postIdempotent", () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("network error"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1");
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
     // Swallow the eventual rejection so it isn't reported as unhandled while
     // the fake-timer advances below are still pending.
     promise.catch(() => {});
@@ -119,7 +120,7 @@ describe("postIdempotent", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1"),
+      postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema),
     ).rejects.toMatchObject({ status: 422 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -145,6 +146,13 @@ describe("getGroup", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getGroup("missing")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("throws ApiError when a 200 body fails contract validation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { id: "g1" /* missing name, members */ }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getGroup("g1")).rejects.toMatchObject({ status: 200 });
   });
 });
 

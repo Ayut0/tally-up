@@ -1,4 +1,12 @@
+import type { z } from "zod";
 import type { components } from "./api-types";
+import {
+  balanceSnapshotSchema,
+  entryAckSchema,
+  entryListSchema,
+  errorBodySchema,
+  groupRecordSchema,
+} from "./api-schemas";
 
 /** Thrown for any non-2xx response, or once postIdempotent's retries are exhausted (status 0). */
 export class ApiError extends Error {
@@ -25,8 +33,18 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => ({ error: res.statusText }))) as components["schemas"]["ErrorBody"];
-  return body.error;
+  const raw = await res.json().catch(() => ({ error: res.statusText }));
+  const parsed = errorBodySchema.safeParse(raw);
+  return parsed.success ? parsed.data.error : res.statusText;
+}
+
+/** Parses `res`'s body against `schema`, wrapping a validation failure in `ApiError` too — every failure mode this file exposes is one type. */
+async function parseBody<T>(res: Response, schema: z.ZodType<T>): Promise<T> {
+  const parsed = schema.safeParse(await res.json());
+  if (!parsed.success) {
+    throw new ApiError(res.status, `response failed contract validation: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 /**
@@ -35,9 +53,16 @@ async function readErrorMessage(res: Response): Promise<string> {
  * the SAME key (300/900/2700ms backoff); a 409 (another request with this
  * key is in flight) retries up to 3 times at a fixed 500ms; any other 4xx
  * throws immediately, since a replayed key with a different payload is a
- * client bug, not a flake.
+ * client bug, not a flake. The response body is validated against `schema`
+ * at runtime rather than merely asserted, since `Response.json()` gives no
+ * static guarantee it matches T.
  */
-export async function postIdempotent<T>(path: string, body: unknown, key: string): Promise<T> {
+export async function postIdempotent<T>(
+  path: string,
+  body: unknown,
+  key: string,
+  schema: z.ZodType<T>,
+): Promise<T> {
   let attempt = 0;
   let inFlightAttempt = 0;
 
@@ -60,13 +85,13 @@ export async function postIdempotent<T>(path: string, body: unknown, key: string
     }
 
     if (res.status === 200 || res.status === 201) {
-      return (await res.json()) as T;
+      return parseBody(res, schema);
     }
 
+    if (res.status === 409 && inFlightAttempt >= MAX_IN_FLIGHT_RETRIES) {
+      throw new ApiError(res.status, await readErrorMessage(res));
+    }
     if (res.status === 409) {
-      if (inFlightAttempt >= MAX_IN_FLIGHT_RETRIES) {
-        throw new ApiError(res.status, await readErrorMessage(res));
-      }
       await sleep(IN_FLIGHT_RETRY_MS);
       inFlightAttempt++;
       continue;
@@ -82,22 +107,22 @@ export async function postIdempotent<T>(path: string, body: unknown, key: string
   }
 }
 
-async function getJSON<T>(path: string): Promise<T> {
+async function getJSON<T>(path: string, schema: z.ZodType<T>): Promise<T> {
   const res = await fetch(apiUrl(path));
   if (!res.ok) {
     throw new ApiError(res.status, await readErrorMessage(res));
   }
-  return (await res.json()) as T;
+  return parseBody(res, schema);
 }
 
 /** Fetches a group and its members. */
 export function getGroup(groupId: string): Promise<components["schemas"]["GroupRecord"]> {
-  return getJSON(`/groups/${groupId}`);
+  return getJSON(`/groups/${groupId}`, groupRecordSchema);
 }
 
 /** Fetches every member's current balance, plus the ledger seq those balances reflect. */
 export function getBalance(groupId: string): Promise<components["schemas"]["BalanceSnapshot"]> {
-  return getJSON(`/groups/${groupId}/balance`);
+  return getJSON(`/groups/${groupId}/balance`, balanceSnapshotSchema);
 }
 
 /** Pages the ledger in seq order; pass the highest seq seen as `afterSeq` to poll for new entries. */
@@ -105,8 +130,8 @@ export function listEntries(
   groupId: string,
   afterSeq?: number,
 ): Promise<components["schemas"]["EntryList"]> {
-  const query = afterSeq === undefined ? "" : `?after_seq=${afterSeq}`;
-  return getJSON(`/groups/${groupId}/entries${query}`);
+  const query = typeof afterSeq === "number" ? `?after_seq=${afterSeq}` : "";
+  return getJSON(`/groups/${groupId}/entries${query}`, entryListSchema);
 }
 
 /** Creates a group and its initial members in one idempotent call. */
@@ -117,7 +142,7 @@ export function createGroup(
   key: string,
 ): Promise<components["schemas"]["GroupRecord"]> {
   const body: components["schemas"]["CreateGroupRequest"] = { id, name, member_names: memberNames };
-  return postIdempotent("/groups", body, key);
+  return postIdempotent("/groups", body, key, groupRecordSchema);
 }
 
 /** Records an expense or settlement entry idempotently. */
@@ -126,5 +151,5 @@ export function addEntry(
   entry: components["schemas"]["CreateEntryRequest"],
   key: string,
 ): Promise<components["schemas"]["EntryAck"]> {
-  return postIdempotent(`/groups/${groupId}/entries`, entry, key);
+  return postIdempotent(`/groups/${groupId}/entries`, entry, key, entryAckSchema);
 }
