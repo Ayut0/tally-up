@@ -9,6 +9,18 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
+// RequestInit's `headers`/`body` are broad unions (HeadersInit/BodyInit); these
+// narrow them without asserting, since a test's own fetch call always sends a
+// string JSON body and plain headers.
+function headerValue(init: RequestInit | undefined, name: string): string | null {
+  return new Headers(init?.headers).get(name);
+}
+
+function bodyText(init: RequestInit | undefined): string {
+  if (typeof init?.body !== "string") throw new Error("expected a string request body");
+  return init.body;
+}
+
 describe("postIdempotent", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -27,7 +39,7 @@ describe("postIdempotent", () => {
 
     expect(result).toEqual({ id: "e1", seq: 1 });
     const [, init] = fetchMock.mock.calls[0]!;
-    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("key-1");
+    expect(headerValue(init, "Idempotency-Key")).toBe("key-1");
   });
 
   it("retries a network error with the SAME key and accepts a 200 replay", async () => {
@@ -44,7 +56,7 @@ describe("postIdempotent", () => {
     expect(result).toEqual({ id: "e1", seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const keys = fetchMock.mock.calls.map(
-      ([, init]) => (init.headers as Record<string, string>)["Idempotency-Key"],
+      ([, init]) => headerValue(init, "Idempotency-Key"),
     );
     expect(keys).toEqual(["key-1", "key-1"]);
   });
@@ -93,7 +105,7 @@ describe("postIdempotent", () => {
     expect(result).toEqual({ id: "e1", seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const keys = fetchMock.mock.calls.map(
-      ([, init]) => (init.headers as Record<string, string>)["Idempotency-Key"],
+      ([, init]) => headerValue(init, "Idempotency-Key"),
     );
     expect(keys).toEqual(["key-1", "key-1"]);
   });
@@ -200,12 +212,12 @@ describe("createGroup / addEntry", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("http://localhost:8080/groups");
-    expect(JSON.parse(init.body as string)).toEqual({
+    expect(JSON.parse(bodyText(init))).toEqual({
       id: "g1",
       name: "Trip",
       member_names: ["Alice", "Bob"],
     });
-    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("key-1");
+    expect(headerValue(init, "Idempotency-Key")).toBe("key-1");
   });
 
   it("addEntry POSTs the entry to /groups/{id}/entries with the idempotency key", async () => {
@@ -224,7 +236,7 @@ describe("createGroup / addEntry", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("http://localhost:8080/groups/g1/entries");
-    expect(JSON.parse(init.body as string)).toEqual(entry);
-    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("key-2");
+    expect(JSON.parse(bodyText(init))).toEqual(entry);
+    expect(headerValue(init, "Idempotency-Key")).toBe("key-2");
   });
 });
