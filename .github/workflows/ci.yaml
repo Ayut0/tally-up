@@ -42,6 +42,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - uses: sqlc-dev/setup-sqlc@bac53b7fb28c039a6c7f5736fd1e89744021bdd6 # v5.0.0
+        with:
+          sqlc-version: "1.30.0"
+
+      # Follow-up to #94: a query/*.sql edit that skips `make sqlc` would
+      # otherwise build clean against stale generated code and silently not
+      # take effect. Runs before setup-go since it needs no Go toolchain, and
+      # is delegated to the Makefile so the check has one definition (same
+      # reasoning as the Test step below). The pinned sqlc-version above must
+      # track sqlc.yaml's local generator output (see docs/development.md) —
+      # bump both together, or an unrelated sqlc release turns this red on
+      # an unrelated PR.
+      - name: sqlc up to date
+        run: make sqlc-check
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
