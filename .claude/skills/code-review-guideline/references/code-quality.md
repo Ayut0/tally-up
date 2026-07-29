@@ -58,7 +58,9 @@ Deep nesting forces the reader to hold every branch condition at once; early
 returns let each case be dismissed on its own.
 
 - SHOULD flag a deeply nested `if`/`else` chain flattenable with early
-  returns — Minor.
+  returns — Minor. Applies in TS as much as Go: `if (cond) { if (other) {
+  ... } }` should split into sibling guard clauses (`if (cond && other)
+  {...}` then `if (cond) {...}`), not just Go's early-return idiom.
 - SHOULD flag a `switch` over a sentinel-style value (e.g. an entry kind)
   with no `default` case — Minor. The compiler won't catch a new case being
   silently unhandled.
@@ -87,6 +89,29 @@ the difference carries meaning.
   `internal/domain/entry/entry.go`) — Minor.
 - SHOULD flag opaque abbreviations in new identifiers (`amt` for "amount",
   `mem` for "member") — Nit.
+
+## TypeScript
+
+Rules with no Go analogue, for `web/`'s TS/React code. Everything else in
+this file already applies language-agnostically; this section only exists
+for the handful of concerns that don't map onto Go's type system.
+
+- SHOULD flag an `as T` type assertion on a value crossing an untyped
+  boundary (a `fetch`/`Response.json()` result, a mock call's captured
+  args, `JSON.parse` output) with no runtime check behind it — Minor. An
+  assertion is a claim the compiler doesn't verify; prefer a schema parse
+  (`schema.safeParse(...)`) or an explicit narrow (`typeof`/`instanceof`,
+  or a helper like `new Headers(init?.headers).get(name)`) that fails
+  loudly instead of trusting the shape.
+- MUST flag that same kind of assertion — Major — when the asserted value
+  feeds amount/ledger or auth logic, matching the ladder's amount-handling
+  escalation.
+- MUST NOT flag a const assertion (`"settlement" as const`) under either
+  rule above — it narrows a literal's type to prevent widening, it does not
+  assert unchecked trust in untyped data.
+- SHOULD flag `x === undefined` / `x !== undefined` narrowing where
+  `typeof x === "..."` would read as the more direct check — Nit. Style
+  preference in this codebase's TS, not a correctness difference.
 
 ## YAGNI
 
@@ -130,7 +155,10 @@ defect slips past the reviewer unnoticed.
 
 ## Not ported
 
-Dispositioned in issue #83 and intentionally left out of this file:
+TS-specific coverage now exists — § TypeScript (type assertions, `typeof`
+narrowing) and § Control Flow (nested-if, generalized to cover TS too) —
+per issue #117. What's still deliberately out of scope, dispositioned in
+issue #83:
 
 - **Lint Complexity Thresholds** (cognitive complexity / function length /
   unsafe-type-escape severities read off a linter config) — tally-up has no
