@@ -103,9 +103,10 @@ for the handful of concerns that don't map onto Go's type system.
   (`schema.safeParse(...)`) or an explicit narrow (`typeof`/`instanceof`,
   or a helper like `new Headers(init?.headers).get(name)`) that fails
   loudly instead of trusting the shape.
-- MUST flag that same kind of assertion — Major — when the asserted value
-  feeds amount/ledger or auth logic, matching the ladder's amount-handling
-  escalation.
+- MUST flag that same kind of assertion — Critical — when the asserted
+  value feeds amount/ledger or auth logic, matching the existing ladder's
+  treatment of amount handling (`SKILL.md`'s severity ladder, Critical row)
+  and this file's own Magic Values rule for the identical escalation.
 - MUST NOT flag a const assertion (`"settlement" as const`) under either
   rule above — it narrows a literal's type to prevent widening, it does not
   assert unchecked trust in untyped data.
