@@ -3,9 +3,12 @@
 - **Status:** Accepted
 - **Date:** 2026-07-26
 - **Deciders:** Yuto
-- **Related:** Issue #93 (this decision); `spec/main.tsp`, `spec/openapi.yaml`;
+- **Related:** Issue #93 (this decision); Issue #116 (generates
+  `web/lib/api-schemas/`, amending "The web client generates from the
+  contract" below); `spec/main.tsp`, `spec/openapi.yaml`;
   `internal/interfaces/rest/openapi_spec_test.go`;
-  `.github/workflows/spec-drift.yaml`; `web/lib/api-types.ts`
+  `.github/workflows/spec-drift.yaml`; `web/lib/api-types.ts`,
+  `web/lib/api-schemas/`, `web/openapi-ts.config.ts`
 
 ## Context
 
@@ -77,12 +80,33 @@ types (`reads.go`, `entries.go`) rather than encoding domain values directly.
 
 `web/` runs `openapi-typescript` against `spec/openapi.yaml`
 (`npm run gen:api-types`) and commits the output
-(`web/lib/api-types.ts`). Because that file carries no runtime code — it's
-pure type declarations — a contract regression can only be caught at compile
+(`web/lib/api-types.ts`). That file carries no runtime code — it's pure type
+declarations — so a contract regression there can only be caught at compile
 time; `web/package.json`'s `test` script runs `tsc --noEmit` before `vitest
 run` specifically so `web/lib/api-types.test.ts`'s typed object-literal
 assignments gate the suite instead of being silently stripped by vitest's
 esbuild transform.
+
+Runtime response validation (issue #87/#115: `web/lib/api.ts`'s
+`postIdempotent`/`getJSON` reject a response that doesn't match its schema,
+since `Response.json()` gives no static guarantee) originally hand-wrote a
+second copy of the response shapes as zod schemas
+(`web/lib/api-schemas.ts`), which duplicated `spec/openapi.yaml` by hand —
+the same two-stage-trust risk accepted below only for the Go side. Issue
+#116 closed that: `web/` also runs `@hey-api/openapi-ts`'s zod plugin
+against `spec/openapi.yaml` (`npm run gen:api-schemas`) and commits the
+output (`web/lib/api-schemas/zod.gen.ts`), the same "generate, don't
+hand-write" treatment as `api-types.ts`. It runs alongside
+`openapi-typescript` rather than replacing it — `api-types.ts`'s
+`components["schemas"]["X"]` shape is depended on directly elsewhere
+(`web/lib/split.ts`, `web/lib/api-types.test.ts`) and switching type
+generators too was out of scope. The zod plugin's default int64/uint64
+handling (`z.coerce.bigint()`) is overridden to plain `z.number()` in
+`web/openapi-ts.config.ts` via its `$resolvers.number` hook: every
+`format: int64` field in this spec is a minor-currency-unit amount, safely
+within `Number.MAX_SAFE_INTEGER`, and a `bigint` would be incompatible with
+`api-types.ts`'s `number` types and with `JSON.stringify`. The web client
+now catches a contract regression at runtime too, not just compile time.
 
 ### CI fails on spec drift, independently of Go CI
 
@@ -129,6 +153,11 @@ which would mean paying the toolchain cost while losing the actual benefit
 - The mock-server workflow this was chosen for (build the web client against
   the spec before the Go side exists) is available starting with the next
   new endpoint (issue #86).
+- (issue #116) The web client's runtime response validation is generated
+  from the same spec as its types, closing a duplication risk that existed
+  only briefly (`web/lib/api-schemas.ts`, added by #115, hand-written) —
+  the web side never had to carry the Go side's two-stage-trust trade-off
+  below.
 
 **Negative / accepted trade-offs**
 

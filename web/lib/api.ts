@@ -1,12 +1,12 @@
 import type { z } from "zod";
 import type { components } from "./api-types";
 import {
-  balanceSnapshotSchema,
-  entryAckSchema,
-  entryListSchema,
-  errorBodySchema,
-  groupRecordSchema,
-} from "./api-schemas";
+  zBalanceSnapshot,
+  zEntryAck,
+  zEntryList,
+  zErrorBody,
+  zGroupRecord,
+} from "./api-schemas/zod.gen";
 
 /** Thrown for any non-2xx response, or once postIdempotent's retries are exhausted (status 0). */
 export class ApiError extends Error {
@@ -34,7 +34,7 @@ function sleep(ms: number): Promise<void> {
 
 async function readErrorMessage(res: Response): Promise<string> {
   const raw = await res.json().catch(() => ({ error: res.statusText }));
-  const parsed = errorBodySchema.safeParse(raw);
+  const parsed = zErrorBody.safeParse(raw);
   return parsed.success ? parsed.data.error : res.statusText;
 }
 
@@ -117,12 +117,12 @@ async function getJSON<T>(path: string, schema: z.ZodType<T>): Promise<T> {
 
 /** Fetches a group and its members. */
 export function getGroup(groupId: string): Promise<components["schemas"]["GroupRecord"]> {
-  return getJSON(`/groups/${groupId}`, groupRecordSchema);
+  return getJSON(`/groups/${groupId}`, zGroupRecord);
 }
 
 /** Fetches every member's current balance, plus the ledger seq those balances reflect. */
 export function getBalance(groupId: string): Promise<components["schemas"]["BalanceSnapshot"]> {
-  return getJSON(`/groups/${groupId}/balance`, balanceSnapshotSchema);
+  return getJSON(`/groups/${groupId}/balance`, zBalanceSnapshot);
 }
 
 /** Pages the ledger in seq order; pass the highest seq seen as `afterSeq` to poll for new entries. */
@@ -131,7 +131,7 @@ export function listEntries(
   afterSeq?: number,
 ): Promise<components["schemas"]["EntryList"]> {
   const query = typeof afterSeq === "number" ? `?after_seq=${afterSeq}` : "";
-  return getJSON(`/groups/${groupId}/entries${query}`, entryListSchema);
+  return getJSON(`/groups/${groupId}/entries${query}`, zEntryList);
 }
 
 /** Creates a group and its initial members in one idempotent call. */
@@ -142,7 +142,7 @@ export function createGroup(
   key: string,
 ): Promise<components["schemas"]["GroupRecord"]> {
   const body: components["schemas"]["CreateGroupRequest"] = { id, name, member_names: memberNames };
-  return postIdempotent("/groups", body, key, groupRecordSchema);
+  return postIdempotent("/groups", body, key, zGroupRecord);
 }
 
 /** Records an expense or settlement entry idempotently. */
@@ -151,5 +151,5 @@ export function addEntry(
   entry: components["schemas"]["CreateEntryRequest"],
   key: string,
 ): Promise<components["schemas"]["EntryAck"]> {
-  return postIdempotent(`/groups/${groupId}/entries`, entry, key, entryAckSchema);
+  return postIdempotent(`/groups/${groupId}/entries`, entry, key, zEntryAck);
 }
