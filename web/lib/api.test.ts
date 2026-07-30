@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { entryAckSchema } from "./api-schemas";
+import { zEntryAck } from "./api-schemas/zod.gen";
 import { addEntry, createGroup, getBalance, getGroup, listEntries, postIdempotent } from "./api";
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -21,6 +21,13 @@ function bodyText(init: RequestInit | undefined): string {
   return init.body;
 }
 
+// zod.gen.ts validates Uuid as `format: uuid` (spec/main.tsp), stricter than
+// the hand-written schema this replaces — response body fixtures need a
+// real UUID shape, unlike request-only/path-param placeholders ("g1", "e1")
+// which are never zod-parsed.
+const ENTRY_ID = "018f4c9e-0000-7000-8000-000000000001";
+const GROUP_ID = "018f4c9e-0000-7000-8000-000000000002";
+
 describe("postIdempotent", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -32,12 +39,12 @@ describe("postIdempotent", () => {
   });
 
   it("sends the Idempotency-Key header and returns the body on 201", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: "e1", seq: 1 }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: ENTRY_ID, seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
+    const result = await postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
 
-    expect(result).toEqual({ id: "e1", seq: 1 });
+    expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     const [, init] = fetchMock.mock.calls[0]!;
     expect(headerValue(init, "Idempotency-Key")).toBe("key-1");
   });
@@ -46,14 +53,14 @@ describe("postIdempotent", () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new TypeError("network error"))
-      .mockResolvedValueOnce(jsonResponse(200, { id: "e1", seq: 1 }));
+      .mockResolvedValueOnce(jsonResponse(200, { id: ENTRY_ID, seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
     await vi.advanceTimersByTimeAsync(300);
     const result = await promise;
 
-    expect(result).toEqual({ id: "e1", seq: 1 });
+    expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const keys = fetchMock.mock.calls.map(
       ([, init]) => headerValue(init, "Idempotency-Key"),
@@ -65,14 +72,14 @@ describe("postIdempotent", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(409, { error: "in flight" }))
-      .mockResolvedValueOnce(jsonResponse(201, { id: "e1", seq: 1 }));
+      .mockResolvedValueOnce(jsonResponse(201, { id: ENTRY_ID, seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
     await vi.advanceTimersByTimeAsync(500);
     const result = await promise;
 
-    expect(result).toEqual({ id: "e1", seq: 1 });
+    expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -80,7 +87,7 @@ describe("postIdempotent", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(409, { error: "in flight" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
     promise.catch(() => {});
 
     await vi.advanceTimersByTimeAsync(500);
@@ -95,14 +102,14 @@ describe("postIdempotent", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(500, { error: "boom" }))
-      .mockResolvedValueOnce(jsonResponse(201, { id: "e1", seq: 1 }));
+      .mockResolvedValueOnce(jsonResponse(201, { id: ENTRY_ID, seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
     await vi.advanceTimersByTimeAsync(300);
     const result = await promise;
 
-    expect(result).toEqual({ id: "e1", seq: 1 });
+    expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const keys = fetchMock.mock.calls.map(
       ([, init]) => headerValue(init, "Idempotency-Key"),
@@ -114,7 +121,7 @@ describe("postIdempotent", () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("network error"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema);
+    const promise = postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
     // Swallow the eventual rejection so it isn't reported as unhandled while
     // the fake-timer advances below are still pending.
     promise.catch(() => {});
@@ -132,7 +139,7 @@ describe("postIdempotent", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", entryAckSchema),
+      postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck),
     ).rejects.toMatchObject({ status: 422 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -143,13 +150,13 @@ describe("getGroup", () => {
 
   it("GETs the group and returns the parsed body", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(200, { id: "g1", name: "Trip", members: [] }),
+      jsonResponse(200, { id: GROUP_ID, name: "Trip", members: [] }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
     const group = await getGroup("g1");
 
-    expect(group).toEqual({ id: "g1", name: "Trip", members: [] });
+    expect(group).toEqual({ id: GROUP_ID, name: "Trip", members: [] });
     expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8080/groups/g1");
   });
 
@@ -204,7 +211,7 @@ describe("createGroup / addEntry", () => {
 
   it("createGroup POSTs to /groups with member_names and the idempotency key", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(201, { id: "g1", name: "Trip", members: [] }),
+      jsonResponse(201, { id: GROUP_ID, name: "Trip", members: [] }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -221,7 +228,7 @@ describe("createGroup / addEntry", () => {
   });
 
   it("addEntry POSTs the entry to /groups/{id}/entries with the idempotency key", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: "e1", seq: 1 }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: ENTRY_ID, seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const entry = {
