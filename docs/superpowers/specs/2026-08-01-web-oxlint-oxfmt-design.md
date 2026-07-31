@@ -28,7 +28,10 @@ tool chosen now is the one that has to scale.
 
 ## Decision
 
-Adopt **oxlint + oxfmt** and retire ESLint.
+Adopt **oxlint + oxfmt** as the primary lint and format pass, replacing
+`eslint-config-next`. ESLint survives in reduced form — one plugin,
+`eslint-plugin-react-hooks` — because measurement showed oxlint has not ported
+its React Compiler rules. See [Measured coverage](#measured-coverage).
 
 The candidate set was Biome (one binary, lint + format) versus oxlint + oxfmt
 (two binaries, one vendor). Biome's single-tool simplicity is a real virtue and
@@ -50,12 +53,59 @@ Decisions locked during brainstorming:
 
 | Dimension | Choice | Rationale |
 | --- | --- | --- |
-| Linter | **oxlint**, replacing ESLint | Keeps the Next-specific rules that `eslint-config-next` contributes today. A migration that drops them is a downgrade wearing a speed benchmark. |
+| Linter | **oxlint**, replacing `eslint-config-next` | Keeps the Next-specific rules that `eslint-config-next` contributes today — measurement confirmed all 21 are covered. |
 | Formatter | **oxfmt** | Closes the actual gap, and is the only option that sorts Tailwind 4 classes using Tailwind's own ordering. |
-| ESLint | **Removed**, but only after a parity gate | Keeping both means two lint configs to hold in sync and duplicate findings on every run. Removing it on faith risks a silent rule regression. Hence the gate. |
+| ESLint | **Retained, reduced to `eslint-plugin-react-hooks`** | `eslint-config-next` goes; ESLint stays solely for the 15 React Compiler hooks rules oxlint has not ported. See [Measured coverage](#measured-coverage) — this reverses the original "remove ESLint" decision on evidence. |
 | CI formatting | **Blocking** `format:check` in the `web` job | An advisory formatter is a formatter that drifts. |
 | Type-aware lint | **Off** | Needs the extra `oxlint-tsgolint` package, and `npm test` already runs `tsc --noEmit`. No gap to fill. |
 | Import sorting | **Off** | See [Deliberate omissions](#deliberate-omissions). |
+
+## Measured coverage
+
+The original draft deferred this to an implementation-time "parity gate" that
+diffed the two linters' *findings*. That gate was worthless: ESLint reports zero
+findings on the current tree, so the diff would have compared an empty set to an
+empty set and passed while silently dropping rules. The gate has to compare
+**resolved rule sets**, not output. Measured up front instead, against
+oxlint 1.76.0 / `eslint-plugin-oxlint` 1.76.0:
+
+```
+ESLint enabled:  85    covered by oxlint: 67    gap: 18
+```
+
+Method: `npx eslint --print-config app/page.tsx` to resolve what
+`eslint-config-next` actually enables, intersected with the rule set encoded in
+`eslint-plugin-oxlint`'s `flat/all` config. (`oxlint --rules` prints nothing in
+1.76.0, and probing with `-D <rule>` does not distinguish real rule names from
+invented ones, so the binary cannot self-report.)
+
+The gap breaks down as:
+
+| Missing | Count | Cost |
+| --- | --- | --- |
+| `react-hooks/*` React Compiler rules | 14 | **The entire real gap** — drives the ESLint decision below |
+| `react/jsx-uses-react`, `react/jsx-uses-vars` | 2 | None. No-ops for the legacy JSX transform; oxlint tracks JSX usage natively. |
+| `react/require-render-return` | 1 | None. Class-component-only; this codebase has zero class components. |
+| `react/no-deprecated` | 1 | Minor. |
+
+Two results matter beyond the arithmetic:
+
+- **All 21 `@next/next` rules are covered**, including the three the Biome
+  comparison turned on. The tool choice holds.
+- **`exhaustive-deps` and `rules-of-hooks` are both covered.** The
+  `exhaustive-deps` risk flagged in the first draft was aimed at the wrong rule.
+
+`eslint-config-next` pulls `eslint-plugin-react-hooks` **7.1.1**, whose
+recommended set enables 14 compiler-era rules oxlint has not ported —
+`set-state-in-effect`, `set-state-in-render`, `purity`, `immutability`,
+`preserve-manual-memoization`, `refs`, `static-components`, and others. They do
+**not** require React Compiler to be enabled (it is not; `next.config.ts` is
+bare) and they catch ordinary React bugs. `set-state-in-effect` in particular
+covers the infinite-render class that the polling group home
+([#90](https://github.com/Ayut0/tally-up/issues/90)) will be exposed to.
+
+Biome does not implement these either, so this does not reopen the tool choice —
+only the question of whether ESLint fully leaves. It does not.
 
 ## Design
 
@@ -68,6 +118,10 @@ Decisions locked during brainstorming:
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "nextjs", "jsx-a11y", "import"],
   "categories": { "correctness": "error", "suspicious": "warn", "pedantic": "off" },
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": "off"
+  },
   "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**"]
 }
 ```
@@ -75,10 +129,20 @@ Decisions locked during brainstorming:
 The `plugins` array **overwrites** oxlint's base set rather than extending it, so
 it MUST list every plugin wanted — omitting one silently disables it.
 
+Both `rules` entries suppress confirmed false positives, measured by running the
+config against the current tree (26 findings, exactly these two rules, nothing
+else):
+
+- `react/react-in-jsx-scope` (25 hits) — oxlint does not assume Next's automatic
+  JSX runtime. `eslint-config-next` disables this rule for the same reason.
+- `import/no-unassigned-import` (1 hit) — fires on
+  `app/layout.tsx:3`, `import "./globals.css"`. Side-effect CSS imports are
+  correct and required in Next.
+
 Categories start at `correctness: error` / `suspicious: warn` deliberately.
-Enabling `pedantic` in the same change would flood the parity diff in step 2
-with new-rule noise and bury the ESLint-vs-oxlint signal it exists to show.
-Tightening is a follow-up, once the baseline is green.
+Enabling `pedantic` at the same time would bury the signal from these two
+suppressions under new-rule noise. Tightening is a follow-up, once the baseline
+is green.
 
 `web/.oxfmtrc.json`:
 
@@ -95,6 +159,40 @@ Remaining format options stay at their defaults (`printWidth: 100`,
 `tabWidth: 2`, `semi: true`, `trailingComma: "all"`). This repo has no prior
 formatting convention to preserve, so there is nothing to match and no reason to
 bikeshed.
+
+`web/eslint.config.mjs`, rewritten from `eslint-config-next` down to one plugin:
+
+```js
+import { defineConfig, globalIgnores } from "eslint/config";
+import reactHooks from "eslint-plugin-react-hooks";
+import oxlint from "eslint-plugin-oxlint";
+
+export default defineConfig([
+  reactHooks.configs.flat["recommended-latest"],
+  ...oxlint.configs["flat/react-hooks"],
+  globalIgnores([".next/**", "lib/api-types.ts", "lib/api-schemas/**"]),
+]);
+```
+
+Note `configs.flat["recommended-latest"]`, not `configs.recommended` — in
+`eslint-plugin-react-hooks` 7.x the latter is still the legacy shape
+(`plugins: ["react-hooks"]` as an array) and ESLint 9 rejects it with a
+migration error.
+
+The `eslint-plugin-oxlint` line is what keeps the two linters from both
+reporting the same rule. It disables exactly the hooks rules oxlint already
+implements, verified as `react-hooks/exhaustive-deps` and
+`react-hooks/rules-of-hooks`. The resulting split is clean and has no overlap:
+
+| Owner | Count | Rules |
+| --- | --- | --- |
+| oxlint | 2 | `exhaustive-deps`, `rules-of-hooks` |
+| ESLint | 15 | the 14 gap rules, plus `void-use-memo` from `recommended-latest` |
+
+Because that boundary is derived from `eslint-plugin-oxlint` rather than
+hand-written, it self-corrects as oxlint ports more rules: each newly-ported
+rule moves from the ESLint column to the oxlint column on a dependency bump, with
+no config edit and no window where a rule runs twice or not at all.
 
 ### Generated files
 
@@ -113,12 +211,19 @@ phantom diff that alternates with whoever ran which command last.
 
 | Script | Before | After |
 | --- | --- | --- |
-| `lint` | `eslint` | `oxlint` |
+| `lint` | `eslint` | `oxlint && eslint` |
 | `format` | — | `oxfmt` |
 | `format:check` | — | `oxfmt --check` |
 
-`devDependencies`: drop `eslint` and `eslint-config-next`; add `oxlint` and
-`oxfmt`.
+oxlint runs first: it is the broader pass and the faster one, so it fails on the
+common case before ESLint's slower start-up is paid at all.
+
+`devDependencies`: drop `eslint-config-next`; add `oxlint`, `oxfmt`,
+`eslint-plugin-react-hooks`, and `eslint-plugin-oxlint`. `eslint` itself stays.
+
+Note that `eslint-plugin-react-hooks` is currently an indirect dependency via
+`eslint-config-next`; removing that config makes it direct, so it MUST be added
+explicitly rather than relied on transitively.
 
 ### CI
 
@@ -131,26 +236,27 @@ Note that the `web` job reports but is not yet a required status check on
 
 ## Implementation sequence
 
-The ordering is the substance of this design, not incidental. ESLint is not
-deleted on the strength of a vendor's compatibility table.
+The ordering is the substance of this design, not incidental. The rule-coverage
+question that used to sit at step 2 has been answered up front — see
+[Measured coverage](#measured-coverage) — so what remains is sequencing the edit
+so no commit is unreviewable.
 
-1. **Add, don't replace.** Install oxlint + oxfmt, write both configs. ESLint
-   stays installed and remains the CI gate.
-2. **Parity gate.** Run `oxlint` and `eslint` over the same tree, diff the
-   findings, and record the delta in the PR body. Every ESLint finding that
-   oxlint does not reproduce MUST be either explained (rule intentionally
-   dropped) or closed (rule enabled) before proceeding.
-3. **Retire ESLint** — only if step 2 is clean. Delete `web/eslint.config.mjs`,
-   drop both deps, repoint the `lint` script.
-4. **Format the tree.** `oxfmt --write` across `web/`, as its **own commit**
+1. **Add, don't replace.** Install oxlint + oxfmt, write `.oxlintrc.json` and
+   `.oxfmtrc.json`. The existing `eslint-config-next` setup stays and remains
+   the CI gate. Confirm `oxlint` is clean.
+2. **Narrow ESLint.** Swap `eslint.config.mjs` to the react-hooks-only config,
+   drop `eslint-config-next`, add `eslint-plugin-react-hooks` and
+   `eslint-plugin-oxlint` as direct deps, repoint `lint` to `oxlint && eslint`.
+   Confirm both linters are clean and that the owner split is 2/15 as specified.
+3. **Format the tree.** `oxfmt --write` across `web/`, as its **own commit**
    containing no logic change. Record its SHA in `.git-blame-ignore-revs` at the
    repo root. GitHub's blame view honours that file automatically; local `git
    blame` does not, so the file MUST carry a comment telling readers to run
    `git config blame.ignoreRevsFile .git-blame-ignore-revs` once. A
    blame-ignore file nobody has configured is a file that silently does nothing.
-5. **Gate formatting in CI.** Add the `Format check` step.
+4. **Gate formatting in CI.** Add the `Format check` step.
 
-Steps 3 and 4 MUST remain distinct commits. A whole-tree formatting blast is
+Steps 2 and 3 MUST remain distinct commits. A whole-tree formatting blast is
 unreviewable by inspection, so it MUST NOT carry anything a reviewer is expected
 to actually read.
 
@@ -172,20 +278,21 @@ own change, with visual verification.
 
 | Risk | Mitigation |
 | --- | --- |
-| oxlint's `exhaustive-deps` has open false-positive bugs ([oxc#20664](https://github.com/oxc-project/oxc/issues/20664)) | Surfaces in step 2. Fallback is that rule at `warn` plus a follow-up issue — not abandoning the migration. |
-| oxlint's `nextjs` port diverges from `eslint-plugin-next` | Step 2 is exactly this check, against the real config on the real tree. |
+| oxlint's `exhaustive-deps` has open false-positive bugs ([oxc#20664](https://github.com/oxc-project/oxc/issues/20664)) | Accepted. The rule is now oxlint's rather than ESLint's, so a false positive is visible and local. Fallback is that one rule at `warn` plus a follow-up issue. |
+| Two linters drift into overlapping or duplicated findings | The boundary is not hand-maintained — `eslint-plugin-oxlint` derives it. Verified today as a clean 2/15 split with no overlap. |
+| oxlint's `nextjs` port diverges from `eslint-plugin-next` in behaviour, not just rule names | Coverage is confirmed by name only; behavioural equivalence is not. Accepted — the rules are advisory-grade, and any divergence surfaces as a finding rather than a silent miss. |
 | Formatting commit pollutes `git blame` | Isolated commit, listed in `.git-blame-ignore-revs`. |
-| Generated files drift | Acceptance criteria require re-running both generators and confirming a clean `git diff`. |
+| Generated files drift | Verification below requires re-running both generators and confirming a clean `git diff`. |
 
-Rollback before step 4 is deleting two config files and reinstating one. After
-step 4 it is a `git revert` of a single, isolated, logic-free commit.
+Rollback before step 3 is reverting two commits' worth of config. After step 3
+it is a `git revert` of a single, isolated, logic-free commit.
 
 ## Verification
 
-- `npm run lint` (oxlint) passes; `web/eslint.config.mjs` and both ESLint deps
-  are gone.
-- Parity delta from step 2 recorded in the PR, with every gap explained or
-  closed.
+- `npm run lint` passes — both `oxlint` and the reduced `eslint`.
+- The rule split is 2 (oxlint) / 15 (ESLint) with no rule active in both.
+- `web/eslint.config.mjs` no longer references `eslint-config-next`, and that
+  package is gone from `package.json`.
 - `npm run format:check` passes locally and blocks in CI.
 - `npm run gen:api-types` and `npm run gen:api-schemas` both produce a clean
   `git diff` — proving the ignore patterns hold.
