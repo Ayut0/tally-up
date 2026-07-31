@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "sortTailwindcss": true,
+  "sortImports": false,
+  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**"]
+}
