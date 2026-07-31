@@ -113,9 +113,9 @@ func (s *Server) handleGetSettlePlan(w http.ResponseWriter, r *http.Request) {
 	}
 	plan, err := s.settlePlans.Propose(r.Context(), groupID)
 	if err != nil {
-		// A settle plan can only fail on non-zero-sum balances — ledger
-		// corruption, not a client error — so this must be loud, not a
-		// silently swallowed 500.
+		// Beyond a transient read failure, this can mean SettlePlan rejected
+		// non-zero-sum balances — ledger corruption, not a client error — so
+		// this must be loud, not a silently swallowed 500.
 		slog.Error("settle plan failed", "group_id", groupID, "err", err)
 		httpError(w, http.StatusInternalServerError, "settle plan failed")
 		return
