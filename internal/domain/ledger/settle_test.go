@@ -32,7 +32,7 @@ func drawZeroSumBalances(t *rapid.T) []Posting {
 	split := rapid.IntRange(1, n-1).Draw(t, "split")
 	balances := make([]Posting, n)
 	var creditTotal int64
-	for i := 0; i < split; i++ {
+	for i := range split {
 		amt := rapid.Int64Range(1, 10_000).Draw(t, "credit")
 		balances[i] = Posting{MemberID: members[i], Amount: amt}
 		creditTotal += amt

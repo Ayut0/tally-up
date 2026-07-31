@@ -42,10 +42,7 @@ func SettlePlan(balances []Posting) ([]Transfer, error) {
 	for len(remaining) > 0 {
 		creditor := &remaining[largestCreditor(remaining)]
 		debtor := &remaining[largestDebtor(remaining)]
-		amount := creditor.Amount
-		if -debtor.Amount < amount {
-			amount = -debtor.Amount
-		}
+		amount := min(creditor.Amount, -debtor.Amount)
 		transfers = append(transfers, Transfer{From: debtor.MemberID, To: creditor.MemberID, Amount: amount})
 		creditor.Amount -= amount
 		debtor.Amount += amount
