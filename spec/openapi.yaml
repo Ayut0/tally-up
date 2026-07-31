@@ -397,6 +397,35 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReverseEntryRequest'
+  /groups/{group_id}/settle-plan:
+    get:
+      operationId: getSettlePlan
+      description: Proposed minimal transfers to settle up, plus the snapshot seq they were computed from.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlePlan'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
 components:
   schemas:
     BalanceSnapshot:
@@ -781,6 +810,23 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: Which member is deleting. v1 has no authenticated identity.
+    SettlePlan:
+      type: object
+      required:
+        - transfers
+        - as_of_seq
+      properties:
+        transfers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transfer'
+        as_of_seq:
+          type: integer
+          format: int64
+      description: |-
+        Proposed transfers plus the balance snapshot they were computed from.
+        `as_of_seq` is the optimistic-concurrency token a recorded settlement
+        passes back as `plan_seq`.
     SettlementEdit:
       type: object
       required:
@@ -879,6 +925,21 @@ components:
           shares: '#/components/schemas/SharesSplit'
           percent: '#/components/schemas/PercentSplit'
       description: How an entry's total is divided among its participants.
+    Transfer:
+      type: object
+      required:
+        - from
+        - to
+        - amount
+      properties:
+        from:
+          $ref: '#/components/schemas/Uuid'
+        to:
+          $ref: '#/components/schemas/Uuid'
+        amount:
+          type: integer
+          format: int64
+      description: One proposed payment in a settle-up plan.
     Uuid:
       type: string
       format: uuid

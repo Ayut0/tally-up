@@ -47,6 +47,55 @@ func TestGetBalance_Endpoint(t *testing.T) {
 	}
 }
 
+func TestGetSettlePlan_Endpoint(t *testing.T) {
+	srv, _ := newTestServer(t)
+	post(t, srv, uuid.New(), expenseBody(uuid.New())) // yuto pays 12000 / 3-way equal split
+
+	var plan struct {
+		Transfers []struct {
+			From   uuid.UUID `json:"from"`
+			To     uuid.UUID `json:"to"`
+			Amount int64     `json:"amount"`
+		} `json:"transfers"`
+		AsOfSeq int64 `json:"as_of_seq"`
+	}
+	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/settle-plan", gID), &plan)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if plan.AsOfSeq < 1 {
+		t.Fatalf("as_of_seq = %d, want >= 1", plan.AsOfSeq)
+	}
+
+	// yuto is owed 8000 by memA and memB (4000 each, tied): both debts route
+	// to yuto, ties broken by ascending member UUID (memA < memB).
+	if len(plan.Transfers) != 2 {
+		t.Fatalf("got %d transfers, want 2: %+v", len(plan.Transfers), plan.Transfers)
+	}
+	if plan.Transfers[0].From != memA || plan.Transfers[0].To != yuto || plan.Transfers[0].Amount != 4000 {
+		t.Fatalf("transfer[0] = %+v, want memA -> yuto 4000", plan.Transfers[0])
+	}
+	if plan.Transfers[1].From != memB || plan.Transfers[1].To != yuto || plan.Transfers[1].Amount != 4000 {
+		t.Fatalf("transfer[1] = %+v, want memB -> yuto 4000", plan.Transfers[1])
+	}
+}
+
+func TestGetSettlePlan_EmptyGroup(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	var plan struct {
+		Transfers []struct{} `json:"transfers"`
+		AsOfSeq   int64      `json:"as_of_seq"`
+	}
+	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/settle-plan", gID), &plan)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if len(plan.Transfers) != 0 || plan.AsOfSeq != 0 {
+		t.Fatalf("got %+v, want empty transfers and as_of_seq 0", plan)
+	}
+}
+
 func TestListEntries_Endpoint(t *testing.T) {
 	srv, _ := newTestServer(t)
 	post(t, srv, uuid.New(), expenseBody(uuid.New()))

@@ -144,6 +144,23 @@ model EntryList {
   entries: EntryRecord[];
 }
 
+/** One proposed payment in a settle-up plan. */
+model Transfer {
+  from: Uuid;
+  to: Uuid;
+  amount: int64;
+}
+
+/**
+ * Proposed transfers plus the balance snapshot they were computed from.
+ * `as_of_seq` is the optimistic-concurrency token a recorded settlement
+ * passes back as `plan_seq`.
+ */
+model SettlePlan {
+  transfers: Transfer[];
+  as_of_seq: int64;
+}
+
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------
@@ -375,6 +392,11 @@ op editEntry(
 @route("/groups/{group_id}/balance")
 @get
 op getBalance(@path group_id: Uuid): BalanceSnapshot | ReadErrors;
+
+/** Proposed minimal transfers to settle up, plus the snapshot seq they were computed from. */
+@route("/groups/{group_id}/settle-plan")
+@get
+op getSettlePlan(@path group_id: Uuid): SettlePlan | ReadErrors;
 
 /**
  * Page the ledger in `seq` order. Poll by passing the highest `seq` seen as

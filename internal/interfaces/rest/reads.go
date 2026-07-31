@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"tallyup/internal/application/proposesettleplan"
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/ledger"
 )
@@ -82,6 +83,46 @@ func (s *Server) handleGetBalance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(newBalanceResponse(snap)); err != nil {
 		slog.Warn("write balance response", "err", err)
+	}
+}
+
+type transferResponse struct {
+	From   uuid.UUID `json:"from"`
+	To     uuid.UUID `json:"to"`
+	Amount int64     `json:"amount"`
+}
+
+type settlePlanResponse struct {
+	Transfers []transferResponse `json:"transfers"`
+	AsOfSeq   int64              `json:"as_of_seq"`
+}
+
+func newSettlePlanResponse(res proposesettleplan.Result) settlePlanResponse {
+	transfers := make([]transferResponse, len(res.Transfers))
+	for i, t := range res.Transfers {
+		transfers[i] = transferResponse{From: t.From, To: t.To, Amount: t.Amount}
+	}
+	return settlePlanResponse{Transfers: transfers, AsOfSeq: res.AsOfSeq}
+}
+
+func (s *Server) handleGetSettlePlan(w http.ResponseWriter, r *http.Request) {
+	groupID, err := uuid.Parse(r.PathValue("group_id"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
+	plan, err := s.settlePlans.Propose(r.Context(), groupID)
+	if err != nil {
+		// A settle plan can only fail on non-zero-sum balances — ledger
+		// corruption, not a client error — so this must be loud, not a
+		// silently swallowed 500.
+		slog.Error("settle plan failed", "group_id", groupID, "err", err)
+		httpError(w, http.StatusInternalServerError, "settle plan failed")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(newSettlePlanResponse(plan)); err != nil {
+		slog.Warn("write settle plan response", "err", err)
 	}
 }
 
