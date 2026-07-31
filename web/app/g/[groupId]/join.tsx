@@ -3,7 +3,7 @@
 import type { components } from "@/lib/api-types";
 import { setIdentity } from "@/lib/identity";
 
-type Group = components["schemas"]["GroupRecord"];
+export type Group = components["schemas"]["GroupRecord"];
 
 /**
  * The invite-link "join" flow: pick your name from the group's member list.

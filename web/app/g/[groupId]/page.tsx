@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ApiError, getGroup } from "@/lib/api";
-import type { components } from "@/lib/api-types";
-import { JoinPicker } from "./join";
-
-type Group = components["schemas"]["GroupRecord"];
+import { JoinPicker, type Group } from "./join";
 
 /**
  * Scaffolding for #89: renders the join picker unconditionally so it (and
