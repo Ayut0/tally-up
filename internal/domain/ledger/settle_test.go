@@ -8,9 +8,9 @@ import (
 	"pgregory.net/rapid"
 )
 
-// drawZeroSumBalances generates a zero-sum []Posting: n members, an even
-// split of a total that composeInto (from property_test.go) distributes
-// then re-centers into signed net positions.
+// drawZeroSumBalances generates a zero-sum []Posting: n members split into a
+// creditor prefix and a debtor suffix, with the last debtor absorbing
+// whatever balances the drawn credits so the total is exactly zero.
 func drawZeroSumBalances(t *rapid.T) []Posting {
 	n := rapid.IntRange(2, 12).Draw(t, "n")
 	members := make([]uuid.UUID, n)
