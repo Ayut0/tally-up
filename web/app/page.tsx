@@ -35,7 +35,9 @@ export default function Home() {
   }
 
   function removeMember(id: number) {
-    setMemberRows((rows) => (rows.length > MIN_MEMBERS ? rows.filter((row) => row.id !== id) : rows));
+    setMemberRows((rows) =>
+      rows.length > MIN_MEMBERS ? rows.filter((row) => row.id !== id) : rows,
+    );
   }
 
   // Blank rows are silently dropped at submit time (see handleSubmit), so
@@ -120,7 +122,7 @@ export default function Home() {
         <button
           type="submit"
           disabled={!canSubmit || submitting}
-          className="rounded-full bg-foreground px-5 py-3 text-base font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
+          className="bg-foreground text-background rounded-full px-5 py-3 text-base font-medium transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
         >
           {submitting ? "Creating…" : "Create group"}
         </button>
