@@ -24,9 +24,10 @@ describe("previewShares — must mirror the Go largest-remainder engine", () => 
   });
 
   it("shares 1:2 of 100: extra yen to the larger remainder (Go test parity)", () => {
-    expect(
-      previewShares(100, { type: "shares", weights: { [A]: 1, [B]: 2 } }, [A, B]),
-    ).toEqual({ [A]: 33, [B]: 67 });
+    expect(previewShares(100, { type: "shares", weights: { [A]: 1, [B]: 2 } }, [A, B])).toEqual({
+      [A]: 33,
+      [B]: 67,
+    });
   });
 
   it("percent 50/30/20 of 10000", () => {
@@ -48,7 +49,10 @@ describe("buildSplitRule validation", () => {
   });
 
   it("exact must sum to total", () => {
-    const r = buildSplitRule(SplitMode.Exact, [A, B], { total: 12000, amounts: { [A]: 7000, [B]: 4999 } });
+    const r = buildSplitRule(SplitMode.Exact, [A, B], {
+      total: 12000,
+      amounts: { [A]: 7000, [B]: 4999 },
+    });
     expect(typeof r).toBe("string"); // error message
   });
 
@@ -63,7 +67,10 @@ describe("buildSplitRule validation", () => {
   });
 
   it("exact rejects a negative amount even if the sum happens to match total", () => {
-    const r = buildSplitRule(SplitMode.Exact, [A, B], { total: 12000, amounts: { [A]: -1000, [B]: 13000 } });
+    const r = buildSplitRule(SplitMode.Exact, [A, B], {
+      total: 12000,
+      amounts: { [A]: -1000, [B]: 13000 },
+    });
     expect(typeof r).toBe("string");
   });
 

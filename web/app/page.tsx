@@ -35,7 +35,9 @@ export default function Home() {
   }
 
   function removeMember(id: number) {
-    setMemberRows((rows) => (rows.length > MIN_MEMBERS ? rows.filter((row) => row.id !== id) : rows));
+    setMemberRows((rows) =>
+      rows.length > MIN_MEMBERS ? rows.filter((row) => row.id !== id) : rows,
+    );
   }
 
   // Blank rows are silently dropped at submit time (see handleSubmit), so

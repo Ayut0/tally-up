@@ -23,7 +23,10 @@ describe("generated zod schemas (spec/main.tsp -> spec/openapi.yaml)", () => {
 
   it("discriminates SplitRule by `type` even though the OpenAPI variants (EqualSplit, ExactSplit, ...) don't declare it themselves", () => {
     const equal = zSplitRule.parse({ type: "equal" });
-    const shares = zSplitRule.parse({ type: "shares", weights: { "018f4c9e-0000-7000-8000-000000000001": 2 } });
+    const shares = zSplitRule.parse({
+      type: "shares",
+      weights: { "018f4c9e-0000-7000-8000-000000000001": 2 },
+    });
     expect(equal).toEqual({ type: "equal" });
     expect(shares).toMatchObject({ type: "shares" });
   });

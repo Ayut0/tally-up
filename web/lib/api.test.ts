@@ -42,7 +42,12 @@ describe("postIdempotent", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { id: ENTRY_ID, seq: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await postIdempotent("/groups/g1/entries", { total_amount: 100 }, "key-1", zEntryAck);
+    const result = await postIdempotent(
+      "/groups/g1/entries",
+      { total_amount: 100 },
+      "key-1",
+      zEntryAck,
+    );
 
     expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     const [, init] = fetchMock.mock.calls[0]!;
@@ -62,9 +67,7 @@ describe("postIdempotent", () => {
 
     expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const keys = fetchMock.mock.calls.map(
-      ([, init]) => headerValue(init, "Idempotency-Key"),
-    );
+    const keys = fetchMock.mock.calls.map(([, init]) => headerValue(init, "Idempotency-Key"));
     expect(keys).toEqual(["key-1", "key-1"]);
   });
 
@@ -111,9 +114,7 @@ describe("postIdempotent", () => {
 
     expect(result).toEqual({ id: ENTRY_ID, seq: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const keys = fetchMock.mock.calls.map(
-      ([, init]) => headerValue(init, "Idempotency-Key"),
-    );
+    const keys = fetchMock.mock.calls.map(([, init]) => headerValue(init, "Idempotency-Key"));
     expect(keys).toEqual(["key-1", "key-1"]);
   });
 
@@ -135,7 +136,9 @@ describe("postIdempotent", () => {
   });
 
   it("does NOT retry a 422 (client bug, not a flake)", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(422, { error: "same key, different payload" }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(422, { error: "same key, different payload" }));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -149,9 +152,9 @@ describe("getGroup", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("GETs the group and returns the parsed body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(200, { id: GROUP_ID, name: "Trip", members: [] }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { id: GROUP_ID, name: "Trip", members: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     const group = await getGroup("g1");
@@ -168,7 +171,9 @@ describe("getGroup", () => {
   });
 
   it("throws ApiError when a 200 body fails contract validation", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { id: "g1" /* missing name, members */ }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { id: "g1" /* missing name, members */ }));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getGroup("g1")).rejects.toMatchObject({ status: 200 });
@@ -193,7 +198,9 @@ describe("getBalance / listEntries", () => {
 
     await listEntries("g1", 42);
 
-    expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8080/groups/g1/entries?after_seq=42");
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://localhost:8080/groups/g1/entries?after_seq=42",
+    );
   });
 
   it("listEntries omits after_seq when not given", async () => {
@@ -210,9 +217,9 @@ describe("createGroup / addEntry", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("createGroup POSTs to /groups with member_names and the idempotency key", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(201, { id: GROUP_ID, name: "Trip", members: [] }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(201, { id: GROUP_ID, name: "Trip", members: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     await createGroup("g1", "Trip", ["Alice", "Bob"], "key-1");
