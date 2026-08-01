@@ -8,6 +8,7 @@ import (
 	"tallyup/internal/application/addentry"
 	"tallyup/internal/application/correctentry"
 	"tallyup/internal/application/creategroup"
+	"tallyup/internal/application/proposesettleplan"
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/group"
 )
@@ -19,18 +20,20 @@ type Server struct {
 	corrections *correctentry.Service
 	groups      *creategroup.Service
 	groupReader group.Reader
+	settlePlans *proposesettleplan.Service
 }
 
-func NewServer(entries *addentry.Service, balances entry.BalanceReader, history entry.HistoryReader, corrections *correctentry.Service, groups *creategroup.Service, groupReader group.Reader, corsOrigin string) http.Handler {
+func NewServer(entries *addentry.Service, balances entry.BalanceReader, history entry.HistoryReader, corrections *correctentry.Service, groups *creategroup.Service, groupReader group.Reader, settlePlans *proposesettleplan.Service, corsOrigin string) http.Handler {
 	srv := &Server{
 		entries: entries, balances: balances, history: history, corrections: corrections,
-		groups: groups, groupReader: groupReader,
+		groups: groups, groupReader: groupReader, settlePlans: settlePlans,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /groups", srv.handleCreateGroup)
 	mux.HandleFunc("GET /groups/{group_id}", srv.handleGetGroup)
 	mux.HandleFunc("POST /groups/{group_id}/entries", srv.handleCreateEntry)
 	mux.HandleFunc("GET /groups/{group_id}/balance", srv.handleGetBalance)
+	mux.HandleFunc("GET /groups/{group_id}/settle-plan", srv.handleGetSettlePlan)
 	mux.HandleFunc("GET /groups/{group_id}/entries", srv.handleListEntries)
 	mux.HandleFunc("POST /groups/{group_id}/entries/{entry_id}/reverse", srv.handleReverseEntry)
 	mux.HandleFunc("PUT /groups/{group_id}/entries/{entry_id}", srv.handleEditEntry)

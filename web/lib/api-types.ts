@@ -131,6 +131,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/groups/{group_id}/settle-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Proposed minimal transfers to settle up, plus the snapshot seq they were computed from. */
+        get: operations["getSettlePlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -349,6 +366,16 @@ export interface components {
             /** @description Which member is deleting. v1 has no authenticated identity. */
             requested_by: components["schemas"]["Uuid"];
         };
+        /**
+         * @description Proposed transfers plus the balance snapshot they were computed from.
+         *     `as_of_seq` is the optimistic-concurrency token a recorded settlement
+         *     passes back as `plan_seq`.
+         */
+        SettlePlan: {
+            transfers: components["schemas"]["Transfer"][];
+            /** Format: int64 */
+            as_of_seq: number;
+        };
         SettlementEdit: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
             id: components["schemas"]["Uuid"];
@@ -407,6 +434,13 @@ export interface components {
         };
         /** @description How an entry's total is divided among its participants. */
         SplitRule: components["schemas"]["EqualSplit"] | components["schemas"]["ExactSplit"] | components["schemas"]["SharesSplit"] | components["schemas"]["PercentSplit"];
+        /** @description One proposed payment in a settle-up plan. */
+        Transfer: {
+            from: components["schemas"]["Uuid"];
+            to: components["schemas"]["Uuid"];
+            /** Format: int64 */
+            amount: number;
+        };
         /**
          * Format: uuid
          * @description RFC 9562 UUID. This codebase mints v7 everywhere, so ids are time-ordered.
@@ -862,6 +896,46 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getSettlePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettlePlan"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

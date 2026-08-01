@@ -15,6 +15,7 @@ import (
 	"tallyup/internal/application/addentry"
 	"tallyup/internal/application/correctentry"
 	"tallyup/internal/application/creategroup"
+	"tallyup/internal/application/proposesettleplan"
 	"tallyup/internal/infrastructure/postgres"
 )
 
@@ -132,7 +133,8 @@ func TestCreateGroup_CORSPreflight(t *testing.T) {
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
-	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, "*"))
+	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
+	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, "*"))
 	t.Cleanup(srv.Close)
 
 	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/groups", nil)

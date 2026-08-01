@@ -263,3 +263,22 @@ export const zCreateEntryRequest = z.discriminatedUnion('kind', [
     zExpenseEntry.extend({ kind: z.literal('expense') }),
     zSettlementEntry.extend({ kind: z.literal('settlement') })
 ]);
+
+/**
+ * One proposed payment in a settle-up plan.
+ */
+export const zTransfer = z.object({
+    from: zUuid,
+    to: zUuid,
+    amount: z.number().int()
+});
+
+/**
+ * Proposed transfers plus the balance snapshot they were computed from.
+ * `as_of_seq` is the optimistic-concurrency token a recorded settlement
+ * passes back as `plan_seq`.
+ */
+export const zSettlePlan = z.object({
+    transfers: z.array(zTransfer),
+    as_of_seq: z.number().int()
+});
