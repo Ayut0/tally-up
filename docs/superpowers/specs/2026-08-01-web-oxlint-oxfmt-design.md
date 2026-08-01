@@ -149,11 +149,26 @@ is green.
 ```json
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "sortTailwindcss": true,
+  "sortTailwindcss": { "stylesheet": "./app/globals.css" },
   "sortImports": false,
-  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**"]
+  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**", "AGENTS.md", "package-lock.json"]
 }
 ```
+
+`sortTailwindcss` MUST point at `./app/globals.css` explicitly rather than
+`true`. The bare boolean falls back to oxfmt's own installed Tailwind theme
+instead of this project's — since this project's Tailwind 4 `@theme inline`
+block (in `app/globals.css`) is where `bg-foreground`/`text-background` are
+defined, oxfmt would otherwise treat them as unknown classes and hoist them to
+the front of the class list rather than sorting them into place. (Caught by
+the final review after the first implementation used the bare boolean; see
+PR #129.)
+
+`ignorePatterns` also excludes two tool-managed files oxfmt would otherwise
+reformat: `AGENTS.md` has Next.js-managed
+`<!-- BEGIN:nextjs-agent-rules -->`/`<!-- END -->` markers that a
+general-purpose formatter has no business touching, and `package-lock.json`
+is npm-generated.
 
 Remaining format options stay at their defaults (`printWidth: 100`,
 `tabWidth: 2`, `semi: true`, `trailingComma: "all"`). This repo has no prior
