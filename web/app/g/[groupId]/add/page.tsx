@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, addEntry } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { EntryKind } from "@/lib/entry";
 import { getIdentity } from "@/lib/identity";
 import { SplitMode, buildSplitRule, previewShares } from "@/lib/split";
 import { generateUuidV7 } from "@/lib/uuidv7";
@@ -103,7 +104,11 @@ export default function AddExpensePage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const entry: components["schemas"]["ExpenseEntry"] = { kind: "expense", id, ...payload };
+      const entry: components["schemas"]["ExpenseEntry"] = {
+        kind: EntryKind.Expense,
+        id,
+        ...payload,
+      };
       await addEntry(groupId, entry, key);
       router.push(`/g/${groupId}`);
     } catch (err) {

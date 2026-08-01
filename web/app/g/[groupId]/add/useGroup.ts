@@ -1,29 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ApiError, getGroup } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
 
-/** Fetch-once hook: loads `groupId`'s members for the add-expense form. */
+/**
+ * Loads `groupId`'s members for the add-expense form. Same query key as
+ * `useGroupData`'s group query, so navigating here from the group home
+ * shows the already-cached group instantly instead of a fresh loading flash.
+ */
 export function useGroup(groupId: string) {
-  const [group, setGroup] = useState<GroupRecord | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: group, error } = useQuery<GroupRecord, ApiError>({
+    queryKey: ["group", groupId],
+    queryFn: () => getGroup(groupId),
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    getGroup(groupId)
-      .then((g) => {
-        if (!cancelled) setGroup(g);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : "Failed to load group.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [groupId]);
-
-  return { group, error };
+  return { group, error: error?.message ?? null };
 }

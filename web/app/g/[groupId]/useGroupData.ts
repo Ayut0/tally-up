@@ -1,87 +1,51 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ApiError, getBalance, getGroup, listEntries } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
 type BalanceSnapshot = components["schemas"]["BalanceSnapshot"];
-type EntryRecord = components["schemas"]["EntryRecord"];
+type EntryList = components["schemas"]["EntryList"];
 
 const POLL_INTERVAL_MS = 5000;
 
 /**
- * Loads `groupId` once, then keeps `balance` and `entries` fresh: an
- * immediate poll as soon as the group is known, then every 5s while the tab
- * is visible (a `visibilitychange` listener re-polls immediately on refocus
- * rather than waiting for the next tick). `entries` accumulates across polls
- * — each poll only asks for what's new via `after_seq`, cursored on the
- * highest `seq` seen so far.
+ * Loads `groupId`'s group, then keeps balance and entries fresh once it's
+ * known. TanStack Query's defaults already give this the behavior it needs:
+ * `refetchIntervalInBackground: false` (default) pauses the 5s poll while
+ * the tab is hidden, and `refetchOnWindowFocus` (also default) re-polls
+ * immediately on refocus. Each poll re-fetches the full entries list rather
+ * than an `after_seq`-cursored incremental one — simpler and race-free (no
+ * client-held cursor for a concurrent interval-tick/refocus poll to race
+ * on), and the backend has no pagination cap to make that expensive.
  */
 export function useGroupData(groupId: string) {
-  const [group, setGroup] = useState<GroupRecord | null>(null);
-  const [balance, setBalance] = useState<BalanceSnapshot | null>(null);
-  const [entries, setEntries] = useState<EntryRecord[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const cursorRef = useRef(0);
+  const groupQuery = useQuery<GroupRecord, ApiError>({
+    queryKey: ["group", groupId],
+    queryFn: () => getGroup(groupId),
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    setGroup(null);
-    setBalance(null);
-    setEntries([]);
-    setError(null);
-    cursorRef.current = 0;
+  const balanceQuery = useQuery<BalanceSnapshot, ApiError>({
+    queryKey: ["balance", groupId],
+    queryFn: () => getBalance(groupId),
+    enabled: groupQuery.isSuccess,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
 
-    getGroup(groupId)
-      .then((g) => {
-        if (!cancelled) setGroup(g);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : "Failed to load group.");
-      });
+  const entriesQuery = useQuery<EntryList, ApiError>({
+    queryKey: ["entries", groupId],
+    queryFn: () => listEntries(groupId),
+    enabled: groupQuery.isSuccess,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [groupId]);
+  const queryError = groupQuery.error ?? balanceQuery.error ?? entriesQuery.error;
 
-  const refresh = useCallback(async () => {
-    try {
-      const [nextBalance, page] = await Promise.all([
-        getBalance(groupId),
-        listEntries(groupId, cursorRef.current || undefined),
-      ]);
-      setBalance(nextBalance);
-      if (page.entries.length > 0) {
-        cursorRef.current = Math.max(cursorRef.current, ...page.entries.map((e) => e.seq));
-        setEntries((prev) => [...prev, ...page.entries]);
-      }
-      // A poll error is transient — clear it so the next successful poll
-      // (5s later, or on refocus) recovers the page instead of leaving it
-      // stuck on a stale error from a one-off network blip.
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to refresh group data.");
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    if (!group) return;
-
-    refresh();
-
-    function tick() {
-      if (document.visibilityState === "visible") refresh();
-    }
-
-    const interval = setInterval(tick, POLL_INTERVAL_MS);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", tick);
-    };
-  }, [group, refresh]);
-
-  return { group, balance, entries, error, refresh };
+  return {
+    group: groupQuery.data,
+    balance: balanceQuery.data,
+    entries: entriesQuery.data?.entries ?? [],
+    error: queryError?.message ?? null,
+  };
 }

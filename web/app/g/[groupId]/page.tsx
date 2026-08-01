@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { EntryKind } from "@/lib/entry";
 import { getIdentity } from "@/lib/identity";
 import { JoinPicker } from "./join";
 import { useGroupData } from "./useGroupData";
@@ -14,14 +15,14 @@ export default function GroupPage() {
   // initializer) so the server render, which has no localStorage, never
   // disagrees with the client's first render.
   const [memberId, setMemberId] = useState<string | null | undefined>(undefined);
-  const [inviteUrl, setInviteUrl] = useState("");
+  // No effect needed: `window` genuinely doesn't exist during the server
+  // render, but on the client's very first (hydration) render it already
+  // does, so this is correct on paint one — suppressHydrationWarning below
+  // just tells React that mismatch against the server markup is expected.
+  const inviteUrl = typeof window === "undefined" ? "" : window.location.href;
 
   useEffect(() => {
     setMemberId(getIdentity(groupId));
-  }, [groupId]);
-
-  useEffect(() => {
-    setInviteUrl(window.location.href);
   }, [groupId]);
 
   if (error) {
@@ -39,7 +40,9 @@ export default function GroupPage() {
   const membersById = new Map(group.members.map((m) => [m.id, m]));
   const balanceByMember = new Map((balance?.balances ?? []).map((b) => [b.member_id, b.balance]));
   const reversedIds = new Set(
-    entries.filter((e) => e.kind === "reversal" && e.reverses_id).map((e) => e.reverses_id!),
+    entries
+      .filter((e) => e.kind === EntryKind.Reversal && e.reverses_id)
+      .map((e) => e.reverses_id!),
   );
   const history = [...entries].reverse();
 
@@ -54,6 +57,7 @@ export default function GroupPage() {
         <button
           type="button"
           onClick={copyInviteLink}
+          suppressHydrationWarning
           className="self-start truncate text-xs text-zinc-500 hover:underline"
         >
           {inviteUrl || "…"} · copy invite link
@@ -95,7 +99,7 @@ export default function GroupPage() {
         ) : (
           <ul className="flex flex-col gap-1">
             {history.map((entry) => {
-              const struck = entry.kind === "reversal" || reversedIds.has(entry.id);
+              const struck = entry.kind === EntryKind.Reversal || reversedIds.has(entry.id);
               const payer = membersById.get(entry.payer_id)?.name ?? entry.payer_id;
               return (
                 <li
