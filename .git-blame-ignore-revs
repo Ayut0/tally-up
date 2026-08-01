@@ -1,0 +1,9 @@
+# Revisions listed here are excluded from `git blame`.
+#
+# GitHub's blame view reads this file automatically. Local git does not —
+# run this once per clone to get the same behaviour:
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: format web/ with oxfmt (#126)
+5199cad655edf2ecaa61d09257cec833a675bb01
