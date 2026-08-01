@@ -33,7 +33,8 @@ See the `Makefile` target comments for the other targets (`run`, `seed`,
 [`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) runs two jobs on
 every pull request and every push to `main`: `test` (`make sqlc-check`, `go
 build`, `go vet`, `golangci-lint`, `make test-nodb`) and `web` (`npm ci`,
-`npm run lint`, `npm run build`, `npm test` in `web/`). Both are blocking;
+`npm run lint`, `npm run format:check`, `npm run build`, `npm test` in
+`web/`). Both are blocking;
 the `@claude review` reviewer is advisory and comment-triggered. Neither job
 is yet a required status check on `main` — that's a deliberate open decision
 left to the maintainer (see the `test`/`web` job comments in ci.yaml).

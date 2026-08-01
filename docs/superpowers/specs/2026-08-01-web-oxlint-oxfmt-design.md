@@ -170,7 +170,14 @@ import oxlint from "eslint-plugin-oxlint";
 export default defineConfig([
   reactHooks.configs.flat["recommended-latest"],
   ...oxlint.configs["flat/react-hooks"],
-  globalIgnores([".next/**", "lib/api-types.ts", "lib/api-schemas/**"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "lib/api-types.ts",
+    "lib/api-schemas/**",
+  ]),
 ]);
 ```
 
