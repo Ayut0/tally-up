@@ -173,6 +173,43 @@ func TestEditSettlement_UnaffectedByPlanChecking(t *testing.T) {
 	}
 }
 
+// TestCreateSettlement_UnknownGroup_SameStatusWithOrWithoutPlanSeq pins that
+// carrying a plan_seq cannot change how a bad group_id is reported. The
+// lock-free path reaches insertEntryAndPostings' membership check and returns
+// 422; the plan-checked path takes the group-row lock first, and must
+// translate its empty result the same way rather than surfacing a raw driver
+// error as a 500.
+func TestCreateSettlement_UnknownGroup_SameStatusWithOrWithoutPlanSeq(t *testing.T) {
+	srv, _ := newTestServer(t)
+	unknown := uuid.New()
+	seq := int64(0)
+
+	postTo := func(body []byte) int {
+		t.Helper()
+		req, _ := http.NewRequest("POST",
+			srv.URL+fmt.Sprintf("/groups/%s/entries", unknown), bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", uuid.New().String())
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		return resp.StatusCode
+	}
+
+	withoutPlan := postTo(settlementBody(uuid.New(), 4000, nil))
+	withPlan := postTo(settlementBody(uuid.New(), 4000, &seq))
+
+	if withoutPlan != http.StatusUnprocessableEntity {
+		t.Fatalf("without plan_seq: status %d, want 422", withoutPlan)
+	}
+	if withPlan != withoutPlan {
+		t.Fatalf("plan_seq changed the reported status for an unknown group: %d with, %d without",
+			withPlan, withoutPlan)
+	}
+}
+
 func TestCreateExpense_WithPlanSeq_422(t *testing.T) {
 	srv, _ := newTestServer(t)
 

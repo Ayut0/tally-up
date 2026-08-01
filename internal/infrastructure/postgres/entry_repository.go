@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,6 +80,13 @@ func checkPlanFresh(ctx context.Context, q *sqlc.Queries, in entry.Input) error 
 		return nil
 	}
 	if _, err := q.LockGroupForSettlement(ctx, in.GroupID); err != nil {
+		// No such group. The lock-free path reports this as ErrNotMember from
+		// insertEntryAndPostings' membership check, so translate rather than
+		// letting a raw driver error escape — otherwise adding plan_seq would
+		// turn a routine 422 into a 500 for the very same bad group_id.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return group.ErrNotMember
+		}
 		return err
 	}
 	current, err := q.SelectMaxEntrySeq(ctx, in.GroupID)
