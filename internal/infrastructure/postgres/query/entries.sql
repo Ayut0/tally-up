@@ -1,11 +1,32 @@
 -- name: InsertEntry :one
 -- Appends one entry to the ledger, returning the seq assigned by the
 -- append-only BIGSERIAL. Callers translate a 23505 unique_violation (a
--- reused client-generated id) into entry.ErrDuplicateID.
+-- reused client-generated id) into entry.ErrDuplicateID. plan_seq is NULL
+-- except on a settlement recorded against a proposed settle plan.
 INSERT INTO entries (id, group_id, kind, payer_id, counterparty, total_amount,
-                     split_rule, participants, memo, occurred_on, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                     split_rule, participants, memo, occurred_on, created_by,
+                     plan_seq)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING seq;
+
+-- name: LockGroupForSettlement :one
+-- Serializes plan-checked settlements for one group so the staleness check
+-- (SelectMaxEntrySeq below) cannot race a concurrent settlement: under READ
+-- COMMITTED both would otherwise read the same MAX(seq), neither seeing the
+-- other's uncommitted insert, and both would pass.
+--
+-- FOR NO KEY UPDATE, not FOR UPDATE: entries.group_id references groups(id),
+-- so every entry insert takes FOR KEY SHARE on this row to validate the
+-- foreign key, and FOR KEY SHARE conflicts with FOR UPDATE. Locking FOR
+-- UPDATE would therefore stall every concurrent expense add on the group.
+-- FOR NO KEY UPDATE conflicts with itself — which is all the serialization
+-- this check needs — but not with FOR KEY SHARE. Expense writes never run
+-- this query at all.
+SELECT id FROM groups WHERE id = $1 FOR NO KEY UPDATE;
+
+-- name: SelectMaxEntrySeq :one
+-- The ledger position a settle plan was computed at. 0 for an empty ledger.
+SELECT COALESCE(MAX(seq), 0)::BIGINT FROM entries WHERE group_id = $1;
 
 -- name: InsertPosting :exec
 -- Appends one posting row for an entry. Callers must ensure a whole entry's

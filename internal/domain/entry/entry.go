@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,17 @@ var (
 	ErrAlreadyReversed = errors.New("entry already reversed")
 	ErrNotReversible   = errors.New("reversal entries cannot be reversed")
 )
+
+// PlanStaleError means the ledger moved since the settle plan was computed:
+// the settlement named a PlanSeq that is no longer the group's max entry seq,
+// so the plan it came from may propose transfers that no longer settle the
+// group. CurrentSeq is the position observed under the group-row lock, which
+// a freshly recomputed plan will be derived from.
+type PlanStaleError struct{ CurrentSeq int64 }
+
+func (e *PlanStaleError) Error() string {
+	return fmt.Sprintf("settle plan is stale; ledger is now at seq %d", e.CurrentSeq)
+}
 
 // Kind is the entry's type. Go has no sum type, so this is the idiomatic
 // approximation — a named string with the two valid values as constants
@@ -50,6 +62,14 @@ type Input struct {
 	Memo         string
 	OccurredOn   time.Time
 	CreatedBy    uuid.UUID
+
+	// PlanSeq is the settle plan's as_of_seq when this settlement was
+	// recorded against a proposed plan. Non-nil turns the write into an
+	// optimistic-concurrency check: the repository takes the group-row lock
+	// and rejects with PlanStaleError if the ledger has moved. Nil (the
+	// manual, partial, or off-plan settlement, and every expense) skips the
+	// check and takes no lock.
+	PlanSeq *int64
 }
 
 // Repository persists a fully computed entry and its postings, atomically

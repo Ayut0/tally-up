@@ -130,10 +130,10 @@ func TestCreateGroup_Validation(t *testing.T) {
 // openapi contract check.
 func TestCreateGroup_CORSPreflight(t *testing.T) {
 	s := postgres.TestStore(t)
-	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
+	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
+	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries, Plans: settlePlans}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
-	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
 	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, "*"))
 	t.Cleanup(srv.Close)
 

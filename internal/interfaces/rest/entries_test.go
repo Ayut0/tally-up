@@ -76,10 +76,10 @@ func post(t *testing.T, srv *httptest.Server, key uuid.UUID, body []byte) (*http
 func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
 	s := postgres.TestStore(t)
 	seedGroup(t, s)
-	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
+	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
+	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries, Plans: settlePlans}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
-	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
 	srv := httptest.NewServer(validatingHandler(t, NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, "*")))
 	t.Cleanup(srv.Close)
 	return srv, s

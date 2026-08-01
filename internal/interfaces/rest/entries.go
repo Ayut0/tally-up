@@ -47,6 +47,9 @@ type createEntryRequest struct {
 	Participants []uuid.UUID      `json:"participants"`
 	Memo         string           `json:"memo,omitempty"`
 	OccurredOn   string           `json:"occurred_on"` // YYYY-MM-DD
+	// Settlements only: the as_of_seq of the settle plan this payment came
+	// from. Set means "reject with 409 if the ledger moved since then".
+	PlanSeq *int64 `json:"plan_seq,omitempty"`
 	// PUT (edit) only: the client-minted reversal that retires the original.
 	// Distinct from an entry's reverses_id, which points the other way — from a
 	// reversal at the entry it reverses.
@@ -94,12 +97,15 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		// CreatedBy is hardwired to PayerID for now, conflating "who recorded the
 		// entry" with "who paid" — placeholder pending real auth.
 		OccurredOn: occurredOn, CreatedBy: req.PayerID,
-		IdempotencyKey: key, RequestHash: requestHash,
+		IdempotencyKey: key, RequestHash: requestHash, PlanSeq: req.PlanSeq,
 	})
 
 	var valErr *addentry.ValidationError
 	var gateErr *addentry.GateError
+	var staleErr *addentry.PlanStale
 	switch {
+	case errors.As(err, &staleErr):
+		writePlanStale(w, staleErr)
 	case errors.Is(err, addentry.ErrCounterpartyRequired):
 		httpError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, addentry.ErrUnknownKind):
@@ -116,6 +122,26 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "write failed")
 	default:
 		writeGateResult(w, result.Gate, result.Body)
+	}
+}
+
+// planStaleResponse is createEntry's second 409 shape: same status as the
+// in-flight-idempotency conflict, but carrying the plan to adopt. The literal
+// error string is what lets a client tell the two apart — it matches the
+// PlanStale model's enum in spec/main.tsp, and unlike the in-flight 409 this
+// one must not be retried as sent.
+type planStaleResponse struct {
+	Error string             `json:"error"`
+	Plan  settlePlanResponse `json:"plan"`
+}
+
+func writePlanStale(w http.ResponseWriter, e *addentry.PlanStale) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusConflict)
+	// Reuses reads.go's mapper so this plan and GET /settle-plan's cannot drift.
+	body := planStaleResponse{Error: "plan stale", Plan: newSettlePlanResponse(e.Plan)}
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		slog.Warn("write plan-stale response", "err", err)
 	}
 }
 

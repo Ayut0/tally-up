@@ -67,10 +67,10 @@ func run() error {
 		}
 	}()
 
-	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
+	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
+	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries, Plans: settlePlans}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
-	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
 	srv := &http.Server{
 		Addr:              ":" + port,
 		Handler:           rest.NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, os.Getenv("CORS_ORIGIN")),

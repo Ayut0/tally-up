@@ -43,6 +43,13 @@ func (r *EntryRepository) Create(ctx context.Context, key uuid.UUID, in entry.In
 	err := r.tx.Do(ctx, func(ctx context.Context) error {
 		q := r.queries(ctx)
 
+		// The plan-staleness check lives here rather than in
+		// insertEntryAndPostings because Edit shares that helper, and a
+		// correction must never inherit a plan precondition (#122).
+		if err := checkPlanFresh(ctx, q, in); err != nil {
+			return err
+		}
+
 		seq, err := insertEntryAndPostings(ctx, q, in, postings)
 		if err != nil {
 			return err
@@ -57,6 +64,31 @@ func (r *EntryRepository) Create(ctx context.Context, key uuid.UUID, in entry.In
 		return err
 	})
 	return resp, err
+}
+
+// checkPlanFresh enforces the optimistic-concurrency precondition a
+// settlement carries when it was recorded against a proposed settle plan: the
+// ledger must still be at the position the plan was computed from. A nil
+// PlanSeq (every expense, and any manual or off-plan settlement) is a no-op
+// that takes no lock at all.
+//
+// The lock must be taken before the seq is read, not after: it is what stops
+// two concurrent settlements from both observing the pre-insert MAX(seq).
+func checkPlanFresh(ctx context.Context, q *sqlc.Queries, in entry.Input) error {
+	if in.PlanSeq == nil {
+		return nil
+	}
+	if _, err := q.LockGroupForSettlement(ctx, in.GroupID); err != nil {
+		return err
+	}
+	current, err := q.SelectMaxEntrySeq(ctx, in.GroupID)
+	if err != nil {
+		return err
+	}
+	if current != *in.PlanSeq {
+		return &entry.PlanStaleError{CurrentSeq: current}
+	}
+	return nil
 }
 
 // insertEntryAndPostings validates group membership, appends one entry, and
@@ -81,6 +113,7 @@ func insertEntryAndPostings(ctx context.Context, q *sqlc.Queries, in entry.Input
 		Counterparty: in.Counterparty, TotalAmount: in.TotalAmount, SplitRule: in.SplitRule,
 		Participants: in.Participants, Memo: &in.Memo,
 		OccurredOn: pgtype.Date{Time: in.OccurredOn, Valid: true}, CreatedBy: in.CreatedBy,
+		PlanSeq: in.PlanSeq,
 	})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation

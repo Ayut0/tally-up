@@ -36,7 +36,8 @@ type Querier interface {
 	GetIdempotencyOutcome(ctx context.Context, key uuid.UUID) (GetIdempotencyOutcomeRow, error)
 	// Appends one entry to the ledger, returning the seq assigned by the
 	// append-only BIGSERIAL. Callers translate a 23505 unique_violation (a
-	// reused client-generated id) into entry.ErrDuplicateID.
+	// reused client-generated id) into entry.ErrDuplicateID. plan_seq is NULL
+	// except on a settlement recorded against a proposed settle plan.
 	InsertEntry(ctx context.Context, arg InsertEntryParams) (*int64, error)
 	// Appends one group. Callers translate a 23505 unique_violation (a reused
 	// client-generated id) into group.ErrDuplicateID.
@@ -67,6 +68,19 @@ type Querier interface {
 	// serializes racers: the loser re-checks after the winner commits (row locks
 	// don't fire the append-only trigger — only real UPDATE/DELETE do).
 	LockEntryForUpdate(ctx context.Context, arg LockEntryForUpdateParams) (LockEntryForUpdateRow, error)
+	// Serializes plan-checked settlements for one group so the staleness check
+	// (SelectMaxEntrySeq below) cannot race a concurrent settlement: under READ
+	// COMMITTED both would otherwise read the same MAX(seq), neither seeing the
+	// other's uncommitted insert, and both would pass.
+	//
+	// FOR NO KEY UPDATE, not FOR UPDATE: entries.group_id references groups(id),
+	// so every entry insert takes FOR KEY SHARE on this row to validate the
+	// foreign key, and FOR KEY SHARE conflicts with FOR UPDATE. Locking FOR
+	// UPDATE would therefore stall every concurrent expense add on the group.
+	// FOR NO KEY UPDATE conflicts with itself — which is all the serialization
+	// this check needs — but not with FOR KEY SHARE. Expense writes never run
+	// this query at all.
+	LockGroupForSettlement(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Marks a pending key succeeded with its response snapshot, RETURNING the
 	// JSONB-normalized bytes so the first response and every future replay read
 	// byte-identical values from the same column.
@@ -75,6 +89,8 @@ type Querier interface {
 	SelectGroup(ctx context.Context, id uuid.UUID) (SelectGroupRow, error)
 	// All members of a group, ordered by member id for a stable response shape.
 	SelectGroupMembers(ctx context.Context, groupID uuid.UUID) ([]Member, error)
+	// The ledger position a settle plan was computed at. 0 for an empty ledger.
+	SelectMaxEntrySeq(ctx context.Context, groupID uuid.UUID) (int64, error)
 	// Global zero-sum integrity check: the sum of every posting, across every
 	// entry, must be zero.
 	SumAllPostings(ctx context.Context) (int64, error)

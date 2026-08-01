@@ -347,6 +347,18 @@ export interface components {
              */
             type: "percent";
         };
+        /**
+         * @description The settlement named a `plan_seq` the ledger has moved past. `plan` is
+         *     recomputed from current balances, and its `as_of_seq` is the position it
+         *     was derived from — so it can be adopted wholesale and re-submitted without
+         *     a second round trip (with a fresh `Idempotency-Key`; see
+         *     SettlementEntry.plan_seq).
+         */
+        PlanStale: {
+            /** @enum {string} */
+            error: "plan stale";
+            plan: components["schemas"]["SettlePlan"];
+        };
         /** @description One member's signed net amount for an entry. Postings for an entry sum to zero. */
         Posting: {
             member_id: components["schemas"]["Uuid"];
@@ -375,6 +387,28 @@ export interface components {
             transfers: components["schemas"]["Transfer"][];
             /** Format: int64 */
             as_of_seq: number;
+        };
+        /**
+         * @description The fields every settlement carries, whether newly recorded or replacing a
+         *     corrected one. Split out from SettlementEntry so `plan_seq` lands on the
+         *     create path alone — an edit is a correction and never carries a plan
+         *     precondition.
+         */
+        SettlementCore: {
+            /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
+            id: components["schemas"]["Uuid"];
+            payer_id: components["schemas"]["Uuid"];
+            /**
+             * Format: int64
+             * @description Minor currency units. Must be in `(0, 100_000_000_000]`.
+             */
+            total_amount: number;
+            memo?: string;
+            occurred_on: components["schemas"]["CalendarDate"];
+            /** @enum {string} */
+            kind: "settlement";
+            /** @description The member being paid. */
+            counterparty: components["schemas"]["Uuid"];
         };
         SettlementEdit: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
@@ -420,6 +454,20 @@ export interface components {
             kind: "settlement";
             /** @description The member being paid. */
             counterparty: components["schemas"]["Uuid"];
+            /**
+             * Format: int64
+             * @description The `as_of_seq` of the settle plan this payment came from. When set, the
+             *     write is rejected with 409 if the ledger moved since that snapshot, and
+             *     the 409 body carries a recomputed plan to adopt. Omit for a manual or
+             *     off-plan settlement, which is always accepted.
+             *
+             *     Retrying after that 409 means sending a *different* payload (the new
+             *     `plan_seq`), so the retry MUST mint a fresh `Idempotency-Key` — reusing
+             *     the original key is a payload mismatch and returns 422, not a write.
+             *
+             *     Rejected with 422 on an expense: plans gate settlements only.
+             */
+            plan_seq?: number;
         };
         /** @description Relative weights per member, keyed by member id. */
         SharesSplit: {
@@ -711,13 +759,20 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description The request conflicts with the current state of the server. */
+            /**
+             * @description createEntry's `409`, which carries two distinguishable shapes: a plain
+             *     ErrorBody for the retryable in-flight-idempotency case, and PlanStale for a
+             *     settlement whose plan expired — which is *not* retryable as-sent. Modeled
+             *     as one response because OpenAPI allows a single response object per status
+             *     code; declaring a second `409` alongside WriteErrors' silently drops it
+             *     from the emitted document.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorBody"];
+                    "application/json": components["schemas"]["ErrorBody"] | components["schemas"]["PlanStale"];
                 };
             };
             /** @description Client error */

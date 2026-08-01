@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"tallyup/internal/application/proposesettleplan"
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/ledger"
 )
@@ -24,6 +25,10 @@ var ErrCounterpartyRequired = errors.New("settlement requires counterparty")
 
 // ErrUnknownKind means the entry kind is neither "expense" nor "settlement".
 var ErrUnknownKind = errors.New("kind must be expense or settlement")
+
+// ErrPlanSeqOnExpense means an expense carried a plan_seq. Settle plans gate
+// settlements only, so this is a client bug rather than a stale plan.
+var ErrPlanSeqOnExpense = errors.New("plan_seq applies to settlements only")
 
 // ValidationError wraps a postings-computation failure (an invalid
 // split_rule, amount, or participant list) that should be reported to the
@@ -41,6 +46,26 @@ type GateError struct{ Err error }
 func (e *GateError) Error() string { return e.Err.Error() }
 func (e *GateError) Unwrap() error { return e.Err }
 
+// PlanStale reports a settlement rejected because the ledger moved past the
+// settle plan it was recorded against, carrying a plan recomputed from
+// current balances so the caller can re-propose in one round trip. Unwraps to
+// the domain's *entry.PlanStaleError.
+type PlanStale struct {
+	Stale *entry.PlanStaleError
+	Plan  proposesettleplan.Result
+}
+
+func (e *PlanStale) Error() string { return e.Stale.Error() }
+func (e *PlanStale) Unwrap() error { return e.Stale }
+
+// PlanProposer recomputes a group's settle plan for the body of a stale-plan
+// rejection. Satisfied by *proposesettleplan.Service; declared here as an
+// interface so this package depends on the capability it needs rather than a
+// concrete sibling service.
+type PlanProposer interface {
+	Propose(ctx context.Context, groupID uuid.UUID) (proposesettleplan.Result, error)
+}
+
 // Command is everything AddEntry needs to create one entry.
 type Command struct {
 	ID             uuid.UUID
@@ -56,6 +81,10 @@ type Command struct {
 	CreatedBy      uuid.UUID
 	IdempotencyKey uuid.UUID
 	RequestHash    string
+
+	// PlanSeq is the settle plan's as_of_seq when this settlement came from a
+	// proposed plan. Settlements only; nil skips the staleness check.
+	PlanSeq *int64
 }
 
 // Result is AddEntry's outcome. Gate reports whether this call actually
@@ -71,6 +100,7 @@ type Result struct {
 type Service struct {
 	Gate    entry.IdempotencyGate
 	Entries entry.Repository
+	Plans   PlanProposer
 }
 
 func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
@@ -92,6 +122,7 @@ func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
 		Counterparty: cmd.Counterparty, TotalAmount: cmd.TotalAmount,
 		SplitRule: splitJSON, Participants: participants, Memo: cmd.Memo,
 		OccurredOn: cmd.OccurredOn, CreatedBy: cmd.CreatedBy,
+		PlanSeq: cmd.PlanSeq,
 	}, postings)
 	if err != nil {
 		// We own the pending row; free it so the client's retry isn't stuck
@@ -99,15 +130,37 @@ func (s *Service) AddEntry(ctx context.Context, cmd Command) (Result, error) {
 		if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
 			slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)
 		}
-		return Result{}, err
+		return Result{}, s.explainStalePlan(ctx, cmd.GroupID, err)
 	}
 	return Result{Gate: entry.GateProceed, Body: resp}, nil
+}
+
+// explainStalePlan upgrades the domain's bare staleness verdict into one that
+// carries a freshly recomputed plan, so the caller can hand the client
+// something usable instead of just "your plan expired". Any other error, and
+// any failure to recompute, passes through unchanged — a stale plan the
+// client cannot replace is an ordinary failure, not a 409 it can act on.
+func (s *Service) explainStalePlan(ctx context.Context, groupID uuid.UUID, err error) error {
+	var stale *entry.PlanStaleError
+	if !errors.As(err, &stale) {
+		return err
+	}
+	plan, planErr := s.Plans.Propose(ctx, groupID)
+	if planErr != nil {
+		slog.Error("recompute settle plan for stale-plan rejection",
+			"group_id", groupID, "err", planErr)
+		return err
+	}
+	return &PlanStale{Stale: stale, Plan: plan}
 }
 
 func ComputePostings(cmd Command) (postings []ledger.Posting, splitJSON []byte, participants []uuid.UUID, err error) {
 	participants = cmd.Participants
 	switch cmd.Kind {
 	case entry.KindExpense:
+		if cmd.PlanSeq != nil {
+			return nil, nil, nil, &ValidationError{Err: ErrPlanSeqOnExpense}
+		}
 		postings, err = ledger.ComputePostings(cmd.PayerID, cmd.TotalAmount, cmd.SplitRule, cmd.Participants)
 		if err == nil {
 			splitJSON, err = json.Marshal(cmd.SplitRule)

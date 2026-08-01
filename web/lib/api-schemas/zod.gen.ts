@@ -217,6 +217,22 @@ export const zReverseEntryRequest = z.object({
     requested_by: zUuid
 });
 
+/**
+ * The fields every settlement carries, whether newly recorded or replacing a
+ * corrected one. Split out from SettlementEntry so `plan_seq` lands on the
+ * create path alone — an edit is a correction and never carries a plan
+ * precondition.
+ */
+export const zSettlementCore = z.object({
+    id: zUuid,
+    payer_id: zUuid,
+    total_amount: z.number().int(),
+    memo: z.string().optional(),
+    occurred_on: zCalendarDate,
+    kind: z.enum(['settlement']),
+    counterparty: zUuid
+});
+
 export const zSettlementEdit = z.object({
     id: zUuid,
     payer_id: zUuid,
@@ -251,7 +267,8 @@ export const zSettlementEntry = z.object({
     memo: z.string().optional(),
     occurred_on: zCalendarDate,
     kind: z.enum(['settlement']),
-    counterparty: zUuid
+    counterparty: zUuid,
+    plan_seq: z.number().int().optional()
 });
 
 /**
@@ -281,4 +298,16 @@ export const zTransfer = z.object({
 export const zSettlePlan = z.object({
     transfers: z.array(zTransfer),
     as_of_seq: z.number().int()
+});
+
+/**
+ * The settlement named a `plan_seq` the ledger has moved past. `plan` is
+ * recomputed from current balances, and its `as_of_seq` is the position it
+ * was derived from — so it can be adopted wholesale and re-submitted without
+ * a second round trip (with a fresh `Idempotency-Key`; see
+ * SettlementEntry.plan_seq).
+ */
+export const zPlanStale = z.object({
+    error: z.enum(['plan stale']),
+    plan: zSettlePlan
 });

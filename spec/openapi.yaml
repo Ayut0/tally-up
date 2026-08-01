@@ -177,11 +177,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
         '409':
-          description: The request conflicts with the current state of the server.
+          description: |-
+            createEntry's `409`, which carries two distinguishable shapes: a plain
+            ErrorBody for the retryable in-flight-idempotency case, and PlanStale for a
+            settlement whose plan expired — which is *not* retryable as-sent. Modeled
+            as one response because OpenAPI allows a single response object per status
+            code; declaring a second `409` alongside WriteErrors' silently drops it
+            from the emitted document.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorBody'
+                anyOf:
+                  - $ref: '#/components/schemas/ErrorBody'
+                  - $ref: '#/components/schemas/PlanStale'
         '422':
           description: Client error
           content:
@@ -769,6 +777,24 @@ components:
             type: integer
             format: int64
       description: Percentage weights per member, keyed by member id.
+    PlanStale:
+      type: object
+      required:
+        - error
+        - plan
+      properties:
+        error:
+          type: string
+          enum:
+            - plan stale
+        plan:
+          $ref: '#/components/schemas/SettlePlan'
+      description: |-
+        The settlement named a `plan_seq` the ledger has moved past. `plan` is
+        recomputed from current balances, and its `as_of_seq` is the position it
+        was derived from — so it can be adopted wholesale and re-submitted without
+        a second round trip (with a fresh `Idempotency-Key`; see
+        SettlementEntry.plan_seq).
     Posting:
       type: object
       required:
@@ -827,6 +853,43 @@ components:
         Proposed transfers plus the balance snapshot they were computed from.
         `as_of_seq` is the optimistic-concurrency token a recorded settlement
         passes back as `plan_seq`.
+    SettlementCore:
+      type: object
+      required:
+        - id
+        - payer_id
+        - total_amount
+        - occurred_on
+        - kind
+        - counterparty
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        payer_id:
+          $ref: '#/components/schemas/Uuid'
+        total_amount:
+          type: integer
+          format: int64
+          description: Minor currency units. Must be in `(0, 100_000_000_000]`.
+        memo:
+          type: string
+        occurred_on:
+          $ref: '#/components/schemas/CalendarDate'
+        kind:
+          type: string
+          enum:
+            - settlement
+        counterparty:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: The member being paid.
+      description: |-
+        The fields every settlement carries, whether newly recorded or replacing a
+        corrected one. Split out from SettlementEntry so `plan_seq` lands on the
+        create path alone — an edit is a correction and never carries a plan
+        precondition.
     SettlementEdit:
       type: object
       required:
@@ -894,6 +957,20 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: The member being paid.
+        plan_seq:
+          type: integer
+          format: int64
+          description: |-
+            The `as_of_seq` of the settle plan this payment came from. When set, the
+            write is rejected with 409 if the ledger moved since that snapshot, and
+            the 409 body carries a recomputed plan to adopt. Omit for a manual or
+            off-plan settlement, which is always accepted.
+
+            Retrying after that 409 means sending a *different* payload (the new
+            `plan_seq`), so the retry MUST mint a fresh `Idempotency-Key` — reusing
+            the original key is a payload mismatch and returns 422, not a write.
+
+            Rejected with 422 on an expense: plans gate settlements only.
       description: |-
         A settlement: a direct payment from `payer_id` to `counterparty`, with no
         split. The server derives postings and participants from `payer_id` and

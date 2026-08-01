@@ -190,17 +190,41 @@ model ExpenseEntry {
 }
 
 /**
+ * The fields every settlement carries, whether newly recorded or replacing a
+ * corrected one. Split out from SettlementEntry so `plan_seq` lands on the
+ * create path alone — an edit is a correction and never carries a plan
+ * precondition.
+ */
+model SettlementCore {
+  ...EntryRequestCommon;
+  kind: "settlement";
+
+  /** The member being paid. */
+  counterparty: Uuid;
+}
+
+/**
  * A settlement: a direct payment from `payer_id` to `counterparty`, with no
  * split. The server derives postings and participants from `payer_id` and
  * `counterparty` alone (addentry.ComputePostings) — `split_rule` does not
  * apply and is not accepted here.
  */
 model SettlementEntry {
-  ...EntryRequestCommon;
-  kind: "settlement";
+  ...SettlementCore;
 
-  /** The member being paid. */
-  counterparty: Uuid;
+  /**
+   * The `as_of_seq` of the settle plan this payment came from. When set, the
+   * write is rejected with 409 if the ledger moved since that snapshot, and
+   * the 409 body carries a recomputed plan to adopt. Omit for a manual or
+   * off-plan settlement, which is always accepted.
+   *
+   * Retrying after that 409 means sending a *different* payload (the new
+   * `plan_seq`), so the retry MUST mint a fresh `Idempotency-Key` — reusing
+   * the original key is a payload mismatch and returns 422, not a write.
+   *
+   * Rejected with 422 on an expense: plans gate settlements only.
+   */
+  plan_seq?: int64;
 }
 
 /**
@@ -231,7 +255,7 @@ model ExpenseEdit {
 }
 
 model SettlementEdit {
-  ...SettlementEntry;
+  ...SettlementCore;
   reversal_entry_id: ReversalEntryId;
 }
 
@@ -319,6 +343,35 @@ alias WriteErrors = ErrorResponse<400> | ErrorResponse<409> | ErrorResponse<422>
 /** `404` on top of the shared write errors: the target entry does not exist. */
 alias CorrectionErrors = WriteErrors | ErrorResponse<404>;
 
+/**
+ * The settlement named a `plan_seq` the ledger has moved past. `plan` is
+ * recomputed from current balances, and its `as_of_seq` is the position it
+ * was derived from — so it can be adopted wholesale and re-submitted without
+ * a second round trip (with a fresh `Idempotency-Key`; see
+ * SettlementEntry.plan_seq).
+ */
+model PlanStale {
+  error: "plan stale";
+  plan: SettlePlan;
+}
+
+/**
+ * createEntry's `409`, which carries two distinguishable shapes: a plain
+ * ErrorBody for the retryable in-flight-idempotency case, and PlanStale for a
+ * settlement whose plan expired — which is *not* retryable as-sent. Modeled
+ * as one response because OpenAPI allows a single response object per status
+ * code; declaring a second `409` alongside WriteErrors' silently drops it
+ * from the emitted document.
+ */
+@error
+model ConflictResponse {
+  @statusCode statusCode: 409;
+  @body body: ErrorBody | PlanStale;
+}
+
+/** WriteErrors with the generic `409` replaced by createEntry's richer one. */
+alias CreateEntryErrors = ErrorResponse<400> | ConflictResponse | ErrorResponse<422> | ErrorResponse<500>;
+
 alias ReadErrors = ErrorResponse<400> | ErrorResponse<500>;
 
 /** `404` on top of the shared read errors: the target group does not exist. */
@@ -359,7 +412,7 @@ op createEntry(
   @path group_id: Uuid,
   @header("Idempotency-Key") idempotencyKey: Uuid,
   @body entry: CreateEntryRequest,
-): Created<EntryAck> | Replayed<EntryAck> | WriteErrors;
+): Created<EntryAck> | Replayed<EntryAck> | CreateEntryErrors;
 
 /**
  * Reverse an entry. Appends a reversal rather than deleting, so history and
