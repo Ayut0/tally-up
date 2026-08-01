@@ -7,3 +7,6 @@
 
 # style: format web/ with oxfmt (#126)
 5199cad655edf2ecaa61d09257cec833a675bb01
+
+# style: re-format web/ with corrected oxfmt Tailwind config (#126)
+c6782808b53725ea4766af91edeae212f62d1d40
