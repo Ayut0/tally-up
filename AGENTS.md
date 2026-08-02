@@ -74,6 +74,7 @@ additionally route through the independent reviewer described in
 | --- | --- |
 | Delivering a unit of work end-to-end (issue, PR, or prompt) | `/address` (orchestrates the phases below) |
 | Turning an idea into scoped work | `to-prd` → `to-issues` |
+| Charting or executing a large, multi-ticket effort | `wayfinder` — tickets tracked per [Wayfinding operations](docs/agents/issue-tracker.md#wayfinding-operations) |
 | Pressure-testing a plan against the domain | `grill-with-docs` |
 | Triaging an incoming issue | `triage` |
 | Writing code or a bugfix | `tdd` |
