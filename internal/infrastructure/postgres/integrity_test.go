@@ -53,11 +53,13 @@ func TestGetBalances_MatchesFullLedgerReplay(t *testing.T) {
 	if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
 		t.Fatalf("gate: %v %v", res, err)
 	}
+	// e2 was recorded by rMemA (addExpense's payer), so the edit's requester
+	// must be rMemA too — creator-only correction (#152).
 	if _, err := s.Entries.Edit(context.Background(), key, rGroup, e2, revID, entry.Input{
 		ID: newID, GroupID: rGroup, Kind: entry.KindExpense, PayerID: rMemB,
 		TotalAmount: 600, SplitRule: []byte(`{"type":"equal"}`),
 		Participants: []uuid.UUID{rMemB, rYuto},
-		OccurredOn:   time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC), CreatedBy: rMemB,
+		OccurredOn:   time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC), CreatedBy: rMemA,
 	}, postings); err != nil {
 		t.Fatal(err)
 	}

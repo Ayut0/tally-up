@@ -108,6 +108,40 @@ func TestReverse_Endpoint_NonMemberRequesterIs422(t *testing.T) {
 	}
 }
 
+// Correction is creator-only (#146): memA recorded an expense yuto paid for,
+// so yuto — a real group member, just not the one who recorded it — may not
+// reverse it.
+func TestReverse_Endpoint_NonCreatorIs422(t *testing.T) {
+	srv, _ := newTestServer(t)
+	entryID := uuid.New()
+	b, _ := json.Marshal(map[string]any{
+		"id": entryID, "kind": "expense", "payer_id": yuto, "requested_by": memA,
+		"total_amount": 1000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	resp, body := post(t, srv, uuid.New(), b)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("setup: status %d, body %s", resp.StatusCode, body)
+	}
+
+	revBody, _ := json.Marshal(map[string]any{"id": uuid.New(), "requested_by": yuto})
+	req, _ := http.NewRequest("POST",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s/reverse", gID, entryID),
+		bytes.NewReader(revBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		rb, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status %d, body %s, want 422", resp.StatusCode, rb)
+	}
+}
+
 func TestEdit_Endpoint(t *testing.T) {
 	srv, s := newTestServer(t)
 	entryID := uuid.New()
@@ -149,9 +183,10 @@ func TestEdit_Endpoint(t *testing.T) {
 	}
 }
 
-// payer_id and created_by are deliberately separate: memA can record an
-// expense yuto paid for. The replacement entry and its reversal must both be
-// attributed to memA (the one editing), never to yuto (the payer).
+// payer_id and created_by are deliberately separate: memA recorded an
+// expense yuto paid for, so memA — the creator, not the payer — is the one
+// who may correct it (#146/#152). The replacement entry and its reversal
+// must both stay attributed to memA, never to yuto (the payer).
 //
 // Asserted via direct SQL rather than GET /entries: a reversal's
 // split_rule.type is the literal string "reversal", which the OpenAPI
@@ -161,7 +196,18 @@ func TestEdit_Endpoint(t *testing.T) {
 func TestEdit_Endpoint_AttributesToRequester(t *testing.T) {
 	srv, s := newTestServer(t)
 	entryID := uuid.New()
-	post(t, srv, uuid.New(), expenseBody(entryID)) // yuto pays 12000, 3-way
+	// memA records the expense yuto paid for.
+	setupBody, _ := json.Marshal(map[string]any{
+		"id": entryID, "kind": "expense", "payer_id": yuto, "requested_by": memA,
+		"total_amount": 12000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA, memB},
+		"occurred_on":  "2026-07-05",
+	})
+	setupResp, setupRespBody := post(t, srv, uuid.New(), setupBody)
+	if setupResp.StatusCode != http.StatusCreated {
+		t.Fatalf("setup: status %d, body %s", setupResp.StatusCode, setupRespBody)
+	}
 
 	newID, revID := uuid.New(), uuid.New()
 	body, _ := json.Marshal(map[string]any{
@@ -235,6 +281,45 @@ func TestEdit_Endpoint_NonMemberRequesterIs422(t *testing.T) {
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		rb, _ := io.ReadAll(resp.Body)
 		t.Fatalf("status %d, body %s, want 422", resp.StatusCode, rb)
+	}
+}
+
+// Correction is creator-only (#146): memA recorded an expense yuto paid for,
+// so yuto — the payer, and a real group member, just not the one who
+// recorded it — may not edit it.
+func TestEdit_Endpoint_NonCreatorIs422(t *testing.T) {
+	srv, _ := newTestServer(t)
+	entryID := uuid.New()
+	b, _ := json.Marshal(map[string]any{
+		"id": entryID, "kind": "expense", "payer_id": yuto, "requested_by": memA,
+		"total_amount": 12000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA, memB},
+		"occurred_on":  "2026-07-05",
+	})
+	resp, body := post(t, srv, uuid.New(), b)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("setup: status %d, body %s", resp.StatusCode, body)
+	}
+
+	editBody, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "reversal_entry_id": uuid.New(),
+		"kind": "expense", "payer_id": yuto, "requested_by": yuto, "total_amount": 9000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	req, _ := http.NewRequest("PUT",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, entryID), bytes.NewReader(editBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	editResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if editResp.StatusCode != http.StatusUnprocessableEntity {
+		rb, _ := io.ReadAll(editResp.Body)
+		t.Fatalf("status %d, body %s, want 422", editResp.StatusCode, rb)
 	}
 }
 

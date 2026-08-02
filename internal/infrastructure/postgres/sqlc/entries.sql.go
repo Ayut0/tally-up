@@ -306,7 +306,7 @@ func (q *Queries) ListPostingsForEntries(ctx context.Context, entryIds []uuid.UU
 }
 
 const lockEntryForUpdate = `-- name: LockEntryForUpdate :one
-SELECT kind, payer_id, counterparty, total_amount, participants, occurred_on
+SELECT kind, payer_id, counterparty, total_amount, participants, occurred_on, created_by
 FROM entries WHERE id = $1 AND group_id = $2
 FOR UPDATE
 `
@@ -323,6 +323,7 @@ type LockEntryForUpdateRow struct {
 	TotalAmount  int64
 	Participants []uuid.UUID
 	OccurredOn   pgtype.Date
+	CreatedBy    uuid.UUID
 }
 
 // Locks the original entry against concurrent reversal attempts. FOR UPDATE
@@ -338,6 +339,7 @@ func (q *Queries) LockEntryForUpdate(ctx context.Context, arg LockEntryForUpdate
 		&i.TotalAmount,
 		&i.Participants,
 		&i.OccurredOn,
+		&i.CreatedBy,
 	)
 	return i, err
 }
