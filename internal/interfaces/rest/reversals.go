@@ -110,7 +110,7 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.RequestedBy == uuid.Nil {
-		httpError(w, http.StatusBadRequest, "requested_by required (client-generated UUID)")
+		httpError(w, http.StatusBadRequest, "requested_by required (the recording member's id)")
 		return
 	}
 	occurredOn, err := time.Parse("2006-01-02", req.OccurredOn)
