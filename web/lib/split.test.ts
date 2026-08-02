@@ -45,7 +45,10 @@ describe("previewShares — must mirror the Go largest-remainder engine", () => 
 
 describe("buildSplitRule validation", () => {
   it("valid inputs return the rule object", () => {
-    expect(buildSplitRule(SplitMode.Equal, [A, B], {})).toEqual({ type: "equal" });
+    expect(buildSplitRule(SplitMode.Equal, [A, B], {})).toEqual({
+      isValid: true,
+      rule: { type: "equal" },
+    });
   });
 
   it("exact must sum to total", () => {
@@ -53,17 +56,17 @@ describe("buildSplitRule validation", () => {
       total: 12000,
       amounts: { [A]: 7000, [B]: 4999 },
     });
-    expect(typeof r).toBe("string"); // error message
+    expect(r.isValid).toBe(false);
   });
 
   it("percent must sum to 100", () => {
     const r = buildSplitRule(SplitMode.Percent, [A, B], { weights: { [A]: 60, [B]: 39 } });
-    expect(typeof r).toBe("string");
+    expect(r.isValid).toBe(false);
   });
 
   it("shares must be positive", () => {
     const r = buildSplitRule(SplitMode.Shares, [A, B], { weights: { [A]: 0, [B]: 2 } });
-    expect(typeof r).toBe("string");
+    expect(r.isValid).toBe(false);
   });
 
   it("exact rejects a negative amount even if the sum happens to match total", () => {
@@ -71,11 +74,12 @@ describe("buildSplitRule validation", () => {
       total: 12000,
       amounts: { [A]: -1000, [B]: 13000 },
     });
-    expect(typeof r).toBe("string");
+    expect(r.isValid).toBe(false);
   });
 
   it("exact with no total set reports a clear error, not literal 'undefined'", () => {
     const r = buildSplitRule(SplitMode.Exact, [A, B], { amounts: { [A]: 7000, [B]: 5000 } });
-    expect(r).not.toMatch(/undefined/);
+    expect(r.isValid).toBe(false);
+    expect(r.isValid ? "" : r.error).not.toMatch(/undefined/);
   });
 });
