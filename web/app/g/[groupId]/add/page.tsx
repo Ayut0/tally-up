@@ -62,10 +62,10 @@ export default function AddExpensePage() {
     amounts,
     weights,
   });
-  const ruleError = result.ok ? null : result.error;
+  const ruleError = result.isValid ? null : result.error;
   const preview =
-    result.ok && totalValid ? previewShares(total, result.rule, participantsArray) : null;
-  const canSubmit = payerId !== "" && participantsArray.length > 0 && totalValid && result.ok;
+    result.isValid && totalValid ? previewShares(total, result.rule, participantsArray) : null;
+  const canSubmit = payerId !== "" && participantsArray.length > 0 && totalValid && result.isValid;
 
   function toggleParticipant(memberId: string) {
     setParticipants((prev) => {
@@ -78,7 +78,7 @@ export default function AddExpensePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!result.ok || !totalValid || payerId === "" || participantsArray.length === 0) return;
+    if (!result.isValid || !totalValid || payerId === "" || participantsArray.length === 0) return;
     if (submitting) return;
 
     // Everything but `id` — the part the server's idempotency gate compares
