@@ -50,7 +50,7 @@ func seedGroup(t *testing.T, s *postgres.Store) {
 
 func expenseBody(entryID uuid.UUID) []byte {
 	b, _ := json.Marshal(map[string]any{
-		"id": entryID, "kind": "expense", "payer_id": yuto,
+		"id": entryID, "kind": "expense", "payer_id": yuto, "requested_by": yuto,
 		"total_amount": 12000,
 		"split_rule":   map[string]any{"type": "equal"},
 		"participants": []uuid.UUID{yuto, memA, memB},
@@ -138,11 +138,30 @@ func TestCreateExpense_SameKeyDifferentBodyIs422(t *testing.T) {
 	}
 }
 
+// requested_by is independent of participants and payer_id, so it needs its
+// own membership check: naming an outsider as the recorder must not be a
+// backdoor around group membership.
+func TestCreateExpense_NonMemberRequesterIs422(t *testing.T) {
+	srv, _ := newTestServer(t)
+	outsider := uuid.New()
+	b, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "kind": "expense", "payer_id": yuto, "requested_by": outsider,
+		"total_amount": 1000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	resp, _ := post(t, srv, uuid.New(), b)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status %d, want 422", resp.StatusCode)
+	}
+}
+
 func TestCreateExpense_NonMemberParticipantIs422(t *testing.T) {
 	srv, _ := newTestServer(t)
 	outsider := uuid.New()
 	b, _ := json.Marshal(map[string]any{
-		"id": uuid.New(), "kind": "expense", "payer_id": yuto,
+		"id": uuid.New(), "kind": "expense", "payer_id": yuto, "requested_by": yuto,
 		"total_amount": 1000,
 		"split_rule":   map[string]any{"type": "equal"},
 		"participants": []uuid.UUID{yuto, outsider},
@@ -164,7 +183,7 @@ func TestCreateExpense_WeightedSharesRoundTrip(t *testing.T) {
 	entryID := uuid.New()
 	weights := map[uuid.UUID]int64{yuto: 2, memA: 1, memB: 1} // 12000 total -> 6000/3000/3000, no rounding
 	body, _ := json.Marshal(map[string]any{
-		"id": entryID, "kind": "expense", "payer_id": yuto,
+		"id": entryID, "kind": "expense", "payer_id": yuto, "requested_by": yuto,
 		"total_amount": 12000,
 		"split_rule": map[string]any{
 			"type":    "shares",
@@ -236,7 +255,7 @@ func TestCreateExpense_WeightedSharesRoundTrip(t *testing.T) {
 func TestCreateSettlement(t *testing.T) {
 	srv, s := newTestServer(t)
 	b, _ := json.Marshal(map[string]any{
-		"id": uuid.New(), "kind": "settlement", "payer_id": memA,
+		"id": uuid.New(), "kind": "settlement", "payer_id": memA, "requested_by": memA,
 		"counterparty": yuto, "total_amount": 4000, "occurred_on": "2026-07-05",
 	})
 	resp, body := post(t, srv, uuid.New(), b)
@@ -256,7 +275,7 @@ func TestPostGateFailureReleasesKey_RetryProceeds(t *testing.T) {
 	key := uuid.New()
 	outsider := uuid.New()
 	bad, _ := json.Marshal(map[string]any{
-		"id": uuid.New(), "kind": "expense", "payer_id": yuto,
+		"id": uuid.New(), "kind": "expense", "payer_id": yuto, "requested_by": yuto,
 		"total_amount": 1000,
 		"split_rule":   map[string]any{"type": "equal"},
 		"participants": []uuid.UUID{yuto, outsider},
@@ -271,6 +290,21 @@ func TestPostGateFailureReleasesKey_RetryProceeds(t *testing.T) {
 	resp, body := post(t, srv, key, expenseBody(uuid.New()))
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("corrected retry: status %d, body %s", resp.StatusCode, body)
+	}
+}
+
+func TestCreateExpense_MissingRequestedByIs400(t *testing.T) {
+	srv, _ := newTestServer(t)
+	b, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "kind": "expense", "payer_id": yuto,
+		"total_amount": 1000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto},
+		"occurred_on":  "2026-07-05",
+	})
+	resp, _ := post(t, srv, uuid.New(), b)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400", resp.StatusCode)
 	}
 }
 

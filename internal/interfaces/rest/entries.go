@@ -38,7 +38,10 @@ func (r splitRuleRequest) toDomain() ledger.SplitRule {
 }
 
 type createEntryRequest struct {
-	ID           uuid.UUID        `json:"id"`
+	ID uuid.UUID `json:"id"`
+	// Which member is recording this — distinct from PayerID, who may not be
+	// the one submitting the request (v1 has no authenticated identity).
+	RequestedBy  uuid.UUID        `json:"requested_by"`
 	Kind         entry.Kind       `json:"kind"`
 	PayerID      uuid.UUID        `json:"payer_id"`
 	Counterparty *uuid.UUID       `json:"counterparty,omitempty"`
@@ -81,6 +84,10 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "entry id required (client-generated UUID)")
 		return
 	}
+	if req.RequestedBy == uuid.Nil {
+		httpError(w, http.StatusBadRequest, "requested_by required (client-generated UUID)")
+		return
+	}
 	occurredOn, err := time.Parse("2006-01-02", req.OccurredOn)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "occurred_on must be YYYY-MM-DD")
@@ -91,9 +98,7 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		ID: req.ID, GroupID: groupID, Kind: req.Kind, PayerID: req.PayerID,
 		Counterparty: req.Counterparty, TotalAmount: req.TotalAmount,
 		SplitRule: req.SplitRule.toDomain(), Participants: req.Participants, Memo: req.Memo,
-		// CreatedBy is hardwired to PayerID for now, conflating "who recorded the
-		// entry" with "who paid" — placeholder pending real auth.
-		OccurredOn: occurredOn, CreatedBy: req.PayerID,
+		OccurredOn: occurredOn, CreatedBy: req.RequestedBy,
 		IdempotencyKey: key, RequestHash: requestHash,
 	})
 

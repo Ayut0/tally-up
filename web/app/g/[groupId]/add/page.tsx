@@ -93,6 +93,10 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
     // rejects the same key replayed with a different payload as a 422.
     const payload = {
       payer_id: payerId,
+      // Who is submitting this form, not who paid — may differ from
+      // payerId, which the user can change. Falls back to payerId if this
+      // browser has no remembered identity in the group.
+      requested_by: getIdentity(groupId) ?? payerId,
       total_amount: total,
       memo: memo.trim() || undefined,
       occurred_on: occurredOn,

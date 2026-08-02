@@ -91,7 +91,7 @@ func TestEdit_Endpoint(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"id": uuid.New(), "reversal_entry_id": uuid.New(),
-		"kind": "expense", "payer_id": yuto, "total_amount": 9000,
+		"kind": "expense", "payer_id": yuto, "requested_by": yuto, "total_amount": 9000,
 		"split_rule":   map[string]any{"type": "equal"},
 		"participants": []uuid.UUID{yuto, memA},
 		"occurred_on":  "2026-07-05",
@@ -125,6 +125,121 @@ func TestEdit_Endpoint(t *testing.T) {
 	}
 }
 
+// payer_id and created_by are deliberately separate: memA can record an
+// expense yuto paid for. The replacement entry and its reversal must both be
+// attributed to memA (the one editing), never to yuto (the payer).
+//
+// Asserted via direct SQL rather than GET /entries: a reversal's
+// split_rule.type is the literal string "reversal", which the OpenAPI
+// SplitRule union (equal/exact/shares/percent only) does not accept — a
+// pre-existing contract gap, out of scope here, that the list endpoint's
+// response validation would otherwise trip on.
+func TestEdit_Endpoint_AttributesToRequester(t *testing.T) {
+	srv, s := newTestServer(t)
+	entryID := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(entryID)) // yuto pays 12000, 3-way
+
+	newID, revID := uuid.New(), uuid.New()
+	body, _ := json.Marshal(map[string]any{
+		"id": newID, "reversal_entry_id": revID,
+		"kind": "expense", "payer_id": yuto, "requested_by": memA, "total_amount": 9000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	req, _ := http.NewRequest("PUT",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, entryID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		rb, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status %d, body %s", resp.StatusCode, rb)
+	}
+
+	rows, err := s.Pool.Query(context.Background(),
+		`SELECT id, created_by FROM entries WHERE id = $1 OR id = $2`, newID, revID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	byID := map[uuid.UUID]uuid.UUID{}
+	for rows.Next() {
+		var id, createdBy uuid.UUID
+		if err := rows.Scan(&id, &createdBy); err != nil {
+			t.Fatal(err)
+		}
+		byID[id] = createdBy
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if got := byID[newID]; got != memA {
+		t.Fatalf("replacement created_by = %s, want requester %s (payer is %s)", got, memA, yuto)
+	}
+	if got := byID[revID]; got != memA {
+		t.Fatalf("reversal created_by = %s, want requester %s (payer is %s)", got, memA, yuto)
+	}
+}
+
+// Same backdoor as create's: an outsider named as requested_by must not
+// bypass group membership just because they're not the payer or a participant.
+func TestEdit_Endpoint_NonMemberRequesterIs422(t *testing.T) {
+	srv, _ := newTestServer(t)
+	entryID := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(entryID))
+	outsider := uuid.New()
+
+	body, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "reversal_entry_id": uuid.New(),
+		"kind": "expense", "payer_id": yuto, "requested_by": outsider, "total_amount": 9000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	req, _ := http.NewRequest("PUT",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, entryID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		rb, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status %d, body %s, want 422", resp.StatusCode, rb)
+	}
+}
+
+func TestEdit_Endpoint_MissingRequestedByIs400(t *testing.T) {
+	srv, _ := newTestServer(t)
+	entryID := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(entryID))
+
+	body, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "reversal_entry_id": uuid.New(),
+		"kind": "expense", "payer_id": yuto, "total_amount": 9000,
+		"split_rule":   map[string]any{"type": "equal"},
+		"participants": []uuid.UUID{yuto, memA},
+		"occurred_on":  "2026-07-05",
+	})
+	req, _ := http.NewRequest("PUT",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s", gID, entryID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		rb, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status %d, body %s, want 400", resp.StatusCode, rb)
+	}
+}
+
 // The two correction endpoints hand back different pointers, and the names are
 // deliberately not interchangeable: a reversal names the entry it retires
 // (reverses_id), while an edit's replacement names the reversal that retired
@@ -146,7 +261,7 @@ func TestCorrectionAcks_FieldNames(t *testing.T) {
 	post(t, srv, uuid.New(), expenseBody(edited))
 	editBody, _ := json.Marshal(map[string]any{
 		"id": uuid.New(), "reversal_entry_id": uuid.New(),
-		"kind": "expense", "payer_id": yuto, "total_amount": 9000,
+		"kind": "expense", "payer_id": yuto, "requested_by": yuto, "total_amount": 9000,
 		"split_rule":   map[string]any{"type": "equal"},
 		"participants": []uuid.UUID{yuto, memA},
 		"occurred_on":  "2026-07-05",

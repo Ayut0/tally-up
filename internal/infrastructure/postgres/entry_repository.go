@@ -101,10 +101,13 @@ func insertEntryAndPostings(ctx context.Context, q *sqlc.Queries, in entry.Input
 	return *seq, nil
 }
 
-// touchedMembers returns payer, participants, and the optional counterparty
-// as one slice — everyone the entry's membership check must cover.
+// touchedMembers returns payer, recorder, participants, and the optional
+// counterparty as one slice — everyone the entry's membership check must
+// cover. CreatedBy is independent of payer_id and participants (b can record
+// a's expense), so it needs its own membership check rather than riding
+// along on theirs.
 func touchedMembers(in entry.Input) []uuid.UUID {
-	touched := append([]uuid.UUID{in.PayerID}, in.Participants...)
+	touched := append([]uuid.UUID{in.PayerID, in.CreatedBy}, in.Participants...)
 	if in.Counterparty != nil {
 		touched = append(touched, *in.Counterparty)
 	}

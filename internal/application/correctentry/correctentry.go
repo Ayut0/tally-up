@@ -32,6 +32,7 @@ type EditCommand struct {
 	OriginalID     uuid.UUID
 	ReversalID     uuid.UUID
 	ID             uuid.UUID
+	RequestedBy    uuid.UUID
 	Kind           entry.Kind
 	PayerID        uuid.UUID
 	Counterparty   *uuid.UUID
@@ -102,7 +103,7 @@ func (s *Service) Edit(ctx context.Context, cmd EditCommand) (Result, error) {
 		ID: cmd.ID, GroupID: cmd.GroupID, Kind: cmd.Kind, PayerID: cmd.PayerID,
 		Counterparty: cmd.Counterparty, TotalAmount: cmd.TotalAmount,
 		SplitRule: splitJSON, Participants: participants, Memo: cmd.Memo,
-		OccurredOn: cmd.OccurredOn, CreatedBy: cmd.PayerID,
+		OccurredOn: cmd.OccurredOn, CreatedBy: cmd.RequestedBy,
 	}, postings)
 	if err != nil {
 		s.releaseGate(ctx, cmd.IdempotencyKey)

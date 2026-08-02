@@ -107,6 +107,10 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "id and reversal_entry_id required")
 		return
 	}
+	if req.RequestedBy == uuid.Nil {
+		httpError(w, http.StatusBadRequest, "requested_by required (client-generated UUID)")
+		return
+	}
 	occurredOn, err := time.Parse("2006-01-02", req.OccurredOn)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "occurred_on must be YYYY-MM-DD")
@@ -115,7 +119,7 @@ func (s *Server) handleEditEntry(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.corrections.Edit(r.Context(), correctentry.EditCommand{
 		GroupID: groupID, OriginalID: originalID, ReversalID: req.ReversalID,
-		ID: req.ID, Kind: req.Kind, PayerID: req.PayerID, Counterparty: req.Counterparty,
+		ID: req.ID, RequestedBy: req.RequestedBy, Kind: req.Kind, PayerID: req.PayerID, Counterparty: req.Counterparty,
 		TotalAmount: req.TotalAmount, SplitRule: req.SplitRule.toDomain(), Participants: req.Participants,
 		Memo: req.Memo, OccurredOn: occurredOn,
 		IdempotencyKey: key, RequestHash: requestHash,
