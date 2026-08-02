@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiError, addEntry } from "@/lib/api";
@@ -11,6 +11,7 @@ import { SplitMode, buildSplitRule, previewShares } from "@/lib/split";
 import { generateUuidV7 } from "@/lib/uuidv7";
 import { useGroup } from "./useGroup";
 
+type GroupRecord = components["schemas"]["GroupRecord"];
 type SplitRule = components["schemas"]["SplitRule"];
 
 const SPLIT_TABS: { mode: SplitRule["type"]; label: string }[] = [
@@ -22,12 +23,30 @@ const SPLIT_TABS: { mode: SplitRule["type"]; label: string }[] = [
 
 export default function AddExpensePage() {
   const { groupId } = useParams<{ groupId: string }>();
-  const router = useRouter();
   const { group, error: groupError } = useGroup(groupId);
 
-  const [payerId, setPayerId] = useState("");
-  const [participants, setParticipants] = useState<Set<string>>(new Set());
-  const defaultsAppliedRef = useRef(false);
+  if (groupError) {
+    return <p className="p-6 text-sm text-red-600 dark:text-red-400">{groupError}</p>;
+  }
+  if (!group) {
+    return <p className="p-6 text-sm text-zinc-500">Loading…</p>;
+  }
+
+  return <AddExpenseForm groupId={groupId} group={group} />;
+}
+
+/**
+ * Only ever mounts once `group` is loaded, so its defaults (payer,
+ * participants) can come straight from lazy useState initializers reading
+ * `group` directly — no effect needed to "apply defaults once they arrive".
+ */
+function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecord }) {
+  const router = useRouter();
+
+  const [payerId, setPayerId] = useState(() => getIdentity(groupId) ?? group.members[0]?.id ?? "");
+  const [participants, setParticipants] = useState<Set<string>>(
+    () => new Set(group.members.map((m) => m.id)),
+  );
 
   const [totalInput, setTotalInput] = useState("");
   const [mode, setMode] = useState<SplitRule["type"]>(SplitMode.Equal);
@@ -39,20 +58,6 @@ export default function AddExpensePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submissionRef = useRef<{ id: string; key: string; signature: string } | null>(null);
-
-  useEffect(() => {
-    if (!group || defaultsAppliedRef.current) return;
-    defaultsAppliedRef.current = true;
-    setParticipants(new Set(group.members.map((m) => m.id)));
-    setPayerId(getIdentity(groupId) ?? group.members[0]?.id ?? "");
-  }, [group, groupId]);
-
-  if (groupError) {
-    return <p className="p-6 text-sm text-red-600 dark:text-red-400">{groupError}</p>;
-  }
-  if (!group) {
-    return <p className="p-6 text-sm text-zinc-500">Loading…</p>;
-  }
 
   const participantsArray = [...participants];
   const total = Number(totalInput);

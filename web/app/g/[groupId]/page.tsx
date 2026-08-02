@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { EntryKind } from "@/lib/entry";
@@ -11,25 +11,22 @@ import { useGroupData } from "./useGroupData";
 export default function GroupPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const { group, balance, entries, error } = useGroupData(groupId);
-  // undefined = "not checked yet" — deferred to an effect (not a useState
-  // initializer) so the server render, which has no localStorage, never
-  // disagrees with the client's first render.
-  const [memberId, setMemberId] = useState<string | null | undefined>(undefined);
-  // No effect needed: `window` genuinely doesn't exist during the server
-  // render, but on the client's very first (hydration) render it already
-  // does, so this is correct on paint one — suppressHydrationWarning below
-  // just tells React that mismatch against the server markup is expected.
+  // No effect needed: useGroupData's query never resolves during SSR, so
+  // `group` is always falsy on the server and on the client's first
+  // (hydration) render — the branch below that reads `memberId` is
+  // unreachable until well after hydration, so there's nothing for this
+  // lazy initializer's client-only value to mismatch against.
+  const [memberId, setMemberId] = useState(() => getIdentity(groupId));
+  // Same reasoning applies here: `window` doesn't exist during the server
+  // render, but that only matters if this text is part of the SSR output,
+  // and it never is (gated behind the same `!group` check below).
   const inviteUrl = typeof window === "undefined" ? "" : window.location.href;
-
-  useEffect(() => {
-    setMemberId(getIdentity(groupId));
-  }, [groupId]);
 
   if (error) {
     return <p className="p-6 text-sm text-red-600 dark:text-red-400">{error}</p>;
   }
 
-  if (!group || memberId === undefined) {
+  if (!group) {
     return <p className="p-6 text-sm text-zinc-500">Loading…</p>;
   }
 
