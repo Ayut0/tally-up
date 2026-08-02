@@ -84,6 +84,30 @@ func TestReverse_ReplayIdempotent(t *testing.T) {
 	}
 }
 
+// Same backdoor as create/edit: an outsider named as requested_by on the
+// bare reverse endpoint must not bypass group membership.
+func TestReverse_Endpoint_NonMemberRequesterIs422(t *testing.T) {
+	srv, _ := newTestServer(t)
+	entryID := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(entryID))
+	outsider := uuid.New()
+
+	body, _ := json.Marshal(map[string]any{"id": uuid.New(), "requested_by": outsider})
+	req, _ := http.NewRequest("POST",
+		srv.URL+fmt.Sprintf("/groups/%s/entries/%s/reverse", gID, entryID),
+		bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", uuid.New().String())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		rb, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status %d, body %s, want 422", resp.StatusCode, rb)
+	}
+}
+
 func TestEdit_Endpoint(t *testing.T) {
 	srv, s := newTestServer(t)
 	entryID := uuid.New()

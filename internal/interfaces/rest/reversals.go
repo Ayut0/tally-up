@@ -65,6 +65,8 @@ func (s *Server) handleReverseEntry(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, entry.ErrNotReversible):
 		httpError(w, http.StatusUnprocessableEntity, err.Error())
+	case errors.Is(err, group.ErrNotMember):
+		httpError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.As(err, &gateErr):
 		httpError(w, http.StatusInternalServerError, "idempotency gate failed")
 	case err != nil:
