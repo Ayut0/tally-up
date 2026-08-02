@@ -170,6 +170,9 @@ model EntryRequestCommon {
   /** Client-generated UUIDv7. Required — the server does not mint entry ids. */
   id: Uuid;
 
+  /** Which member is recording this. v1 has no authenticated identity. */
+  requested_by: Uuid;
+
   payer_id: Uuid;
 
   /** Minor currency units. Must be in `(0, 100_000_000_000]`. */

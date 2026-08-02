@@ -604,6 +604,7 @@ components:
       type: object
       required:
         - id
+        - requested_by
         - payer_id
         - total_amount
         - occurred_on
@@ -612,6 +613,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        requested_by:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Which member is recording this. v1 has no authenticated identity.
         payer_id:
           $ref: '#/components/schemas/Uuid'
         total_amount:
@@ -648,6 +653,7 @@ components:
       type: object
       required:
         - id
+        - requested_by
         - payer_id
         - total_amount
         - occurred_on
@@ -660,6 +666,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        requested_by:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Which member is recording this. v1 has no authenticated identity.
         payer_id:
           $ref: '#/components/schemas/Uuid'
         total_amount:
@@ -687,6 +697,7 @@ components:
       type: object
       required:
         - id
+        - requested_by
         - payer_id
         - total_amount
         - occurred_on
@@ -698,6 +709,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        requested_by:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Which member is recording this. v1 has no authenticated identity.
         payer_id:
           $ref: '#/components/schemas/Uuid'
         total_amount:
@@ -831,6 +846,7 @@ components:
       type: object
       required:
         - id
+        - requested_by
         - payer_id
         - total_amount
         - occurred_on
@@ -842,6 +858,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        requested_by:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Which member is recording this. v1 has no authenticated identity.
         payer_id:
           $ref: '#/components/schemas/Uuid'
         total_amount:
@@ -866,6 +886,7 @@ components:
       type: object
       required:
         - id
+        - requested_by
         - payer_id
         - total_amount
         - occurred_on
@@ -876,6 +897,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Uuid'
           description: Client-generated UUIDv7. Required — the server does not mint entry ids.
+        requested_by:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Which member is recording this. v1 has no authenticated identity.
         payer_id:
           $ref: '#/components/schemas/Uuid'
         total_amount:

@@ -247,6 +247,8 @@ export interface components {
         EntryRequestCommon: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
             id: components["schemas"]["Uuid"];
+            /** @description Which member is recording this. v1 has no authenticated identity. */
+            requested_by: components["schemas"]["Uuid"];
             payer_id: components["schemas"]["Uuid"];
             /**
              * Format: int64
@@ -281,6 +283,8 @@ export interface components {
         ExpenseEdit: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
             id: components["schemas"]["Uuid"];
+            /** @description Which member is recording this. v1 has no authenticated identity. */
+            requested_by: components["schemas"]["Uuid"];
             payer_id: components["schemas"]["Uuid"];
             /**
              * Format: int64
@@ -303,6 +307,8 @@ export interface components {
         ExpenseEntry: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
             id: components["schemas"]["Uuid"];
+            /** @description Which member is recording this. v1 has no authenticated identity. */
+            requested_by: components["schemas"]["Uuid"];
             payer_id: components["schemas"]["Uuid"];
             /**
              * Format: int64
@@ -379,6 +385,8 @@ export interface components {
         SettlementEdit: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
             id: components["schemas"]["Uuid"];
+            /** @description Which member is recording this. v1 has no authenticated identity. */
+            requested_by: components["schemas"]["Uuid"];
             payer_id: components["schemas"]["Uuid"];
             /**
              * Format: int64
@@ -405,6 +413,8 @@ export interface components {
         SettlementEntry: {
             /** @description Client-generated UUIDv7. Required — the server does not mint entry ids. */
             id: components["schemas"]["Uuid"];
+            /** @description Which member is recording this. v1 has no authenticated identity. */
+            requested_by: components["schemas"]["Uuid"];
             payer_id: components["schemas"]["Uuid"];
             /**
              * Format: int64

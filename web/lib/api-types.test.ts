@@ -39,6 +39,7 @@ describe("generated API types (spec/main.tsp -> spec/openapi.yaml)", () => {
     const settlement: components["schemas"]["CreateEntryRequest"] = {
       kind: "settlement",
       id: "11111111-1111-1111-1111-111111111111",
+      requested_by: "22222222-2222-2222-2222-222222222222",
       payer_id: "22222222-2222-2222-2222-222222222222",
       counterparty: "33333333-3333-3333-3333-333333333333",
       total_amount: 4000,

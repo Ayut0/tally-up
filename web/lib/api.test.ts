@@ -241,6 +241,7 @@ describe("createGroup / addEntry", () => {
     const entry = {
       kind: "settlement" as const,
       id: "e1",
+      requested_by: "p1",
       payer_id: "p1",
       counterparty: "p2",
       total_amount: 4000,

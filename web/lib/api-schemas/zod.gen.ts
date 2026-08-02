@@ -107,6 +107,7 @@ export const zEntryAck = z.object({
  */
 export const zEntryRequestCommon = z.object({
     id: zUuid,
+    requested_by: zUuid,
     payer_id: zUuid,
     total_amount: z.number().int(),
     memo: z.string().optional(),
@@ -115,6 +116,7 @@ export const zEntryRequestCommon = z.object({
 
 export const zExpenseEdit = z.object({
     id: zUuid,
+    requested_by: zUuid,
     payer_id: zUuid,
     total_amount: z.number().int(),
     memo: z.string().optional(),
@@ -130,6 +132,7 @@ export const zExpenseEdit = z.object({
  */
 export const zExpenseEntry = z.object({
     id: zUuid,
+    requested_by: zUuid,
     payer_id: zUuid,
     total_amount: z.number().int(),
     memo: z.string().optional(),
@@ -219,6 +222,7 @@ export const zReverseEntryRequest = z.object({
 
 export const zSettlementEdit = z.object({
     id: zUuid,
+    requested_by: zUuid,
     payer_id: zUuid,
     total_amount: z.number().int(),
     memo: z.string().optional(),
@@ -246,6 +250,7 @@ export const zEditEntryRequest = z.discriminatedUnion('kind', [
  */
 export const zSettlementEntry = z.object({
     id: zUuid,
+    requested_by: zUuid,
     payer_id: zUuid,
     total_amount: z.number().int(),
     memo: z.string().optional(),

@@ -39,7 +39,7 @@ seed: ## Insert one member/group/membership row so there's something to POST ent
 smoke: ## POST one expense against a running `make run` server (run `make seed` first)
 	curl -s -X POST http://localhost:$(PORT)/groups/$(SEED_GROUP_ID)/entries \
 		-H "Idempotency-Key: $$(uuidgen)" \
-		-d '{"id":"'$$(uuidgen)'","kind":"expense","payer_id":"$(SEED_MEMBER_ID)","total_amount":1000,"split_rule":{"type":"equal"},"participants":["$(SEED_MEMBER_ID)"],"memo":"test","occurred_on":"2026-07-17"}'
+		-d '{"id":"'$$(uuidgen)'","kind":"expense","payer_id":"$(SEED_MEMBER_ID)","requested_by":"$(SEED_MEMBER_ID)","total_amount":1000,"split_rule":{"type":"equal"},"participants":["$(SEED_MEMBER_ID)"],"memo":"test","occurred_on":"2026-07-17"}'
 	@echo
 
 test: ## Run the full test suite against the local Postgres container (race detector, sequential packages)

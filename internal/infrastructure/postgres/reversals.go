@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"tallyup/internal/domain/entry"
+	"tallyup/internal/domain/group"
 	"tallyup/internal/domain/ledger"
 	"tallyup/internal/infrastructure/postgres/sqlc"
 )
@@ -36,6 +37,19 @@ func reverseWithinTx(ctx context.Context, q *sqlc.Queries, groupID, originalID, 
 	}
 	if alreadyReversed {
 		return 0, entry.ErrAlreadyReversed
+	}
+
+	// requestedBy is independent of the original entry's payer and
+	// participants (b can record a's expense, and c can later reverse it), so
+	// it needs its own membership check rather than inheriting theirs.
+	memberCount, err := q.CountGroupMembers(ctx, sqlc.CountGroupMembersParams{
+		GroupID: groupID, MemberIds: []uuid.UUID{requestedBy},
+	})
+	if err != nil {
+		return 0, err
+	}
+	if memberCount != 1 {
+		return 0, group.ErrNotMember
 	}
 
 	seq, err := q.InsertReversalEntry(ctx, sqlc.InsertReversalEntryParams{
