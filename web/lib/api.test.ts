@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { zEntryAck } from "./api-schemas/zod.gen";
-import { addEntry, createGroup, getBalance, getGroup, listEntries, postIdempotent } from "./api";
+import {
+  addEntry,
+  createGroup,
+  getBalance,
+  getGroup,
+  getSettlePlan,
+  listEntries,
+  postIdempotent,
+} from "./api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -27,6 +35,8 @@ function bodyText(init: RequestInit | undefined): string {
 // which are never zod-parsed.
 const ENTRY_ID = "018f4c9e-0000-7000-8000-000000000001";
 const GROUP_ID = "018f4c9e-0000-7000-8000-000000000002";
+const MEMBER_A = "018f4c9e-0000-7000-8000-00000000000a";
+const MEMBER_B = "018f4c9e-0000-7000-8000-00000000000b";
 
 describe("postIdempotent", () => {
   beforeEach(() => {
@@ -210,6 +220,30 @@ describe("getBalance / listEntries", () => {
     await listEntries("g1");
 
     expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8080/groups/g1/entries");
+  });
+});
+
+describe("getSettlePlan", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("GETs the group's settle plan and returns the parsed body", async () => {
+    const body = { transfers: [{ from: MEMBER_A, to: MEMBER_B, amount: 4000 }], as_of_seq: 7 };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const plan = await getSettlePlan("g1");
+
+    expect(plan).toEqual(body);
+    expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8080/groups/g1/settle-plan");
+  });
+
+  it("throws ApiError when a 200 body fails contract validation", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { transfers: [] /* missing as_of_seq */ }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getSettlePlan("g1")).rejects.toMatchObject({ status: 200 });
   });
 });
 

@@ -6,6 +6,7 @@ import {
   zEntryList,
   zErrorBody,
   zGroupRecord,
+  zSettlePlan,
 } from "./api-schemas/zod.gen";
 
 /** Thrown for any non-2xx response, or once postIdempotent's retries are exhausted (status 0). */
@@ -123,6 +124,11 @@ export function getGroup(groupId: string): Promise<components["schemas"]["GroupR
 /** Fetches every member's current balance, plus the ledger seq those balances reflect. */
 export function getBalance(groupId: string): Promise<components["schemas"]["BalanceSnapshot"]> {
   return getJSON(`/groups/${groupId}/balance`, zBalanceSnapshot);
+}
+
+/** Fetches the proposed minimal transfers that settle the group up, recomputed from current balances on every call. */
+export function getSettlePlan(groupId: string): Promise<components["schemas"]["SettlePlan"]> {
+  return getJSON(`/groups/${groupId}/settle-plan`, zSettlePlan);
 }
 
 /** Pages the ledger in seq order; pass the highest seq seen as `afterSeq` to poll for new entries. */
