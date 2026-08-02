@@ -57,15 +57,15 @@ export default function AddExpensePage() {
   const participantsArray = [...participants];
   const total = Number(totalInput);
   const totalValid = totalInput.trim() !== "" && Number.isInteger(total) && total > 0;
-  const rule = buildSplitRule(mode, participantsArray, {
+  const result = buildSplitRule(mode, participantsArray, {
     total: totalValid ? total : undefined,
     amounts,
     weights,
   });
-  const ruleError = typeof rule === "string" ? rule : null;
+  const ruleError = result.ok ? null : result.error;
   const preview =
-    typeof rule !== "string" && totalValid ? previewShares(total, rule, participantsArray) : null;
-  const canSubmit = payerId !== "" && participantsArray.length > 0 && totalValid && !ruleError;
+    result.ok && totalValid ? previewShares(total, result.rule, participantsArray) : null;
+  const canSubmit = payerId !== "" && participantsArray.length > 0 && totalValid && result.ok;
 
   function toggleParticipant(memberId: string) {
     setParticipants((prev) => {
@@ -78,8 +78,7 @@ export default function AddExpensePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (typeof rule === "string" || !totalValid || payerId === "" || participantsArray.length === 0)
-      return;
+    if (!result.ok || !totalValid || payerId === "" || participantsArray.length === 0) return;
     if (submitting) return;
 
     // Everything but `id` — the part the server's idempotency gate compares
@@ -92,7 +91,7 @@ export default function AddExpensePage() {
       total_amount: total,
       memo: memo.trim() || undefined,
       occurred_on: occurredOn,
-      split_rule: rule,
+      split_rule: result.rule,
       participants: participantsArray,
     };
     const signature = JSON.stringify(payload);

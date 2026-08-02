@@ -24,40 +24,43 @@ type BuildInputs = {
   weights?: Record<string, number>;
 };
 
-/** Builds a SplitRule from form state, or returns a validation error string. */
+export type BuildSplitRuleResult = { ok: true; rule: SplitRule } | { ok: false; error: string };
+
+/** Builds a SplitRule from form state, or a validation error. */
 export function buildSplitRule(
   mode: SplitRule["type"],
   participants: string[],
   inputs: BuildInputs,
-): SplitRule | string {
+): BuildSplitRuleResult {
   switch (mode) {
     case SplitMode.Equal:
-      return { type: SplitMode.Equal };
+      return { ok: true, rule: { type: SplitMode.Equal } };
     case SplitMode.Exact: {
       const amounts = pick(inputs.amounts, participants);
-      if (typeof amounts === "string") return amounts;
+      if (typeof amounts === "string") return { ok: false, error: amounts };
       if (Object.values(amounts).some((v) => v < 0 || !Number.isInteger(v)))
-        return "amounts must be whole yen, and none may be negative";
-      if (inputs.total === undefined) return "total amount required";
+        return { ok: false, error: "amounts must be whole yen, and none may be negative" };
+      if (inputs.total === undefined) return { ok: false, error: "total amount required" };
       const sum = Object.values(amounts).reduce((a, b) => a + b, 0);
-      if (sum !== inputs.total) return `amounts sum to ¥${sum}, total is ¥${inputs.total}`;
-      return { type: SplitMode.Exact, amounts };
+      if (sum !== inputs.total)
+        return { ok: false, error: `amounts sum to ¥${sum}, total is ¥${inputs.total}` };
+      return { ok: true, rule: { type: SplitMode.Exact, amounts } };
     }
     case SplitMode.Shares: {
       const weights = pick(inputs.weights, participants);
-      if (typeof weights === "string") return weights;
+      if (typeof weights === "string") return { ok: false, error: weights };
       if (Object.values(weights).some((v) => v <= 0 || !Number.isInteger(v)))
-        return "shares must be positive whole numbers";
-      return { type: SplitMode.Shares, weights };
+        return { ok: false, error: "shares must be positive whole numbers" };
+      return { ok: true, rule: { type: SplitMode.Shares, weights } };
     }
     case SplitMode.Percent: {
       const weights = pick(inputs.weights, participants);
-      if (typeof weights === "string") return weights;
+      if (typeof weights === "string") return { ok: false, error: weights };
       if (Object.values(weights).some((v) => v <= 0 || !Number.isInteger(v)))
-        return "percentages must be positive whole numbers";
+        return { ok: false, error: "percentages must be positive whole numbers" };
       const sum = Object.values(weights).reduce((a, b) => a + b, 0);
-      if (sum !== 100) return `percentages sum to ${sum}, must be 100`;
-      return { type: SplitMode.Percent, weights };
+      if (sum !== 100) return { ok: false, error: `percentages sum to ${sum}, must be 100` };
+      return { ok: true, rule: { type: SplitMode.Percent, weights } };
     }
   }
 }
