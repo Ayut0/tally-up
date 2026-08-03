@@ -81,3 +81,38 @@ to happen — do not treat "your stated reason doesn't apply" as "therefore we
 proceed my way." The phrase "as I said" is the tell that a preference was
 overridden rather than heard, and by then the rework is already paid for.
 Offering a menu whose recommended option is my position is not the same as asking.
+
+## 2026-08-03 — A green local suite on a stale base says nothing about the merge
+
+**What happened:** I branched from `origin/main` for #123, and #159 merged five
+minutes later, adding a **required** `requested_by` to `EntryRequestCommon`. My
+worktree stayed green all the way through — tests, lint, typecheck, `next build`,
+and a full browser run — because `tsc` was checking against the `api-types.ts`
+that shipped with my stale base. CI, which builds the *merge* ref, failed on the
+first push. The advisory reviewer independently found the same defect and named
+the same fix.
+
+**Rule:** Local verification proves the branch compiles against the base it was
+cut from, not against what will land. Before calling a branch verified, check
+whether `main` moved: `git fetch && git merge-base --is-ancestor origin/main HEAD`.
+If it has, verify against the merge result rather than the branch.
+
+When rebasing is off the table (pushed branch, and
+[[feedback-ask-before-history-rewrite]] means the maintainer decides), the
+merge result is still reachable without touching history:
+
+```sh
+git worktree add --detach /tmp/mergecheck origin/main
+cd /tmp/mergecheck && git merge --no-ff --no-commit <branch>
+```
+
+That reproduces CI's merge ref exactly. Run the suite there — and if the change
+spans client and server, boot the server from that worktree too, so a new
+server-side requirement is *enforced* rather than assumed. Report those numbers
+explicitly as merge-result numbers; a PR body carrying pre-fix counts is a
+verification claim that has quietly gone stale, which the reviewer will (rightly)
+call out.
+
+**Corollary:** stale numbers in a PR body are their own defect. When a fix commit
+lands after the body was written, update the body — do not leave the reader to
+reconcile "49 passed" with a later comment saying 50.
