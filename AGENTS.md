@@ -108,7 +108,9 @@ this table still routes to the working ones — rename here once the local
 install catches up. Upstream's `code-review` and `implement` skills are
 deliberately not adopted: `code-review-guideline` stays in-repo (the CI
 reviewer reads it off a checkout) and `tdd` already covers the Implement
-phase.
+phase. `codebase-design` is also new upstream but isn't installed locally
+under any name yet — no routing row until it actually is, per the same
+"only route to what's invokable" rule as the pending renames above.
 
 ## Agent skills
 
