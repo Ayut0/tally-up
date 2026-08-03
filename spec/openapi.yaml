@@ -554,7 +554,6 @@ components:
         - kind
         - payer_id
         - total_amount
-        - split_rule
         - participants
         - occurred_on
         - created_by
@@ -581,7 +580,13 @@ components:
           type: integer
           format: int64
         split_rule:
-          $ref: '#/components/schemas/SplitRule'
+          allOf:
+            - $ref: '#/components/schemas/SplitRule'
+          description: |-
+            Absent for `kind: "settlement"` and `kind: "reversal"` — neither
+            derives its postings from a split rule (a settlement's come from
+            `payer_id`/`counterparty`, a reversal's are copied/negated from the
+            original), so there is no real value to report.
         participants:
           type: array
           items:

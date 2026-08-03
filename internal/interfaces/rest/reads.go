@@ -46,7 +46,7 @@ type entryResponse struct {
 	PayerID      uuid.UUID        `json:"payer_id"`
 	Counterparty *uuid.UUID       `json:"counterparty,omitempty"`
 	TotalAmount  int64            `json:"total_amount"`
-	SplitRule    json.RawMessage  `json:"split_rule"`
+	SplitRule    json.RawMessage  `json:"split_rule,omitempty"`
 	Participants []uuid.UUID      `json:"participants"`
 	Memo         *string          `json:"memo,omitempty"`
 	OccurredOn   string           `json:"occurred_on"`
@@ -56,13 +56,21 @@ type entryResponse struct {
 }
 
 func newEntryResponse(r entry.Record) entryResponse {
-	return entryResponse{
+	resp := entryResponse{
 		ID: r.ID, Seq: r.Seq, Kind: r.Kind, ReversesID: r.ReversesID,
 		PayerID: r.PayerID, Counterparty: r.Counterparty, TotalAmount: r.TotalAmount,
-		SplitRule: r.SplitRule, Participants: r.Participants, Memo: r.Memo,
+		Participants: r.Participants, Memo: r.Memo,
 		OccurredOn: r.OccurredOn, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt,
 		Postings: r.Postings,
 	}
+	// Only "expense" entries carry a real split rule (#160): settlement and
+	// reversal store a placeholder that isn't a SplitRule union member, so
+	// omitting it here — rather than echoing the placeholder — is what keeps
+	// this response a member of the (now-optional) wire field.
+	if r.Kind == entry.KindExpense {
+		resp.SplitRule = r.SplitRule
+	}
+	return resp
 }
 
 type entryListResponse struct {

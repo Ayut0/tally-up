@@ -115,7 +115,15 @@ model EntryRecord {
   payer_id: Uuid;
   counterparty?: Uuid;
   total_amount: int64;
-  split_rule: SplitRule;
+
+  /**
+   * Absent for `kind: "settlement"` and `kind: "reversal"` — neither
+   * derives its postings from a split rule (a settlement's come from
+   * `payer_id`/`counterparty`, a reversal's are copied/negated from the
+   * original), so there is no real value to report.
+   */
+  split_rule?: SplitRule;
+
   participants: Uuid[];
   memo?: string;
   occurred_on: CalendarDate;

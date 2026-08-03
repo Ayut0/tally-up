@@ -193,7 +193,7 @@ export const zEntryRecord = z.object({
     payer_id: zUuid,
     counterparty: zUuid.optional(),
     total_amount: z.number().int(),
-    split_rule: zSplitRule,
+    split_rule: zSplitRule.optional(),
     participants: z.array(zUuid),
     memo: z.string().optional(),
     occurred_on: zCalendarDate,
