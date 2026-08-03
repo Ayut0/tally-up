@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, addEntry, getGroup, getSettlePlan } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { todayLocal } from "@/lib/date";
+import { getIdentity } from "@/lib/identity";
 import { settlementFor, transferKey } from "@/lib/settle";
 import { generateUuidV7 } from "@/lib/uuidv7";
 
@@ -72,7 +73,14 @@ export function useRecordTransfer(groupId: string) {
         intent = { id: generateUuidV7(), key: generateUuidV7() };
         intents.current.set(key, intent);
       }
-      return addEntry(groupId, settlementFor(transfer, intent.id, todayLocal()), intent.key);
+      // Whoever is holding this browser recorded the payment, so the entry is
+      // theirs to undo (#146/#159) — not the payer's. Same fallback shape as
+      // add-expense: without a picked identity, attribute it to the payer.
+      // Near-unreachable here, since the group home gates on JoinPicker before
+      // it will show the link that reaches this screen.
+      const requestedBy = getIdentity(groupId) ?? transfer.from;
+      const record = { id: intent.id, requestedBy, occurredOn: todayLocal() };
+      return addEntry(groupId, settlementFor(transfer, record), intent.key);
     },
     onSuccess: (_ack, transfer) => {
       // Drop the intent: an identical transfer proposed again later is a new
