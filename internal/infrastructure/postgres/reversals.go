@@ -52,6 +52,12 @@ func reverseWithinTx(ctx context.Context, q *sqlc.Queries, groupID, originalID, 
 		return 0, group.ErrNotMember
 	}
 
+	// Correction is creator-only (#146): whoever recorded the entry, not the
+	// payer and not any group member, is the one who may reverse or edit it.
+	if original.CreatedBy != requestedBy {
+		return 0, entry.ErrNotCreator
+	}
+
 	seq, err := q.InsertReversalEntry(ctx, sqlc.InsertReversalEntryParams{
 		ID: reversalID, GroupID: groupID, ReversesID: &originalID, PayerID: original.PayerID,
 		Counterparty: original.Counterparty, TotalAmount: original.TotalAmount,

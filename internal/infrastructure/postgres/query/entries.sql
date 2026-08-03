@@ -45,7 +45,7 @@ ORDER BY entry_id, member_id;
 -- Locks the original entry against concurrent reversal attempts. FOR UPDATE
 -- serializes racers: the loser re-checks after the winner commits (row locks
 -- don't fire the append-only trigger — only real UPDATE/DELETE do).
-SELECT kind, payer_id, counterparty, total_amount, participants, occurred_on
+SELECT kind, payer_id, counterparty, total_amount, participants, occurred_on, created_by
 FROM entries WHERE id = $1 AND group_id = $2
 FOR UPDATE;
 

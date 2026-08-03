@@ -22,6 +22,7 @@ var (
 	ErrNotFound        = errors.New("entry not found in this group")
 	ErrAlreadyReversed = errors.New("entry already reversed")
 	ErrNotReversible   = errors.New("reversal entries cannot be reversed")
+	ErrNotCreator      = errors.New("only the member who recorded this entry may correct it")
 )
 
 // Kind is the entry's type. Go has no sum type, so this is the idiomatic
