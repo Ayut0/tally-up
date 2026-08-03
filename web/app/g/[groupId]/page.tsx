@@ -87,6 +87,14 @@ export default function GroupPage() {
             );
           })}
         </ul>
+        {/* Settling up is a destination, not a creation act, so it sits with
+            the balances it acts on rather than under the `+` (issue #157). */}
+        <Link
+          href={`/g/${groupId}/settle`}
+          className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+        >
+          Settle up →
+        </Link>
       </section>
 
       <section className="flex flex-col gap-2">
