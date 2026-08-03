@@ -234,7 +234,13 @@ export interface components {
             counterparty?: components["schemas"]["Uuid"];
             /** Format: int64 */
             total_amount: number;
-            split_rule: components["schemas"]["SplitRule"];
+            /**
+             * @description Absent for `kind: "settlement"` and `kind: "reversal"` — neither
+             *     derives its postings from a split rule (a settlement's come from
+             *     `payer_id`/`counterparty`, a reversal's are copied/negated from the
+             *     original), so there is no real value to report.
+             */
+            split_rule?: Omit<components["schemas"]["SplitRule"], "type">;
             participants: components["schemas"]["Uuid"][];
             memo?: string;
             occurred_on: components["schemas"]["CalendarDate"];

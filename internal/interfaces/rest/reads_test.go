@@ -128,3 +128,45 @@ func TestListEntries_Endpoint(t *testing.T) {
 		t.Fatalf("incremental fetch got %d entries, want 1", len(page.Entries))
 	}
 }
+
+// TestListEntries_SplitRuleOmittedForSettlementAndReversal covers #160:
+// settlement and reversal entries store a placeholder split_rule
+// ({"type":"settlement"} / {"type":"reversal"}) that isn't a member of the
+// SplitRule union, so echoing it verbatim in the list response fails
+// validatingHandler's OpenAPI check. The fix is to omit split_rule
+// entirely for those two kinds rather than invent union variants for a
+// placeholder.
+func TestListEntries_SplitRuleOmittedForSettlementAndReversal(t *testing.T) {
+	srv, _ := newTestServer(t)
+	expenseID := uuid.New()
+	post(t, srv, uuid.New(), expenseBody(expenseID))
+
+	settlement, _ := json.Marshal(map[string]any{
+		"id": uuid.New(), "kind": "settlement", "payer_id": memA, "requested_by": memA,
+		"counterparty": yuto, "total_amount": 4000, "occurred_on": "2026-07-05",
+	})
+	post(t, srv, uuid.New(), settlement)
+
+	postReverse(t, srv, uuid.New(), expenseID, uuid.New())
+
+	var page struct {
+		Entries []struct {
+			Kind      string          `json:"kind"`
+			SplitRule json.RawMessage `json:"split_rule"`
+		} `json:"entries"`
+	}
+	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/entries?after_seq=0", gID), &page)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d (want 200 — a settlement or reversal entry in the response must still pass OpenAPI validation)", resp.StatusCode)
+	}
+	if len(page.Entries) != 3 {
+		t.Fatalf("got %d entries, want 3: %+v", len(page.Entries), page.Entries)
+	}
+	for _, e := range page.Entries {
+		hasSplitRule := len(e.SplitRule) > 0
+		wantSplitRule := e.Kind == "expense"
+		if hasSplitRule != wantSplitRule {
+			t.Errorf("kind %s: split_rule present = %v, want %v (raw: %s)", e.Kind, hasSplitRule, wantSplitRule, e.SplitRule)
+		}
+	}
+}
