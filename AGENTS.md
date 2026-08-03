@@ -74,8 +74,10 @@ additionally route through the independent reviewer described in
 | --- | --- |
 | Delivering a unit of work end-to-end (issue, PR, or prompt) | `/address` (orchestrates the phases below) |
 | Turning an idea into scoped work | `to-prd` → `to-issues` |
+| Researching a question against primary sources before or during planning | `research` |
 | Charting or executing a large, multi-ticket effort | `wayfinder` — tickets tracked per [Wayfinding operations](docs/agents/issue-tracker.md#wayfinding-operations) |
 | Pressure-testing a plan against the domain | `grill-with-docs` |
+| Sharpening domain vocabulary or recording an architectural decision as you design | `domain-modeling` |
 | Triaging an incoming issue | `triage` |
 | Writing code or a bugfix | `tdd` |
 | Chasing a bug, test failure, or surprise | `diagnose` |
@@ -98,6 +100,17 @@ upstream skills. Propose an update when a task exposes a reusable convention,
 outdated guidance, or a recurring review finding (SHOULD); state in the
 report when maintenance was skipped for lack of generalizable learning (MUST
 — see [The cycle](#the-cycle)).
+
+**Known drift (as of 2026-08-03):** upstream has renamed `to-prd` →
+`to-spec`, `to-issues` → `to-tickets`, and `diagnose` → `diagnosing-bugs`;
+the local suite (`~/.agents/skills`) isn't updated to those names yet, so
+this table still routes to the working ones — rename here once the local
+install catches up. Upstream's `code-review` and `implement` skills are
+deliberately not adopted: `code-review-guideline` stays in-repo (the CI
+reviewer reads it off a checkout) and `tdd` already covers the Implement
+phase. `codebase-design` is also new upstream but isn't installed locally
+under any name yet — no routing row until it actually is, per the same
+"only route to what's invokable" rule as the pending renames above.
 
 ## Agent skills
 
