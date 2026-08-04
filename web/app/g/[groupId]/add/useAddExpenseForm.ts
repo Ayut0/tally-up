@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, addEntry } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { todayLocal } from "@/lib/date";
 import { EntryKind } from "@/lib/entry";
 import { canSubmitExpense, parseTotal } from "@/lib/expenseForm";
 import { getIdentity } from "@/lib/identity";
@@ -37,7 +38,7 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   const [amounts, setAmounts] = useState<Record<string, number>>({});
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [memo, setMemo] = useState("");
-  const [occurredOn, setOccurredOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [occurredOn, setOccurredOn] = useState(() => todayLocal());
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
