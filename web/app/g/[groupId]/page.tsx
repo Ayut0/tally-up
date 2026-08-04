@@ -87,14 +87,23 @@ export default function GroupPage() {
             );
           })}
         </ul>
-        {/* Settling up is a destination, not a creation act, so it sits with
-            the balances it acts on rather than under the `+` (issue #157). */}
-        <Link
-          href={`/g/${groupId}/settle`}
-          className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
-        >
-          Settle up →
-        </Link>
+        {/* Settling up and recording a payment are destinations, not creation
+            acts, so they sit with the balances they act on rather than under
+            the `+` (issue #157, #161). */}
+        <div className="flex gap-4">
+          <Link
+            href={`/g/${groupId}/settle`}
+            className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+          >
+            Settle up →
+          </Link>
+          <Link
+            href={`/g/${groupId}/record-payment`}
+            className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+          >
+            Record a payment →
+          </Link>
+        </div>
       </section>
 
       <section className="flex flex-col gap-2">
