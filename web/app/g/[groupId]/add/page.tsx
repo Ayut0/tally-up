@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { components } from "@/lib/api-types";
+import { parseTotal } from "@/lib/expenseForm";
+import { SplitSectionPrototype } from "./SplitSectionPrototype.prototype";
 import { useAddExpenseForm } from "./useAddExpenseForm";
 import { useGroup } from "./useGroup";
 
@@ -24,6 +26,10 @@ export default function AddExpensePage() {
 
 function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecord }) {
   const form = useAddExpenseForm(groupId, group);
+  const { total: prototypeTotal, valid: prototypeTotalValid } = parseTotal(form.totalInput);
+  const prototypeParticipantIds = form.memberRows.filter((row) => row.checked).map((row) => row.id);
+  const prototypeMemberName = (id: string) =>
+    group.members.find((m) => m.id === id)?.name ?? id;
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-6 p-6">
@@ -155,6 +161,12 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
             </ul>
           )}
         </div>
+
+        <SplitSectionPrototype
+          participantIds={prototypeParticipantIds}
+          memberName={prototypeMemberName}
+          total={prototypeTotalValid ? prototypeTotal : undefined}
+        />
 
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
