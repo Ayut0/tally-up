@@ -58,21 +58,34 @@ export default function SettlePage() {
                     ¥{transfer.amount.toLocaleString("ja-JP")}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => record(transfer)}
-                  // Without this every row's button is announced as the same
-                  // bare "Mark paid", with nothing to say which payment it
-                  // records.
-                  aria-label={`Mark paid: ${description}`}
-                  // Every row is disabled while any record is in flight, not
-                  // just this one: the plan has not been recomputed yet, so a
-                  // tap on another row would be acting on a stale proposal.
-                  disabled={recording}
-                  className="shrink-0 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
-                >
-                  {pendingKey === key ? "Recording…" : "Mark paid"}
-                </button>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => record(transfer)}
+                    // Without this every row's button is announced as the same
+                    // bare "Mark paid", with nothing to say which payment it
+                    // records.
+                    aria-label={`Mark paid: ${description}`}
+                    // Every row is disabled while any record is in flight, not
+                    // just this one: the plan has not been recomputed yet, so a
+                    // tap on another row would be acting on a stale proposal.
+                    disabled={recording}
+                    className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
+                  >
+                    {pendingKey === key ? "Recording…" : "Mark paid"}
+                  </button>
+                  {/* Escape hatch for a payment that isn't for this exact
+                      proposed amount — partial, rounded, or fronted (#161).
+                      Deep-links with payer/counterparty prefilled so only the
+                      amount needs typing. */}
+                  <Link
+                    href={`/g/${groupId}/record-payment?payer=${transfer.from}&counterparty=${transfer.to}`}
+                    aria-label={`Different amount: ${description}`}
+                    className="text-xs text-zinc-500 hover:underline dark:text-zinc-400"
+                  >
+                    Different amount →
+                  </Link>
+                </span>
               </li>
             );
           })}
