@@ -10,8 +10,10 @@ type BalanceSnapshot = components["schemas"]["BalanceSnapshot"];
 /**
  * Loads `groupId`'s members and current balances for the record-payment
  * form — the counterparty list needs balances to put creditors first. Same
- * query keys as `useGroupData`'s group/balance queries, so arriving here
- * from the group home or settle screen is cache-warm.
+ * query keys as `useGroupData`'s group/balance queries, so `group` is
+ * cache-warm arriving from either the group home or the settle screen; the
+ * settle screen's `useSettlePlan` never queries `balance`, so that one still
+ * does a fresh fetch either way.
  */
 export function useGroupAndBalance(groupId: string) {
   const groupQuery = useQuery<GroupRecord, ApiError>({
