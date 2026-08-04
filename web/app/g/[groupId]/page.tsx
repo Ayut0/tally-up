@@ -3,8 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { EntryKind } from "@/lib/entry";
+import { buildBalanceRows } from "@/lib/balance";
+import { buildHistoryRows } from "@/lib/history";
 import { getIdentity } from "@/lib/identity";
+import { BalanceList } from "./balanceList";
+import { HistoryList } from "./historyList";
 import { JoinPicker } from "./join";
 import { useGroupData } from "./useGroupData";
 
@@ -34,14 +37,8 @@ export default function GroupPage() {
     return <JoinPicker group={group} onPicked={setMemberId} />;
   }
 
-  const membersById = new Map(group.members.map((m) => [m.id, m]));
-  const balanceByMember = new Map((balance?.balances ?? []).map((b) => [b.member_id, b.balance]));
-  const reversedIds = new Set(
-    entries
-      .filter((e) => e.kind === EntryKind.Reversal && e.reverses_id)
-      .map((e) => e.reverses_id!),
-  );
-  const history = [...entries].reverse();
+  const balanceRows = buildBalanceRows(group.members, balance?.balances ?? []);
+  const historyRows = buildHistoryRows(group.members, entries);
 
   async function copyInviteLink() {
     await navigator.clipboard.writeText(inviteUrl);
@@ -61,84 +58,9 @@ export default function GroupPage() {
         </button>
       </header>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Balances</h2>
-        <ul className="flex flex-col gap-1">
-          {group.members.map((member) => {
-            const amount = balanceByMember.get(member.id) ?? 0;
-            return (
-              <li
-                key={member.id}
-                className="flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
-              >
-                <span className="text-base text-zinc-950 dark:text-zinc-50">{member.name}</span>
-                <span
-                  className={
-                    amount > 0
-                      ? "text-green-600 dark:text-green-400"
-                      : amount < 0
-                        ? "text-red-600 dark:text-red-400"
-                        : "text-zinc-500"
-                  }
-                >
-                  ¥{amount.toLocaleString("ja-JP")}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {/* Settling up and recording a payment are destinations, not creation
-            acts, so they sit with the balances they act on rather than under
-            the `+` (issue #157, #161). */}
-        <div className="flex gap-4">
-          <Link
-            href={`/g/${groupId}/settle`}
-            className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
-          >
-            Settle up →
-          </Link>
-          <Link
-            href={`/g/${groupId}/record-payment`}
-            className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
-          >
-            Record a payment →
-          </Link>
-        </div>
-      </section>
+      <BalanceList groupId={groupId} rows={balanceRows} />
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">History</h2>
-        {history.length === 0 ? (
-          <p className="text-sm text-zinc-500">No entries yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {history.map((entry) => {
-              const struck = entry.kind === EntryKind.Reversal || reversedIds.has(entry.id);
-              const payer = membersById.get(entry.payer_id)?.name ?? entry.payer_id;
-              return (
-                <li
-                  key={entry.id}
-                  className={`flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145] ${
-                    struck ? "line-through opacity-60" : ""
-                  }`}
-                >
-                  <span className="flex flex-col">
-                    <span className="text-sm text-zinc-950 dark:text-zinc-50">
-                      {entry.memo || entry.kind}
-                    </span>
-                    <span className="text-xs text-zinc-500">
-                      {payer} · {entry.occurred_on}
-                    </span>
-                  </span>
-                  <span className="text-sm text-zinc-950 dark:text-zinc-50">
-                    ¥{entry.total_amount.toLocaleString("ja-JP")}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      <HistoryList rows={historyRows} />
 
       <Link
         href={`/g/${groupId}/add`}
