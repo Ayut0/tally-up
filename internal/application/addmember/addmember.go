@@ -72,13 +72,13 @@ func (s *Service) AddMember(ctx context.Context, cmd Command) (Result, error) {
 	}
 
 	resp, err := s.Members.AddMember(ctx, cmd.IdempotencyKey, cmd.GroupID, name)
-	if err != nil {
-		// We own the pending row; free it so the client's retry isn't stuck
-		// behind the janitor. Best-effort — the janitor is the backstop.
-		if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
-			slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)
-		}
-		return Result{}, err
+	if err == nil {
+		return Result{Gate: entry.GateProceed, Body: resp}, nil
 	}
-	return Result{Gate: entry.GateProceed, Body: resp}, nil
+	// We own the pending row; free it so the client's retry isn't stuck
+	// behind the janitor. Best-effort — the janitor is the backstop.
+	if relErr := s.Gate.Release(ctx, cmd.IdempotencyKey); relErr != nil {
+		slog.Warn("release idempotency key", "key", cmd.IdempotencyKey, "err", relErr)
+	}
+	return Result{}, err
 }

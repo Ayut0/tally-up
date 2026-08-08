@@ -100,16 +100,22 @@ type pairwiseBalanceResponse struct {
 	Amount     int64     `json:"amount"`
 }
 
-type pairwiseBalancesResponse struct {
+// pairwiseBalanceListResponse is the whole HTTP response body; each item in
+// it is a pairwiseBalanceResponse — same "X" + "ListResponse" wrapper /
+// "X" + "Response" item convention as entryListResponse/entryResponse below,
+// rather than the singular/plural-only pairwiseBalanceResponse/
+// pairwiseBalancesResponse names this replaced (too easy to misread as the
+// same type).
+type pairwiseBalanceListResponse struct {
 	Balances []pairwiseBalanceResponse `json:"balances"`
 }
 
-func newPairwiseBalancesResponse(pairs []entry.PairwiseBalance) pairwiseBalancesResponse {
+func newPairwiseBalanceListResponse(pairs []entry.PairwiseBalance) pairwiseBalanceListResponse {
 	balances := make([]pairwiseBalanceResponse, len(pairs))
 	for i, p := range pairs {
 		balances[i] = pairwiseBalanceResponse{DebtorID: p.DebtorID, CreditorID: p.CreditorID, Amount: p.Amount}
 	}
-	return pairwiseBalancesResponse{Balances: balances}
+	return pairwiseBalanceListResponse{Balances: balances}
 }
 
 func (s *Server) handleGetPairwiseBalances(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +130,7 @@ func (s *Server) handleGetPairwiseBalances(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(newPairwiseBalancesResponse(pairs)); err != nil {
+	if err := json.NewEncoder(w).Encode(newPairwiseBalanceListResponse(pairs)); err != nil {
 		slog.Warn("write pairwise balances response", "err", err)
 	}
 }
