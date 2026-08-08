@@ -42,6 +42,14 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     () => new Set(group.members.map((m) => m.id)),
   );
   const [totalInput, setTotalInput] = useState("");
+  // Stays useState rather than folding into the useForm below: tried it —
+  // `mode` would still need adding to SplitFieldValues, a third useWatch,
+  // and `setMode` kept as a setValue(...) wrapper regardless, since the
+  // split tabs are <button onClick>, not inputs register() can bind to. Net
+  // 6 lines that way vs. 5 today, for identical behavior — no win. Keeping
+  // it separate also scopes RHF to the one thing it earns its keep for here
+  // (the Record-keyed amounts/weights below), not "wherever useForm happens
+  // to already be in scope."
   const [mode, setMode] = useState<SplitRule["type"]>(SplitMode.Equal);
   const { register, control, setValue } = useForm<SplitFieldValues>({
     defaultValues: { amounts: {}, weights: {} },
