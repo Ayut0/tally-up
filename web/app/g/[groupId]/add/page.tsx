@@ -112,8 +112,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
                     inputMode="numeric"
                     min={0}
                     step={1}
-                    value={row.amount}
-                    onChange={(e) => form.setAmount(row.id, Number(e.target.value))}
+                    {...form.registerAmount(row.id)}
                     className="w-24 rounded-lg border border-black/[.08] px-3 py-1 text-base dark:border-white/[.145] dark:bg-black"
                   />
                 </li>
@@ -131,8 +130,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
                     inputMode="numeric"
                     min={1}
                     step={1}
-                    value={row.weight}
-                    onChange={(e) => form.setWeight(row.id, Number(e.target.value))}
+                    {...form.registerWeight(row.id)}
                     className="w-24 rounded-lg border border-black/[.08] px-3 py-1 text-base dark:border-white/[.145] dark:bg-black"
                   />
                 </li>

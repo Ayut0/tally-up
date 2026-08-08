@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm, useWatch } from "react-hook-form";
 import { ApiError, addEntry } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { todayLocal } from "@/lib/date";
@@ -13,6 +14,13 @@ import { generateUuidV7 } from "@/lib/uuidv7";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
 type SplitRule = components["schemas"]["SplitRule"];
+
+// The dynamic, per-participant half of the split-mode section — the part
+// that's Record-keyed by member id and changes shape as participants are
+// toggled. Kept separate from `mode`/`total`/everything else, which stay
+// plain useState: RHF earns its keep specifically for this shape (#141),
+// not the rest of the form.
+type SplitFieldValues = { amounts: Record<string, number>; weights: Record<string, number> };
 
 const SPLIT_TABS: { mode: SplitRule["type"]; label: string }[] = [
   { mode: SplitMode.Equal, label: "Equal" },
@@ -35,8 +43,11 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   );
   const [totalInput, setTotalInput] = useState("");
   const [mode, setMode] = useState<SplitRule["type"]>(SplitMode.Equal);
-  const [amounts, setAmounts] = useState<Record<string, number>>({});
-  const [weights, setWeights] = useState<Record<string, number>>({});
+  const { register, control, setValue } = useForm<SplitFieldValues>({
+    defaultValues: { amounts: {}, weights: {} },
+  });
+  const amounts = useWatch({ control, name: "amounts" });
+  const weights = useWatch({ control, name: "weights" });
   const [memo, setMemo] = useState("");
   const [occurredOn, setOccurredOn] = useState(() => todayLocal());
 
@@ -54,11 +65,28 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   }
 
   function setAmount(memberId: string, value: number) {
-    setAmounts((prev) => ({ ...prev, [memberId]: value }));
+    setValue(`amounts.${memberId}`, value);
   }
 
   function setWeight(memberId: string, value: number) {
-    setWeights((prev) => ({ ...prev, [memberId]: value }));
+    setValue(`weights.${memberId}`, value);
+  }
+
+  // Uncontrolled bindings for page.tsx's real <input>s — register() on a
+  // dotted path per participant id, the Record-keyed dynamic field pattern
+  // #139 researched. `setAmount`/`setWeight` above are no longer used by
+  // page.tsx, but stay exported: per #138, this hook's state transitions are
+  // tested via renderHook, which can't drive register()'s DOM-bound
+  // onChange without fabricating an event object — an imperative setter is
+  // the legitimate way to exercise those transitions from a hook test. Both
+  // paths write the same underlying RHF form state, so `amounts`/`weights`
+  // (watched below) reflect either.
+  function registerAmount(memberId: string) {
+    return register(`amounts.${memberId}`, { valueAsNumber: true });
+  }
+
+  function registerWeight(memberId: string) {
+    return register(`weights.${memberId}`, { valueAsNumber: true });
   }
 
   function memberName(memberId: string): string {
@@ -169,8 +197,10 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     showWeightInputs: mode === SplitMode.Shares || mode === SplitMode.Percent,
     exactRows,
     setAmount,
+    registerAmount,
     weightRows,
     setWeight,
+    registerWeight,
     ruleError,
     previewRows,
     memo,
