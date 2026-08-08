@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { SplitModeSection } from "@/components/splitModeSection";
 import type { components } from "@/lib/api-types";
 import { useAddExpenseForm } from "./useAddExpenseForm";
 import { useGroup } from "./useGroup";
@@ -79,74 +80,18 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
           </ul>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Split</span>
-          <div className="flex gap-1 rounded-lg border border-black/[.08] p-1 dark:border-white/[.145]">
-            {form.splitTabs.map((tab) => (
-              <button
-                key={tab.mode}
-                type="button"
-                onClick={() => form.setMode(tab.mode)}
-                className={`flex-1 rounded-md px-2 py-1 text-sm font-medium transition-colors ${
-                  tab.active ? "bg-foreground text-background" : "text-zinc-700 dark:text-zinc-300"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {form.showExactInputs && (
-            <ul className="flex flex-col gap-1">
-              {form.exactRows.map((row) => (
-                <li key={row.id} className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-zinc-950 dark:text-zinc-50">{row.name}</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    {...form.registerAmount(row.id)}
-                    className="w-24 rounded-lg border border-black/[.08] px-3 py-1 text-base dark:border-white/[.145] dark:bg-black"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {form.showWeightInputs && (
-            <ul className="flex flex-col gap-1">
-              {form.weightRows.map((row) => (
-                <li key={row.id} className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-zinc-950 dark:text-zinc-50">{row.name}</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    step={1}
-                    {...form.registerWeight(row.id)}
-                    className="w-24 rounded-lg border border-black/[.08] px-3 py-1 text-base dark:border-white/[.145] dark:bg-black"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {form.ruleError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{form.ruleError}</p>
-          )}
-
-          {form.previewRows && (
-            <ul className="flex flex-col gap-1 rounded-lg bg-black/[.03] p-2 text-sm dark:bg-white/[.06]">
-              {form.previewRows.map((row) => (
-                <li key={row.id} className="flex items-center justify-between">
-                  <span className="text-zinc-700 dark:text-zinc-300">{row.name}</span>
-                  <span className="text-zinc-950 dark:text-zinc-50">{row.formattedShare}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <SplitModeSection
+          splitTabs={form.splitTabs}
+          setMode={form.setMode}
+          showExactInputs={form.showExactInputs}
+          exactRows={form.exactRows}
+          registerAmount={form.registerAmount}
+          showWeightInputs={form.showWeightInputs}
+          weightRows={form.weightRows}
+          registerWeight={form.registerWeight}
+          ruleError={form.ruleError}
+          previewRows={form.previewRows}
+        />
 
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
