@@ -90,7 +90,7 @@ func deleteMember(t *testing.T, srv *httptest.Server, memberID uuid.UUID) *http.
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return resp
 }
 
