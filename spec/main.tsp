@@ -152,6 +152,21 @@ model EntryList {
   entries: EntryRecord[];
 }
 
+/**
+ * One nonzero debt relationship between two members, derived from
+ * entries+postings: `debtor_id` owes `creditor_id` `amount`. `amount` is
+ * always positive; zero-net pairs are never returned.
+ */
+model PairwiseBalance {
+  debtor_id: Uuid;
+  creditor_id: Uuid;
+  amount: int64;
+}
+
+model PairwiseBalances {
+  balances: PairwiseBalance[];
+}
+
 /** One proposed payment in a settle-up plan. */
 model Transfer {
   from: Uuid;
@@ -408,6 +423,14 @@ op getBalance(@path group_id: Uuid): BalanceSnapshot | ReadErrors;
 @route("/groups/{group_id}/settle-plan")
 @get
 op getSettlePlan(@path group_id: Uuid): SettlePlan | ReadErrors;
+
+/**
+ * True "who owes whom" between every pair of members — distinct from
+ * `getSettlePlan`'s minimal-transfer proposal.
+ */
+@route("/groups/{group_id}/pairwise-balances")
+@get
+op getPairwiseBalances(@path group_id: Uuid): PairwiseBalances | ReadErrors;
 
 /**
  * Page the ledger in `seq` order. Poll by passing the highest `seq` seen as

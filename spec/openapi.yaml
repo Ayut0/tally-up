@@ -397,6 +397,37 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReverseEntryRequest'
+  /groups/{group_id}/pairwise-balances:
+    get:
+      operationId: getPairwiseBalances
+      description: |-
+        True "who owes whom" between every pair of members — distinct from
+        `getSettlePlan`'s minimal-transfer proposal.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairwiseBalances'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
   /groups/{group_id}/settle-plan:
     get:
       operationId: getSettlePlan
@@ -778,6 +809,33 @@ components:
           type: integer
           format: int64
       description: "One member's net position: positive = is owed, negative = owes."
+    PairwiseBalance:
+      type: object
+      required:
+        - debtor_id
+        - creditor_id
+        - amount
+      properties:
+        debtor_id:
+          $ref: '#/components/schemas/Uuid'
+        creditor_id:
+          $ref: '#/components/schemas/Uuid'
+        amount:
+          type: integer
+          format: int64
+      description: |-
+        One nonzero debt relationship between two members, derived from
+        entries+postings: `debtor_id` owes `creditor_id` `amount`. `amount` is
+        always positive; zero-net pairs are never returned.
+    PairwiseBalances:
+      type: object
+      required:
+        - balances
+      properties:
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/PairwiseBalance'
     PercentSplit:
       type: object
       required:

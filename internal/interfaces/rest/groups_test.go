@@ -134,7 +134,7 @@ func TestCreateGroup_CORSPreflight(t *testing.T) {
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
 	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
-	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, "*"))
+	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, "*"))
 	t.Cleanup(srv.Close)
 
 	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/groups", nil)

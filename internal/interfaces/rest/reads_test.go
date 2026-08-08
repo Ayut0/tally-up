@@ -47,6 +47,34 @@ func TestGetBalance_Endpoint(t *testing.T) {
 	}
 }
 
+func TestGetPairwiseBalances_Endpoint(t *testing.T) {
+	srv, _ := newTestServer(t)
+	post(t, srv, uuid.New(), expenseBody(uuid.New())) // yuto pays 12000 / 3-way equal split
+
+	var body struct {
+		Balances []struct {
+			DebtorID   uuid.UUID `json:"debtor_id"`
+			CreditorID uuid.UUID `json:"creditor_id"`
+			Amount     int64     `json:"amount"`
+		} `json:"balances"`
+	}
+	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/pairwise-balances", gID), &body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if len(body.Balances) != 2 {
+		t.Fatalf("got %d pairs, want 2: %+v", len(body.Balances), body.Balances)
+	}
+	for _, p := range body.Balances {
+		if p.CreditorID != yuto {
+			t.Fatalf("pair %+v: want yuto as creditor", p)
+		}
+		if p.Amount != 4000 {
+			t.Fatalf("pair %+v: want amount 4000", p)
+		}
+	}
+}
+
 func TestGetSettlePlan_Endpoint(t *testing.T) {
 	srv, _ := newTestServer(t)
 	post(t, srv, uuid.New(), expenseBody(uuid.New())) // yuto pays 12000 / 3-way equal split

@@ -73,7 +73,7 @@ func run() error {
 	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           rest.NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, os.Getenv("CORS_ORIGIN")),
+		Handler:           rest.NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, os.Getenv("CORS_ORIGIN")),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
