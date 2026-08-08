@@ -19,6 +19,10 @@ var ErrDuplicateID = errors.New("group id already exists")
 // ErrNotFound means no group exists with the given id.
 var ErrNotFound = errors.New("group not found")
 
+// ErrNonzeroBalance means a member cannot be removed because they still owe
+// or are owed money in this group.
+var ErrNonzeroBalance = errors.New("member has a nonzero balance; settle up before removing")
+
 // MembershipChecker verifies that every given member id belongs to the
 // group. infrastructure/postgres's entry.Repository implementation enforces
 // this itself, inside the same transaction as the entry insert — this port
@@ -63,4 +67,20 @@ type Repository interface {
 // idempotency gate involved.
 type Reader interface {
 	GetGroup(ctx context.Context, id uuid.UUID) (Record, error)
+}
+
+// MemberAdder persists a new member and links them to a group, atomically
+// marking the owning idempotency key succeeded with the response snapshot —
+// same shape as Repository.CreateGroup.
+type MemberAdder interface {
+	AddMember(ctx context.Context, idempotencyKey uuid.UUID, groupID uuid.UUID, name string) ([]byte, error)
+}
+
+// MemberRemover unlinks a member from a group, blocked unless their balance
+// is exactly zero (see ErrNonzeroBalance). Only the group_members row is
+// removed; members and their historical entries/postings are untouched, so
+// past history stays fully readable. Naturally idempotent — no idempotency
+// gate needed, unlike MemberAdder.
+type MemberRemover interface {
+	RemoveMember(ctx context.Context, groupID, memberID uuid.UUID) error
 }

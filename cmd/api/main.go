@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"tallyup/internal/application/addentry"
+	"tallyup/internal/application/addmember"
 	"tallyup/internal/application/correctentry"
 	"tallyup/internal/application/creategroup"
 	"tallyup/internal/application/proposesettleplan"
@@ -71,9 +72,10 @@ func run() error {
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
 	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
+	addMember := &addmember.Service{Gate: s.Idempotency, Members: s.Groups}
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           rest.NewServer(entries, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, os.Getenv("CORS_ORIGIN")),
+		Handler:           rest.NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, s.Groups, os.Getenv("CORS_ORIGIN")),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

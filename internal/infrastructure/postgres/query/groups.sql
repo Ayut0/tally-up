@@ -26,3 +26,20 @@ FROM group_members gm
 JOIN members m ON m.id = gm.member_id
 WHERE gm.group_id = $1
 ORDER BY m.id;
+
+-- name: DeleteGroupMember :exec
+-- Unlinks a member from a group. Idempotent: deleting an already-removed
+-- link affects zero rows, not an error.
+DELETE FROM group_members WHERE group_id = $1 AND member_id = $2;
+
+-- name: LockGroup :one
+-- Locks the group row for the rest of the transaction. Every ledger write
+-- that touches this group inserts a row that references groups.id via a
+-- (non-deferrable) foreign key -- entries.group_id, group_members.group_id
+-- -- and Postgres takes a FOR KEY SHARE lock on the referenced row as part
+-- of that FK check. FOR UPDATE here conflicts with FOR KEY SHARE, so any
+-- concurrent entry/membership insert for this group blocks until this
+-- transaction commits or rolls back. Zero rows (nonexistent group) is not
+-- an error -- there is nothing to lock, and callers that tolerate a
+-- nonexistent group (RemoveMember) proceed anyway.
+SELECT id FROM groups WHERE id = $1 FOR UPDATE;

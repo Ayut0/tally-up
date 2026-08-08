@@ -23,6 +23,9 @@ type Querier interface {
 	// Counts how many of the given member ids belong to the group. Callers compare
 	// the count against the number of distinct ids they asked about.
 	CountGroupMembers(ctx context.Context, arg CountGroupMembersParams) (int64, error)
+	// Unlinks a member from a group. Idempotent: deleting an already-removed
+	// link affects zero rows, not an error.
+	DeleteGroupMember(ctx context.Context, arg DeleteGroupMemberParams) error
 	// Releases a pending key after a post-gate failure so the client can retry
 	// immediately. Succeeded keys are never touched: their response is replay truth.
 	DeletePendingIdempotencyKey(ctx context.Context, key uuid.UUID) error
@@ -82,6 +85,16 @@ type Querier interface {
 	// serializes racers: the loser re-checks after the winner commits (row locks
 	// don't fire the append-only trigger — only real UPDATE/DELETE do).
 	LockEntryForUpdate(ctx context.Context, arg LockEntryForUpdateParams) (LockEntryForUpdateRow, error)
+	// Locks the group row for the rest of the transaction. Every ledger write
+	// that touches this group inserts a row that references groups.id via a
+	// (non-deferrable) foreign key -- entries.group_id, group_members.group_id
+	// -- and Postgres takes a FOR KEY SHARE lock on the referenced row as part
+	// of that FK check. FOR UPDATE here conflicts with FOR KEY SHARE, so any
+	// concurrent entry/membership insert for this group blocks until this
+	// transaction commits or rolls back. Zero rows (nonexistent group) is not
+	// an error -- there is nothing to lock, and callers that tolerate a
+	// nonexistent group (RemoveMember) proceed anyway.
+	LockGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Marks a pending key succeeded with its response snapshot, RETURNING the
 	// JSONB-normalized bytes so the first response and every future replay read
 	// byte-identical values from the same column.

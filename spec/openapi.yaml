@@ -397,6 +397,147 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReverseEntryRequest'
+  /groups/{group_id}/members:
+    post:
+      operationId: addMember
+      description: |-
+        Add one member to an existing group. Same idempotency contract as
+        createGroup: a retry that lands after the original succeeded returns 200
+        with the original body. The new member is immediately usable as an
+        expense participant.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: |-
+            Replay: this `Idempotency-Key` already succeeded, and the body is the
+            snapshot stored from that original write, byte-identical to what the first
+            request returned. Not an error — treat as success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '201':
+          description: The write was accepted and appended to the ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+  /groups/{group_id}/members/{member_id}:
+    delete:
+      operationId: removeMember
+      description: |-
+        Remove a member from a group. Naturally idempotent — no
+        `Idempotency-Key`: removing an already-removed member is a no-op, still
+        `204`. Only the `group_members` link is deleted; the member and their
+        historical entries/postings are untouched, so past history stays fully
+        readable. Rejected with `409` unless the member's balance is exactly
+        zero.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: |-
+            The write succeeded and there is nothing to return — used by writes with
+            no `Idempotency-Key` (naturally idempotent, so there is no replay
+            snapshot to echo back).
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+  /groups/{group_id}/pairwise-balances:
+    get:
+      operationId: getPairwiseBalances
+      description: |-
+        True "who owes whom" between every pair of members — distinct from
+        `getSettlePlan`'s minimal-transfer proposal.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairwiseBalances'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
   /groups/{group_id}/settle-plan:
     get:
       operationId: getSettlePlan
@@ -428,6 +569,14 @@ paths:
                 $ref: '#/components/schemas/ErrorBody'
 components:
   schemas:
+    AddMemberRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+      description: What the client sends to add one member to an existing group.
     BalanceSnapshot:
       type: object
       required:
@@ -778,6 +927,33 @@ components:
           type: integer
           format: int64
       description: "One member's net position: positive = is owed, negative = owes."
+    PairwiseBalance:
+      type: object
+      required:
+        - debtor_id
+        - creditor_id
+        - amount
+      properties:
+        debtor_id:
+          $ref: '#/components/schemas/Uuid'
+        creditor_id:
+          $ref: '#/components/schemas/Uuid'
+        amount:
+          type: integer
+          format: int64
+      description: |-
+        One nonzero debt relationship between two members, derived from
+        entries+postings: `debtor_id` owes `creditor_id` `amount`. `amount` is
+        always positive; zero-net pairs are never returned.
+    PairwiseBalances:
+      type: object
+      required:
+        - balances
+      properties:
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/PairwiseBalance'
     PercentSplit:
       type: object
       required:

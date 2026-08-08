@@ -77,6 +77,88 @@ func (r *GroupRepository) CreateGroup(ctx context.Context, key uuid.UUID, in gro
 	return resp, err
 }
 
+var _ group.MemberAdder = (*GroupRepository)(nil)
+
+// AddMember runs the write path's single transaction: one member insert plus
+// its group_members link, and marking the idempotency key succeeded with the
+// response snapshot — same shape as CreateGroup, minting one member id
+// instead of N.
+func (r *GroupRepository) AddMember(ctx context.Context, key uuid.UUID, groupID uuid.UUID, name string) ([]byte, error) {
+	var resp []byte
+	err := r.tx.Do(ctx, func(ctx context.Context) error {
+		q := r.queries(ctx)
+
+		// Members have no DB-generated default id, unlike a group or entry.
+		memberID, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+		if err := q.InsertMember(ctx, sqlc.InsertMemberParams{ID: memberID, Name: name}); err != nil {
+			return err
+		}
+		if err := q.InsertGroupMember(ctx, sqlc.InsertGroupMemberParams{GroupID: groupID, MemberID: memberID}); err != nil {
+			return err
+		}
+
+		snapshot, err := json.Marshal(group.Member{ID: memberID, Name: name})
+		if err != nil {
+			return err
+		}
+
+		// RETURNING gives us the JSONB-normalized bytes, so this first response is
+		// byte-identical to every future replay read from the same column.
+		resp, err = q.MarkIdempotencySucceeded(ctx, sqlc.MarkIdempotencySucceededParams{
+			Key: key, ResponseBody: snapshot,
+		})
+		return err
+	})
+	return resp, err
+}
+
+var _ group.MemberRemover = (*GroupRepository)(nil)
+
+// RemoveMember unlinks a member from a group, blocked unless their balance
+// is exactly zero. Only the group_members row is deleted — members and
+// their historical entries/postings are untouched, so past history stays
+// fully readable.
+//
+// The balance check (GetGroupBalances) and the delete are two separate
+// statements, and this transaction runs at Postgres's default READ
+// COMMITTED isolation — each statement sees its own fresh snapshot, not one
+// shared for the whole transaction. Without a lock, a concurrent expense
+// could commit between the two statements and this method would still
+// delete on the stale zero-balance read, silently dropping the member's
+// now-nonzero balance from every view (GetGroupBalances joins FROM
+// group_members, so a removed member simply disappears from it). LockGroup
+// closes that gap: it takes FOR UPDATE on the group row, which conflicts
+// with the FOR KEY SHARE lock Postgres's FK check takes on that same row
+// for any concurrent INSERT into entries or group_members (both reference
+// groups.id, neither is DEFERRABLE) — so a concurrent ledger write for this
+// group blocks until this transaction commits or rolls back.
+//
+// A member not currently linked to the group (already removed) has no row
+// in the balances result, so the loop below finds nothing nonzero and falls
+// through to the delete, which then affects zero rows — idempotent removal
+// falls out for free.
+func (r *GroupRepository) RemoveMember(ctx context.Context, groupID, memberID uuid.UUID) error {
+	return r.tx.Do(ctx, func(ctx context.Context) error {
+		q := r.queries(ctx)
+		if _, err := q.LockGroup(ctx, groupID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		rows, err := q.GetGroupBalances(ctx, groupID)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			if row.MemberID == memberID && row.Balance != 0 {
+				return group.ErrNonzeroBalance
+			}
+		}
+		return q.DeleteGroupMember(ctx, sqlc.DeleteGroupMemberParams{GroupID: groupID, MemberID: memberID})
+	})
+}
+
 // GetGroup fetches a group and its members. No transaction needed: a group's
 // membership only ever grows via CreateGroup's single atomic insert, so two
 // reads here cannot observe a group without any members it should have.

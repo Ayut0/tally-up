@@ -94,6 +94,47 @@ func (s *Server) handleGetBalance(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type pairwiseBalanceResponse struct {
+	DebtorID   uuid.UUID `json:"debtor_id"`
+	CreditorID uuid.UUID `json:"creditor_id"`
+	Amount     int64     `json:"amount"`
+}
+
+// pairwiseBalanceListResponse is the whole HTTP response body; each item in
+// it is a pairwiseBalanceResponse — same "X" + "ListResponse" wrapper /
+// "X" + "Response" item convention as entryListResponse/entryResponse below,
+// rather than the singular/plural-only pairwiseBalanceResponse/
+// pairwiseBalancesResponse names this replaced (too easy to misread as the
+// same type).
+type pairwiseBalanceListResponse struct {
+	Balances []pairwiseBalanceResponse `json:"balances"`
+}
+
+func newPairwiseBalanceListResponse(pairs []entry.PairwiseBalance) pairwiseBalanceListResponse {
+	balances := make([]pairwiseBalanceResponse, len(pairs))
+	for i, p := range pairs {
+		balances[i] = pairwiseBalanceResponse{DebtorID: p.DebtorID, CreditorID: p.CreditorID, Amount: p.Amount}
+	}
+	return pairwiseBalanceListResponse{Balances: balances}
+}
+
+func (s *Server) handleGetPairwiseBalances(w http.ResponseWriter, r *http.Request) {
+	groupID, err := uuid.Parse(r.PathValue("group_id"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
+	pairs, err := s.pairwise.GetPairwiseBalances(r.Context(), groupID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "pairwise balance read failed")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(newPairwiseBalanceListResponse(pairs)); err != nil {
+		slog.Warn("write pairwise balances response", "err", err)
+	}
+}
+
 type transferResponse struct {
 	From   uuid.UUID `json:"from"`
 	To     uuid.UUID `json:"to"`

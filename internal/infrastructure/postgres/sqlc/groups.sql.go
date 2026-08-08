@@ -11,6 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteGroupMember = `-- name: DeleteGroupMember :exec
+DELETE FROM group_members WHERE group_id = $1 AND member_id = $2
+`
+
+type DeleteGroupMemberParams struct {
+	GroupID  uuid.UUID
+	MemberID uuid.UUID
+}
+
+// Unlinks a member from a group. Idempotent: deleting an already-removed
+// link affects zero rows, not an error.
+func (q *Queries) DeleteGroupMember(ctx context.Context, arg DeleteGroupMemberParams) error {
+	_, err := q.db.Exec(ctx, deleteGroupMember, arg.GroupID, arg.MemberID)
+	return err
+}
+
 const insertGroup = `-- name: InsertGroup :exec
 INSERT INTO groups (id, name)
 VALUES ($1, $2)
@@ -59,6 +75,25 @@ type InsertMemberParams struct {
 func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) error {
 	_, err := q.db.Exec(ctx, insertMember, arg.ID, arg.Name)
 	return err
+}
+
+const lockGroup = `-- name: LockGroup :one
+SELECT id FROM groups WHERE id = $1 FOR UPDATE
+`
+
+// Locks the group row for the rest of the transaction. Every ledger write
+// that touches this group inserts a row that references groups.id via a
+// (non-deferrable) foreign key -- entries.group_id, group_members.group_id
+// -- and Postgres takes a FOR KEY SHARE lock on the referenced row as part
+// of that FK check. FOR UPDATE here conflicts with FOR KEY SHARE, so any
+// concurrent entry/membership insert for this group blocks until this
+// transaction commits or rolls back. Zero rows (nonexistent group) is not
+// an error -- there is nothing to lock, and callers that tolerate a
+// nonexistent group (RemoveMember) proceed anyway.
+func (q *Queries) LockGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockGroup, id)
+	err := row.Scan(&id)
+	return id, err
 }
 
 const selectGroup = `-- name: SelectGroup :one
