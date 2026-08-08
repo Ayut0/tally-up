@@ -57,7 +57,13 @@ export function useAddMember(groupId: string) {
  * different row (or cancelling) resets the mutation so a stale error from a
  * previous attempt doesn't linger. On the 409 (nonzero balance) case,
  * `confirmingId` is deliberately left set so the error renders next to the
- * row that caused it, instead of being swallowed.
+ * row that caused it, instead of being swallowed. `requestRemove`/
+ * `cancelRemove` are no-ops while a removal is in flight: TanStack Query's
+ * `mutation.reset()` detaches the observer from the still-running mutation
+ * rather than aborting it, so resetting (or moving `confirmingId` to a
+ * different row) while pending would orphan the request — a 409 it later
+ * resolves with would have nowhere to render, silently swallowing the exact
+ * error this hook exists to surface.
  */
 export function useRemoveMember(groupId: string) {
   const queryClient = useQueryClient();
@@ -72,11 +78,13 @@ export function useRemoveMember(groupId: string) {
   });
 
   function requestRemove(memberId: string) {
+    if (mutation.isPending) return;
     mutation.reset();
     setConfirmingId(memberId);
   }
 
   function cancelRemove() {
+    if (mutation.isPending) return;
     mutation.reset();
     setConfirmingId(null);
   }

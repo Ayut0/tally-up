@@ -33,7 +33,8 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
                   <button
                     type="button"
                     onClick={remove.cancelRemove}
-                    className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+                    disabled={remove.isRemoving(member.id)}
+                    className="text-sm text-zinc-500 hover:underline disabled:opacity-40 dark:text-zinc-400"
                   >
                     Cancel
                   </button>
