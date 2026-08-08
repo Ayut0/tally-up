@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"tallyup/internal/application/addentry"
+	"tallyup/internal/application/addmember"
 	"tallyup/internal/application/correctentry"
 	"tallyup/internal/application/creategroup"
 	"tallyup/internal/application/proposesettleplan"
@@ -134,7 +135,8 @@ func TestCreateGroup_CORSPreflight(t *testing.T) {
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
 	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
-	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, "*"))
+	addMember := &addmember.Service{Gate: s.Idempotency, Members: s.Groups}
+	srv := httptest.NewServer(NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, "*"))
 	t.Cleanup(srv.Close)
 
 	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/groups", nil)

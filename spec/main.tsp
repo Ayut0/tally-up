@@ -52,6 +52,11 @@ model CreateGroupRequest {
   member_names: string[];
 }
 
+/** What the client sends to add one member to an existing group. */
+model AddMemberRequest {
+  name: string;
+}
+
 // ---------------------------------------------------------------------------
 // Split rules
 // ---------------------------------------------------------------------------
@@ -370,6 +375,20 @@ op createGroup(
 @route("/groups/{group_id}")
 @get
 op getGroup(@path group_id: Uuid): GroupRecord | GroupReadErrors;
+
+/**
+ * Add one member to an existing group. Same idempotency contract as
+ * createGroup: a retry that lands after the original succeeded returns 200
+ * with the original body. The new member is immediately usable as an
+ * expense participant.
+ */
+@route("/groups/{group_id}/members")
+@post
+op addMember(
+  @path group_id: Uuid,
+  @header("Idempotency-Key") idempotencyKey: Uuid,
+  @body member: AddMemberRequest,
+): Created<Member> | Replayed<Member> | WriteErrors;
 
 /**
  * Record an expense or settlement.

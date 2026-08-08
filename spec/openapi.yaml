@@ -397,6 +397,71 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ReverseEntryRequest'
+  /groups/{group_id}/members:
+    post:
+      operationId: addMember
+      description: |-
+        Add one member to an existing group. Same idempotency contract as
+        createGroup: a retry that lands after the original succeeded returns 200
+        with the original body. The new member is immediately usable as an
+        expense participant.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: |-
+            Replay: this `Idempotency-Key` already succeeded, and the body is the
+            snapshot stored from that original write, byte-identical to what the first
+            request returned. Not an error — treat as success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '201':
+          description: The write was accepted and appended to the ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
   /groups/{group_id}/pairwise-balances:
     get:
       operationId: getPairwiseBalances
@@ -459,6 +524,14 @@ paths:
                 $ref: '#/components/schemas/ErrorBody'
 components:
   schemas:
+    AddMemberRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+      description: What the client sends to add one member to an existing group.
     BalanceSnapshot:
       type: object
       required:

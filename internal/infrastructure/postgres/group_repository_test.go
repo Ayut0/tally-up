@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -88,4 +89,66 @@ func TestGroupRepository_CreateGroup_DuplicateID(t *testing.T) {
 	if !errors.Is(err, group.ErrDuplicateID) {
 		t.Fatalf("second CreateGroup err = %v, want group.ErrDuplicateID", err)
 	}
+}
+
+func TestGroupRepository_AddMember(t *testing.T) {
+	s := TestStore(t)
+	ctx := context.Background()
+	repo := NewGroupRepository(s.Pool)
+
+	groupID, createKey := uuid.New(), uuid.New()
+	acquireKey(t, s, createKey)
+	if _, err := repo.CreateGroup(ctx, createKey, group.Input{ID: groupID, Name: "trip", MemberNames: []string{"yuto"}}); err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+
+	addKey := uuid.New()
+	acquireKey(t, s, addKey)
+	resp, err := repo.AddMember(ctx, addKey, groupID, "new friend")
+	if err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	var added group.Member
+	if err := json.Unmarshal(resp, &added); err != nil {
+		t.Fatalf("response %s: %v", resp, err)
+	}
+	if added.Name != "new friend" || added.ID == uuid.Nil {
+		t.Fatalf("bad AddMember response: %+v", added)
+	}
+
+	rec, err := repo.GetGroup(ctx, groupID)
+	if err != nil {
+		t.Fatalf("GetGroup: %v", err)
+	}
+	found := false
+	for _, m := range rec.Members {
+		if m.ID == added.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("new member not in group: %+v", rec.Members)
+	}
+}
+
+// TestGroupRepository_AddMember_UsableAsParticipant exercises EntryRepository.Create
+// with the newly added member as a participant, proving group-membership
+// validation sees them immediately.
+func TestGroupRepository_AddMember_UsableAsParticipant(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	repo := NewGroupRepository(s.Pool)
+
+	key := uuid.New()
+	acquireKey(t, s, key)
+	resp, err := repo.AddMember(context.Background(), key, rGroup, "new friend")
+	if err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	var added group.Member
+	if err := json.Unmarshal(resp, &added); err != nil {
+		t.Fatalf("response %s: %v", resp, err)
+	}
+
+	addExactExpense(t, s, uuid.New(), rYuto, 1000, map[uuid.UUID]int64{rYuto: 500, added.ID: 500})
 }

@@ -77,6 +77,44 @@ func (r *GroupRepository) CreateGroup(ctx context.Context, key uuid.UUID, in gro
 	return resp, err
 }
 
+var _ group.MemberAdder = (*GroupRepository)(nil)
+
+// AddMember runs the write path's single transaction: one member insert plus
+// its group_members link, and marking the idempotency key succeeded with the
+// response snapshot — same shape as CreateGroup, minting one member id
+// instead of N.
+func (r *GroupRepository) AddMember(ctx context.Context, key uuid.UUID, groupID uuid.UUID, name string) ([]byte, error) {
+	var resp []byte
+	err := r.tx.Do(ctx, func(ctx context.Context) error {
+		q := r.queries(ctx)
+
+		// Members have no DB-generated default id, unlike a group or entry.
+		memberID, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+		if err := q.InsertMember(ctx, sqlc.InsertMemberParams{ID: memberID, Name: name}); err != nil {
+			return err
+		}
+		if err := q.InsertGroupMember(ctx, sqlc.InsertGroupMemberParams{GroupID: groupID, MemberID: memberID}); err != nil {
+			return err
+		}
+
+		snapshot, err := json.Marshal(group.Member{ID: memberID, Name: name})
+		if err != nil {
+			return err
+		}
+
+		// RETURNING gives us the JSONB-normalized bytes, so this first response is
+		// byte-identical to every future replay read from the same column.
+		resp, err = q.MarkIdempotencySucceeded(ctx, sqlc.MarkIdempotencySucceededParams{
+			Key: key, ResponseBody: snapshot,
+		})
+		return err
+	})
+	return resp, err
+}
+
 // GetGroup fetches a group and its members. No transaction needed: a group's
 // membership only ever grows via CreateGroup's single atomic insert, so two
 // reads here cannot observe a group without any members it should have.

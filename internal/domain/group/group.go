@@ -64,3 +64,10 @@ type Repository interface {
 type Reader interface {
 	GetGroup(ctx context.Context, id uuid.UUID) (Record, error)
 }
+
+// MemberAdder persists a new member and links them to a group, atomically
+// marking the owning idempotency key succeeded with the response snapshot —
+// same shape as Repository.CreateGroup.
+type MemberAdder interface {
+	AddMember(ctx context.Context, idempotencyKey uuid.UUID, groupID uuid.UUID, name string) ([]byte, error)
+}
