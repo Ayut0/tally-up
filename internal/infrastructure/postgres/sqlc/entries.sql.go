@@ -100,6 +100,70 @@ func (q *Queries) GetGroupBalances(ctx context.Context, groupID uuid.UUID) ([]Ge
 	return items, nil
 }
 
+const getPairwiseBalances = `-- name: GetPairwiseBalances :many
+WITH contributions AS (
+    SELECT p.member_id AS debtor, e.payer_id AS creditor, -p.amount AS amount
+    FROM postings p JOIN entries e ON e.id = p.entry_id
+    WHERE e.group_id = $1 AND e.counterparty IS NULL AND p.member_id != e.payer_id
+    UNION ALL
+    SELECT e.payer_id AS debtor, e.counterparty AS creditor, -p.amount AS amount
+    FROM postings p JOIN entries e ON e.id = p.entry_id
+    WHERE e.group_id = $1 AND e.counterparty IS NOT NULL AND p.member_id = e.payer_id
+),
+netted AS (
+    SELECT LEAST(debtor, creditor) AS lo, GREATEST(debtor, creditor) AS hi,
+           SUM(CASE WHEN debtor < creditor THEN amount ELSE -amount END) AS net
+    FROM contributions
+    GROUP BY LEAST(debtor, creditor), GREATEST(debtor, creditor)
+    HAVING SUM(CASE WHEN debtor < creditor THEN amount ELSE -amount END) != 0
+)
+SELECT (CASE WHEN net > 0 THEN lo ELSE hi END)::uuid AS debtor_id,
+       (CASE WHEN net > 0 THEN hi ELSE lo END)::uuid AS creditor_id,
+       ABS(net)::bigint AS amount
+FROM netted
+ORDER BY lo, hi
+`
+
+type GetPairwiseBalancesRow struct {
+	DebtorID   uuid.UUID
+	CreditorID uuid.UUID
+	Amount     int64
+}
+
+// Derived pairwise "who owes whom": nets signed debtor/creditor
+// contributions per pair in one statement (one MVCC snapshot), then
+// resolves each pair to an unambiguous debtor_id/creditor_id with an
+// always-positive amount — no canonical-ordering convention for callers to
+// decode. Expense-shaped entries (counterparty IS NULL): each non-payer
+// participant's posting is what they owe the payer. Settlement-shaped
+// entries (counterparty IS NOT NULL) generalize across real settlements and
+// reversals of either shape, since a reversal copies its original's
+// payer/counterparty and negates postings — the same contribution rule
+// threads through unchanged (see docs/superpowers/specs/2026-07-06-group-
+// membership-privacy-pairwise-design.md §1).
+// lo/hi are an internal netting key only (never exposed): "net" is the
+// signed amount lo owes hi, summed across every contribution touching the
+// pair regardless of which side originated each one.
+func (q *Queries) GetPairwiseBalances(ctx context.Context, groupID uuid.UUID) ([]GetPairwiseBalancesRow, error) {
+	rows, err := q.db.Query(ctx, getPairwiseBalances, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPairwiseBalancesRow
+	for rows.Next() {
+		var i GetPairwiseBalancesRow
+		if err := rows.Scan(&i.DebtorID, &i.CreditorID, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertEntry = `-- name: InsertEntry :one
 INSERT INTO entries (id, group_id, kind, payer_id, counterparty, total_amount,
                      split_rule, participants, memo, occurred_on, created_by)

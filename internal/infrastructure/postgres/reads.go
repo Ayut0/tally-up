@@ -42,6 +42,23 @@ func (r *ReadRepository) GetBalances(ctx context.Context, groupID uuid.UUID) (en
 	return snap, nil
 }
 
+var _ entry.PairwiseReader = (*ReadRepository)(nil)
+
+// GetPairwiseBalances derives per-pair "who owes whom" from entries and
+// postings in one statement (one MVCC snapshot) — see the GetPairwiseBalances
+// sqlc query for the contribution rule.
+func (r *ReadRepository) GetPairwiseBalances(ctx context.Context, groupID uuid.UUID) ([]entry.PairwiseBalance, error) {
+	rows, err := r.queries(ctx).GetPairwiseBalances(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	pairs := make([]entry.PairwiseBalance, len(rows))
+	for i, row := range rows {
+		pairs[i] = entry.PairwiseBalance{DebtorID: row.DebtorID, CreditorID: row.CreditorID, Amount: row.Amount}
+	}
+	return pairs, nil
+}
+
 var _ entry.HistoryReader = (*ReadRepository)(nil)
 
 const (
