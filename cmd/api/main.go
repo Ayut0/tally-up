@@ -75,7 +75,7 @@ func run() error {
 	addMember := &addmember.Service{Gate: s.Idempotency, Members: s.Groups}
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           rest.NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, os.Getenv("CORS_ORIGIN")),
+		Handler:           rest.NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, s.Groups, os.Getenv("CORS_ORIGIN")),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

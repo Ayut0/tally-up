@@ -338,6 +338,15 @@ model Replayed<Body> {
 }
 
 /**
+ * The write succeeded and there is nothing to return — used by writes with
+ * no `Idempotency-Key` (naturally idempotent, so there is no replay
+ * snapshot to echo back).
+ */
+model NoContent {
+  @statusCode statusCode: 204;
+}
+
+/**
  * Errors shared by every write path.
  *
  * - `400` malformed body, bad id, or missing `Idempotency-Key`
@@ -354,6 +363,13 @@ alias ReadErrors = ErrorResponse<400> | ErrorResponse<500>;
 
 /** `404` on top of the shared read errors: the target group does not exist. */
 alias GroupReadErrors = ReadErrors | ErrorResponse<404>;
+
+/**
+ * Errors for removing a member: no idempotency-related statuses (removal
+ * takes no `Idempotency-Key`), but `409` when the member still has a
+ * nonzero balance.
+ */
+alias RemoveMemberErrors = ErrorResponse<400> | ErrorResponse<409> | ErrorResponse<500>;
 
 // ---------------------------------------------------------------------------
 // Operations
@@ -389,6 +405,18 @@ op addMember(
   @header("Idempotency-Key") idempotencyKey: Uuid,
   @body member: AddMemberRequest,
 ): Created<Member> | Replayed<Member> | WriteErrors;
+
+/**
+ * Remove a member from a group. Naturally idempotent — no
+ * `Idempotency-Key`: removing an already-removed member is a no-op, still
+ * `204`. Only the `group_members` link is deleted; the member and their
+ * historical entries/postings are untouched, so past history stays fully
+ * readable. Rejected with `409` unless the member's balance is exactly
+ * zero.
+ */
+@route("/groups/{group_id}/members/{member_id}")
+@delete
+op removeMember(@path group_id: Uuid, @path member_id: Uuid): NoContent | RemoveMemberErrors;
 
 /**
  * Record an expense or settlement.

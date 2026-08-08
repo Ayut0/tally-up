@@ -23,6 +23,9 @@ type Querier interface {
 	// Counts how many of the given member ids belong to the group. Callers compare
 	// the count against the number of distinct ids they asked about.
 	CountGroupMembers(ctx context.Context, arg CountGroupMembersParams) (int64, error)
+	// Unlinks a member from a group. Idempotent: deleting an already-removed
+	// link affects zero rows, not an error.
+	DeleteGroupMember(ctx context.Context, arg DeleteGroupMemberParams) error
 	// Releases a pending key after a post-gate failure so the client can retry
 	// immediately. Succeeded keys are never touched: their response is replay truth.
 	DeletePendingIdempotencyKey(ctx context.Context, key uuid.UUID) error

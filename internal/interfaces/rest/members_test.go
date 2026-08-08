@@ -82,3 +82,42 @@ func TestAddMember_MissingIdempotencyKeyIs400(t *testing.T) {
 		t.Fatalf("status %d, want 400", resp.StatusCode)
 	}
 }
+
+func deleteMember(t *testing.T, srv *httptest.Server, memberID uuid.UUID) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest("DELETE", srv.URL+fmt.Sprintf("/groups/%s/members/%s", gID, memberID), nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp
+}
+
+func TestRemoveMember_Endpoint(t *testing.T) {
+	srv, _ := newTestServer(t)
+	// memA never participates in anything — balance is zero by construction.
+	resp := deleteMember(t, srv, memA)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestRemoveMember_NonzeroBalanceIs409(t *testing.T) {
+	srv, _ := newTestServer(t)
+	post(t, srv, uuid.New(), expenseBody(uuid.New())) // memA now owes 4000
+
+	resp := deleteMember(t, srv, memA)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status %d, want 409", resp.StatusCode)
+	}
+}
+
+func TestRemoveMember_AlreadyRemovedIsNoop(t *testing.T) {
+	srv, _ := newTestServer(t)
+	resp1 := deleteMember(t, srv, memA)
+	resp2 := deleteMember(t, srv, memA)
+	if resp1.StatusCode != http.StatusNoContent || resp2.StatusCode != http.StatusNoContent {
+		t.Fatalf("statuses %d/%d, want 204/204", resp1.StatusCode, resp2.StatusCode)
+	}
+}

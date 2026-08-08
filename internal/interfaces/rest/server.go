@@ -15,21 +15,23 @@ import (
 )
 
 type Server struct {
-	entries     *addentry.Service
-	balances    entry.BalanceReader
-	pairwise    entry.PairwiseReader
-	history     entry.HistoryReader
-	corrections *correctentry.Service
-	groups      *creategroup.Service
-	groupReader group.Reader
-	settlePlans *proposesettleplan.Service
-	addMember   *addmember.Service
+	entries       *addentry.Service
+	balances      entry.BalanceReader
+	pairwise      entry.PairwiseReader
+	history       entry.HistoryReader
+	corrections   *correctentry.Service
+	groups        *creategroup.Service
+	groupReader   group.Reader
+	settlePlans   *proposesettleplan.Service
+	addMember     *addmember.Service
+	memberRemover group.MemberRemover
 }
 
-func NewServer(entries *addentry.Service, balances entry.BalanceReader, pairwise entry.PairwiseReader, history entry.HistoryReader, corrections *correctentry.Service, groups *creategroup.Service, groupReader group.Reader, settlePlans *proposesettleplan.Service, addMember *addmember.Service, corsOrigin string) http.Handler {
+func NewServer(entries *addentry.Service, balances entry.BalanceReader, pairwise entry.PairwiseReader, history entry.HistoryReader, corrections *correctentry.Service, groups *creategroup.Service, groupReader group.Reader, settlePlans *proposesettleplan.Service, addMember *addmember.Service, memberRemover group.MemberRemover, corsOrigin string) http.Handler {
 	srv := &Server{
 		entries: entries, balances: balances, pairwise: pairwise, history: history, corrections: corrections,
 		groups: groups, groupReader: groupReader, settlePlans: settlePlans, addMember: addMember,
+		memberRemover: memberRemover,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /groups", srv.handleCreateGroup)
@@ -42,6 +44,7 @@ func NewServer(entries *addentry.Service, balances entry.BalanceReader, pairwise
 	mux.HandleFunc("POST /groups/{group_id}/entries/{entry_id}/reverse", srv.handleReverseEntry)
 	mux.HandleFunc("PUT /groups/{group_id}/entries/{entry_id}", srv.handleEditEntry)
 	mux.HandleFunc("POST /groups/{group_id}/members", srv.handleAddMember)
+	mux.HandleFunc("DELETE /groups/{group_id}/members/{member_id}", srv.handleRemoveMember)
 	return corsMiddleware(corsOrigin, mux)
 }
 
@@ -56,7 +59,7 @@ func corsMiddleware(origin string, next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

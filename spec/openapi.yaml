@@ -462,6 +462,51 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AddMemberRequest'
+  /groups/{group_id}/members/{member_id}:
+    delete:
+      operationId: removeMember
+      description: |-
+        Remove a member from a group. Naturally idempotent — no
+        `Idempotency-Key`: removing an already-removed member is a no-op, still
+        `204`. Only the `group_members` link is deleted; the member and their
+        historical entries/postings are untouched, so past history stays fully
+        readable. Rejected with `409` unless the member's balance is exactly
+        zero.
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '204':
+          description: |-
+            The write succeeded and there is nothing to return — used by writes with
+            no `Idempotency-Key` (naturally idempotent, so there is no replay
+            snapshot to echo back).
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
   /groups/{group_id}/pairwise-balances:
     get:
       operationId: getPairwiseBalances

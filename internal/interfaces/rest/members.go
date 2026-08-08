@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"tallyup/internal/application/addmember"
+	"tallyup/internal/domain/group"
 )
 
 type addMemberRequest struct {
@@ -58,5 +59,28 @@ func (s *Server) handleAddMember(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "add member failed")
 	default:
 		writeGateResult(w, result.Gate, result.Body)
+	}
+}
+
+func (s *Server) handleRemoveMember(w http.ResponseWriter, r *http.Request) {
+	groupID, err := uuid.Parse(r.PathValue("group_id"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
+	memberID, err := uuid.Parse(r.PathValue("member_id"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "invalid member id")
+		return
+	}
+
+	err = s.memberRemover.RemoveMember(r.Context(), groupID, memberID)
+	switch {
+	case errors.Is(err, group.ErrNonzeroBalance):
+		httpError(w, http.StatusConflict, err.Error())
+	case err != nil:
+		httpError(w, http.StatusInternalServerError, "remove member failed")
+	default:
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

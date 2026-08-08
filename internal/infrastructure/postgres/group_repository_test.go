@@ -152,3 +152,73 @@ func TestGroupRepository_AddMember_UsableAsParticipant(t *testing.T) {
 
 	addExactExpense(t, s, uuid.New(), rYuto, 1000, map[uuid.UUID]int64{rYuto: 500, added.ID: 500})
 }
+
+func TestGroupRepository_RemoveMember_ZeroBalanceSucceeds(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	repo := NewGroupRepository(s.Pool)
+
+	// rMemA never participates in anything — balance is zero by construction.
+	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
+		t.Fatal(err)
+	}
+	rec, err := repo.GetGroup(context.Background(), rGroup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range rec.Members {
+		if m.ID == rMemA {
+			t.Fatalf("removed member still in group: %+v", rec.Members)
+		}
+	}
+}
+
+func TestGroupRepository_RemoveMember_NonzeroBalanceRejected(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	repo := NewGroupRepository(s.Pool)
+
+	addExpense(t, s, uuid.New(), rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB}) // A now owes 4000
+	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); !errors.Is(err, group.ErrNonzeroBalance) {
+		t.Fatalf("got %v, want group.ErrNonzeroBalance", err)
+	}
+}
+
+func TestGroupRepository_RemoveMember_HistoryStaysReadable(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	repo := NewGroupRepository(s.Pool)
+
+	entryID := uuid.New()
+	addExpense(t, s, entryID, rYuto, 8000, []uuid.UUID{rYuto, rMemA}) // A owes 4000
+	addSettlement(t, s, rMemA, rYuto, 4000)                           // A settles up, balance now zero
+	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.ID == entryID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("removed member's historical entry no longer readable")
+	}
+}
+
+func TestGroupRepository_RemoveMember_AlreadyRemovedIsNoop(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	repo := NewGroupRepository(s.Pool)
+
+	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
+		t.Fatalf("second removal should be a no-op, got: %v", err)
+	}
+}

@@ -82,7 +82,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}
 	settlePlans := &proposesettleplan.Service{Balances: s.Reads}
 	addMember := &addmember.Service{Gate: s.Idempotency, Members: s.Groups}
-	srv := httptest.NewServer(validatingHandler(t, NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, "*")))
+	srv := httptest.NewServer(validatingHandler(t, NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, s.Groups, "*")))
 	t.Cleanup(srv.Close)
 	return srv, s
 }

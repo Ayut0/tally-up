@@ -26,3 +26,8 @@ FROM group_members gm
 JOIN members m ON m.id = gm.member_id
 WHERE gm.group_id = $1
 ORDER BY m.id;
+
+-- name: DeleteGroupMember :exec
+-- Unlinks a member from a group. Idempotent: deleting an already-removed
+-- link affects zero rows, not an error.
+DELETE FROM group_members WHERE group_id = $1 AND member_id = $2;

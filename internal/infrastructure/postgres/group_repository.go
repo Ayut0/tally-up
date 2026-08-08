@@ -115,6 +115,34 @@ func (r *GroupRepository) AddMember(ctx context.Context, key uuid.UUID, groupID 
 	return resp, err
 }
 
+var _ group.MemberRemover = (*GroupRepository)(nil)
+
+// RemoveMember unlinks a member from a group, blocked unless their balance
+// is exactly zero. Only the group_members row is deleted — members and
+// their historical entries/postings are untouched, so past history stays
+// fully readable. The balance check and the delete run in one transaction
+// (one MVCC snapshot, via the same GetGroupBalances query
+// ReadRepository.GetBalances uses), so there's no gap between checking and
+// deleting for a concurrent write to land in. A member not currently linked
+// to the group (already removed) has no row in the balances result, so the
+// loop below finds nothing nonzero and falls through to the delete, which
+// then affects zero rows — idempotent removal falls out for free.
+func (r *GroupRepository) RemoveMember(ctx context.Context, groupID, memberID uuid.UUID) error {
+	return r.tx.Do(ctx, func(ctx context.Context) error {
+		q := r.queries(ctx)
+		rows, err := q.GetGroupBalances(ctx, groupID)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			if row.MemberID == memberID && row.Balance != 0 {
+				return group.ErrNonzeroBalance
+			}
+		}
+		return q.DeleteGroupMember(ctx, sqlc.DeleteGroupMemberParams{GroupID: groupID, MemberID: memberID})
+	})
+}
+
 // GetGroup fetches a group and its members. No transaction needed: a group's
 // membership only ever grows via CreateGroup's single atomic insert, so two
 // reads here cannot observe a group without any members it should have.

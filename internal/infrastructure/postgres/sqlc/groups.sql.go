@@ -11,6 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteGroupMember = `-- name: DeleteGroupMember :exec
+DELETE FROM group_members WHERE group_id = $1 AND member_id = $2
+`
+
+type DeleteGroupMemberParams struct {
+	GroupID  uuid.UUID
+	MemberID uuid.UUID
+}
+
+// Unlinks a member from a group. Idempotent: deleting an already-removed
+// link affects zero rows, not an error.
+func (q *Queries) DeleteGroupMember(ctx context.Context, arg DeleteGroupMemberParams) error {
+	_, err := q.db.Exec(ctx, deleteGroupMember, arg.GroupID, arg.MemberID)
+	return err
+}
+
 const insertGroup = `-- name: InsertGroup :exec
 INSERT INTO groups (id, name)
 VALUES ($1, $2)
