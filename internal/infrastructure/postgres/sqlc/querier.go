@@ -34,6 +34,16 @@ type Querier interface {
 	// the acquisition (replay / mismatch / in-flight). COALESCE keeps the body
 	// non-null for a not-yet-succeeded row.
 	GetIdempotencyOutcome(ctx context.Context, key uuid.UUID) (GetIdempotencyOutcomeRow, error)
+	// Derived pairwise "who owes whom": nets and canonicalizes signed
+	// debtor/creditor contributions per pair in one statement (one MVCC
+	// snapshot). Expense-shaped entries (counterparty IS NULL): each non-payer
+	// participant's posting is what they owe the payer. Settlement-shaped
+	// entries (counterparty IS NOT NULL) generalize across real settlements and
+	// reversals of either shape, since a reversal copies its original's
+	// payer/counterparty and negates postings — the same contribution rule
+	// threads through unchanged (see docs/superpowers/specs/2026-07-06-group-
+	// membership-privacy-pairwise-design.md §1).
+	GetPairwiseBalances(ctx context.Context, groupID uuid.UUID) ([]GetPairwiseBalancesRow, error)
 	// Appends one entry to the ledger, returning the seq assigned by the
 	// append-only BIGSERIAL. Callers translate a 23505 unique_violation (a
 	// reused client-generated id) into entry.ErrDuplicateID.

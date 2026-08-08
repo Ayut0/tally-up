@@ -25,6 +25,33 @@ LEFT JOIN balances b ON b.group_id = gm.group_id AND b.member_id = gm.member_id
 WHERE gm.group_id = $1
 ORDER BY gm.member_id;
 
+-- name: GetPairwiseBalances :many
+-- Derived pairwise "who owes whom": nets and canonicalizes signed
+-- debtor/creditor contributions per pair in one statement (one MVCC
+-- snapshot). Expense-shaped entries (counterparty IS NULL): each non-payer
+-- participant's posting is what they owe the payer. Settlement-shaped
+-- entries (counterparty IS NOT NULL) generalize across real settlements and
+-- reversals of either shape, since a reversal copies its original's
+-- payer/counterparty and negates postings — the same contribution rule
+-- threads through unchanged (see docs/superpowers/specs/2026-07-06-group-
+-- membership-privacy-pairwise-design.md §1).
+WITH contributions AS (
+    SELECT p.member_id AS debtor, e.payer_id AS creditor, -p.amount AS amount
+    FROM postings p JOIN entries e ON e.id = p.entry_id
+    WHERE e.group_id = $1 AND e.counterparty IS NULL AND p.member_id != e.payer_id
+    UNION ALL
+    SELECT e.payer_id AS debtor, e.counterparty AS creditor, -p.amount AS amount
+    FROM postings p JOIN entries e ON e.id = p.entry_id
+    WHERE e.group_id = $1 AND e.counterparty IS NOT NULL AND p.member_id = e.payer_id
+)
+SELECT LEAST(debtor, creditor)::uuid AS a,
+       GREATEST(debtor, creditor)::uuid AS b,
+       SUM(CASE WHEN debtor < creditor THEN amount ELSE -amount END)::bigint AS amount
+FROM contributions
+GROUP BY LEAST(debtor, creditor), GREATEST(debtor, creditor)
+HAVING SUM(CASE WHEN debtor < creditor THEN amount ELSE -amount END) != 0
+ORDER BY a, b;
+
 -- name: ListEntriesAfterSeq :many
 -- Seq-ordered keyset page of entries. occurred_on stays a date column here;
 -- callers format it to the wire "YYYY-MM-DD" string.
