@@ -41,8 +41,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Paid by</span>
           <select
-            value={form.payerId}
-            onChange={(e) => form.setPayerId(e.target.value)}
+            {...form.registerPayerId()}
             className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
           >
             {group.members.map((member) => (
@@ -60,8 +59,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
             inputMode="numeric"
             min={1}
             step={1}
-            value={form.totalInput}
-            onChange={(e) => form.setTotalInput(e.target.value)}
+            {...form.registerTotalInput()}
             placeholder="0"
             className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
           />
@@ -73,11 +71,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
             {form.memberRows.map((row) => (
               <li key={row.id}>
                 <label className="flex items-center gap-2 text-base text-zinc-950 dark:text-zinc-50">
-                  <input
-                    type="checkbox"
-                    checked={row.checked}
-                    onChange={() => form.toggleParticipant(row.id)}
-                  />
+                  <input type="checkbox" {...form.registerParticipant(row.id)} />
                   {row.name}
                 </label>
               </li>
@@ -160,8 +154,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
           </span>
           <input
             type="text"
-            value={form.memo}
-            onChange={(e) => form.setMemo(e.target.value)}
+            {...form.registerMemo()}
             placeholder="e.g. dinner"
             className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
           />
@@ -171,8 +164,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Date</span>
           <input
             type="date"
-            value={form.occurredOn}
-            onChange={(e) => form.setOccurredOn(e.target.value)}
+            {...form.registerOccurredOn()}
             className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
           />
         </label>

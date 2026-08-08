@@ -15,12 +15,19 @@ import { generateUuidV7 } from "@/lib/uuidv7";
 type GroupRecord = components["schemas"]["GroupRecord"];
 type SplitRule = components["schemas"]["SplitRule"];
 
-// The dynamic, per-participant half of the split-mode section — the part
-// that's Record-keyed by member id and changes shape as participants are
-// toggled. Kept separate from `mode`/`total`/everything else, which stay
-// plain useState: RHF earns its keep specifically for this shape (#141),
-// not the rest of the form.
-type SplitFieldValues = { amounts: Record<string, number>; weights: Record<string, number> };
+// Every field that binds to a native <input>/<select>/checkbox, or is
+// Record-keyed and changes shape as participants are toggled
+// (`participants`/`amounts`/`weights`). `mode` is the one field that's
+// neither — see the comment at its declaration for why it stays outside.
+type FormValues = {
+  payerId: string;
+  participants: Record<string, boolean>;
+  totalInput: string;
+  memo: string;
+  occurredOn: string;
+  amounts: Record<string, number>;
+  weights: Record<string, number>;
+};
 
 const SPLIT_TABS: { mode: SplitRule["type"]; label: string }[] = [
   { mode: SplitMode.Equal, label: "Equal" },
@@ -31,45 +38,65 @@ const SPLIT_TABS: { mode: SplitRule["type"]; label: string }[] = [
 
 /**
  * Only ever mounts once `group` is loaded, so its defaults (payer,
- * participants) can come straight from lazy useState initializers reading
- * `group` directly — no effect needed to "apply defaults once they arrive".
+ * participants) can come straight from lazy useState/useForm initializers
+ * reading `group` directly — no effect needed to "apply defaults once they
+ * arrive".
  */
 export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   const router = useRouter();
 
-  const [payerId, setPayerId] = useState(() => getIdentity(groupId) ?? group.members[0]?.id ?? "");
-  const [participants, setParticipants] = useState<Set<string>>(
-    () => new Set(group.members.map((m) => m.id)),
-  );
-  const [totalInput, setTotalInput] = useState("");
-  // Stays useState rather than folding into the useForm below: tried it —
-  // `mode` would still need adding to SplitFieldValues, a third useWatch,
-  // and `setMode` kept as a setValue(...) wrapper regardless, since the
-  // split tabs are <button onClick>, not inputs register() can bind to. Net
-  // 6 lines that way vs. 5 today, for identical behavior — no win. Keeping
-  // it separate also scopes RHF to the one thing it earns its keep for here
-  // (the Record-keyed amounts/weights below), not "wherever useForm happens
-  // to already be in scope."
+  // Stays useState: the split tabs are <button onClick>, not a native input
+  // register() can bind, so folding `mode` into the useForm below would
+  // still need a setValue(...) wrapper for `setMode` regardless — no
+  // reduction in code, just moved where the value lives.
   const [mode, setMode] = useState<SplitRule["type"]>(SplitMode.Equal);
-  const { register, control, setValue } = useForm<SplitFieldValues>({
-    defaultValues: { amounts: {}, weights: {} },
+
+  const {
+    register,
+    control,
+    setValue,
+    getValues,
+    handleSubmit: rhfHandleSubmit,
+    formState,
+  } = useForm<FormValues>({
+    defaultValues: {
+      payerId: getIdentity(groupId) ?? group.members[0]?.id ?? "",
+      participants: Object.fromEntries(group.members.map((m) => [m.id, true])),
+      totalInput: "",
+      memo: "",
+      occurredOn: todayLocal(),
+      amounts: {},
+      weights: {},
+    },
   });
+
+  const payerId = useWatch({ control, name: "payerId" });
+  const participantsRecord = useWatch({ control, name: "participants" });
+  const totalInput = useWatch({ control, name: "totalInput" });
+  const memo = useWatch({ control, name: "memo" });
+  const occurredOn = useWatch({ control, name: "occurredOn" });
   const amounts = useWatch({ control, name: "amounts" });
   const weights = useWatch({ control, name: "weights" });
-  const [memo, setMemo] = useState("");
-  const [occurredOn, setOccurredOn] = useState(() => todayLocal());
 
-  const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submissionRef = useRef<{ id: string; key: string; signature: string } | null>(null);
 
+  // Imperative setters, kept for the renderHook test suite per #138 — it
+  // can't drive register()'s DOM-bound onChange without fabricating an
+  // event object. page.tsx uses the registerX bindings below instead; both
+  // write the same underlying RHF form state.
+  //
+  // Reads via getValues(), not the `participantsRecord` watched above:
+  // negating a snapshot from the last render is the setState(x + 1) vs
+  // setState(prev => prev + 1) footgun, just via setValue — two toggles in
+  // the same tick would both read the same stale value. getValues() always
+  // returns what's currently committed.
   function toggleParticipant(memberId: string) {
-    setParticipants((prev) => {
-      const next = new Set(prev);
-      if (next.has(memberId)) next.delete(memberId);
-      else next.add(memberId);
-      return next;
-    });
+    setValue(`participants.${memberId}`, !getValues(`participants.${memberId}`));
+  }
+
+  function setTotalInput(value: string) {
+    setValue("totalInput", value);
   }
 
   function setAmount(memberId: string, value: number) {
@@ -80,15 +107,6 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     setValue(`weights.${memberId}`, value);
   }
 
-  // Uncontrolled bindings for page.tsx's real <input>s — register() on a
-  // dotted path per participant id, the Record-keyed dynamic field pattern
-  // #139 researched. `setAmount`/`setWeight` above are no longer used by
-  // page.tsx, but stay exported: per #138, this hook's state transitions are
-  // tested via renderHook, which can't drive register()'s DOM-bound
-  // onChange without fabricating an event object — an imperative setter is
-  // the legitimate way to exercise those transitions from a hook test. Both
-  // paths write the same underlying RHF form state, so `amounts`/`weights`
-  // (watched below) reflect either.
   function registerAmount(memberId: string) {
     return register(`amounts.${memberId}`, { valueAsNumber: true });
   }
@@ -101,13 +119,13 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     return group.members.find((m) => m.id === memberId)?.name ?? memberId;
   }
 
+  const participantIds = group.members.map((m) => m.id).filter((id) => participantsRecord[id]);
   const memberRows = group.members.map((m) => ({
     id: m.id,
     name: m.name,
-    checked: participants.has(m.id),
+    checked: !!participantsRecord[m.id],
   }));
 
-  const participantIds = [...participants];
   const { total, valid: totalValid } = parseTotal(totalInput);
   const result = buildSplitRule(mode, participantIds, {
     total: totalValid ? total : undefined,
@@ -145,10 +163,10 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
       }))
     : null;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!result.isValid || !totalValid || payerId === "" || participantIds.length === 0) return;
-    if (submitting) return;
+  async function onValid(values: FormValues) {
+    if (!result.isValid || !totalValid || values.payerId === "" || participantIds.length === 0) {
+      return;
+    }
 
     // Everything but `id` — the part the server's idempotency gate compares
     // a replay's payload against. Reuse the same {id, key} only when this is
@@ -156,14 +174,14 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     // failed attempt, that's a new intent and needs fresh ids, or the server
     // rejects the same key replayed with a different payload as a 422.
     const payload = {
-      payer_id: payerId,
+      payer_id: values.payerId,
       // Who is submitting this form, not who paid — may differ from
       // payerId, which the user can change. Falls back to payerId if this
       // browser has no remembered identity in the group.
-      requested_by: getIdentity(groupId) ?? payerId,
+      requested_by: getIdentity(groupId) ?? values.payerId,
       total_amount: total,
-      memo: memo.trim() || undefined,
-      occurred_on: occurredOn,
+      memo: values.memo.trim() || undefined,
+      occurred_on: values.occurredOn,
       split_rule: result.rule,
       participants: participantIds,
     };
@@ -173,7 +191,6 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     }
     const { id, key } = submissionRef.current;
 
-    setSubmitting(true);
     setSubmitError(null);
     try {
       const entry: components["schemas"]["ExpenseEntry"] = {
@@ -187,17 +204,18 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
       setSubmitError(
         err instanceof ApiError ? err.message : "Something went wrong. Please try again.",
       );
-      setSubmitting(false);
     }
   }
 
   return {
     payerId,
-    setPayerId,
+    registerPayerId: () => register("payerId"),
     memberRows,
     toggleParticipant,
+    registerParticipant: (memberId: string) => register(`participants.${memberId}`),
     totalInput,
     setTotalInput,
+    registerTotalInput: () => register("totalInput"),
     mode,
     setMode,
     splitTabs,
@@ -212,12 +230,12 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     ruleError,
     previewRows,
     memo,
-    setMemo,
+    registerMemo: () => register("memo"),
     occurredOn,
-    setOccurredOn,
-    submitting,
+    registerOccurredOn: () => register("occurredOn"),
+    submitting: formState.isSubmitting,
     submitError,
-    submitDisabled: !canSubmit || submitting,
-    handleSubmit,
+    submitDisabled: !canSubmit || formState.isSubmitting,
+    handleSubmit: rhfHandleSubmit(onValid),
   };
 }
