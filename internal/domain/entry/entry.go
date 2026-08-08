@@ -121,13 +121,12 @@ type BalanceReader interface {
 	GetBalances(ctx context.Context, groupID uuid.UUID) (BalanceSnapshot, error)
 }
 
-// PairwiseBalance is one nonzero debt relationship between two members. By
-// convention A's bytes are lexicographically less than B's; Amount > 0 means
-// A owes B, Amount < 0 means B owes A. Zero pairs are never returned.
+// PairwiseBalance is one nonzero debt relationship: DebtorID owes CreditorID
+// Amount, which is always positive. Zero-net pairs are never returned.
 type PairwiseBalance struct {
-	A      uuid.UUID `json:"a"`
-	B      uuid.UUID `json:"b"`
-	Amount int64     `json:"amount"`
+	DebtorID   uuid.UUID `json:"debtor_id"`
+	CreditorID uuid.UUID `json:"creditor_id"`
+	Amount     int64     `json:"amount"`
 }
 
 // PairwiseReader is the read-side port for derived pairwise "who owes whom"

@@ -54,7 +54,7 @@ func (r *ReadRepository) GetPairwiseBalances(ctx context.Context, groupID uuid.U
 	}
 	pairs := make([]entry.PairwiseBalance, len(rows))
 	for i, row := range rows {
-		pairs[i] = entry.PairwiseBalance{A: row.A, B: row.B, Amount: row.Amount}
+		pairs[i] = entry.PairwiseBalance{DebtorID: row.DebtorID, CreditorID: row.CreditorID, Amount: row.Amount}
 	}
 	return pairs, nil
 }

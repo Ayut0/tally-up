@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -114,6 +115,30 @@ func addExactExpense(t *testing.T, s *Store, id, payer uuid.UUID, total int64, a
 	}
 }
 
+// addExpenseIn writes one equal-split expense in an arbitrary group — needed
+// for tests seeding beyond the 3-person rGroup fixture (addExpense always
+// writes into rGroup).
+func addExpenseIn(t *testing.T, s *Store, groupID, id, payer uuid.UUID, total int64, participants []uuid.UUID) {
+	t.Helper()
+	postings, err := ledger.ComputePostings(payer, total, ledger.SplitRule{Type: ledger.SplitEqual}, participants)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := uuid.New()
+	if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
+		t.Fatalf("gate: %v %v", res, err)
+	}
+	_, err = s.Entries.Create(context.Background(), key, entry.Input{
+		ID: id, GroupID: groupID, Kind: entry.KindExpense, PayerID: payer,
+		TotalAmount: total, SplitRule: []byte(`{"type":"equal"}`),
+		Participants: participants, OccurredOn: time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC),
+		CreatedBy: payer,
+	}, postings)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGetPairwiseBalances_SinglePayerExpense(t *testing.T) {
 	s := TestStore(t)
 	seedReadGroup(t, s)
@@ -124,11 +149,9 @@ func TestGetPairwiseBalances_SinglePayerExpense(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// rYuto < rMemA < rMemB, so both pairs list Yuto as A; negative means
-	// B owes A (memA/memB owe Yuto), per the documented sign convention.
 	want := []entry.PairwiseBalance{
-		{A: rYuto, B: rMemA, Amount: -4000},
-		{A: rYuto, B: rMemB, Amount: -4000},
+		{DebtorID: rMemA, CreditorID: rYuto, Amount: 4000},
+		{DebtorID: rMemB, CreditorID: rYuto, Amount: 4000},
 	}
 	if !reflect.DeepEqual(pairs, want) {
 		t.Fatalf("got %+v, want %+v", pairs, want)
@@ -175,15 +198,56 @@ func TestGetPairwiseBalances_MultiPayerNets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Sorted by (A,B): (Yuto,A) < (Yuto,B) < (A,B), since rYuto < rMemA < rMemB.
+	// Sorted by the pair's canonical (lower, higher) UUID order internally,
+	// which for these fixtures is (Yuto,A) < (Yuto,B) < (A,B).
 	want := []entry.PairwiseBalance{
-		{A: rYuto, B: rMemA, Amount: -2000},
-		{A: rYuto, B: rMemB, Amount: -2000},
-		{A: rMemA, B: rMemB, Amount: -2000}, // B owes A
+		{DebtorID: rMemA, CreditorID: rYuto, Amount: 2000},
+		{DebtorID: rMemB, CreditorID: rYuto, Amount: 2000},
+		{DebtorID: rMemB, CreditorID: rMemA, Amount: 2000},
 	}
 	if !reflect.DeepEqual(pairs, want) {
 		t.Fatalf("got %+v, want %+v", pairs, want)
 	}
+}
+
+// TestGetPairwiseBalances_TenMemberGroup proves the read-model holds at a
+// scale beyond the 3-person fixture: with more members there are more pairs,
+// each independently derived, so nothing about the query should assume a
+// small group. member[0] pays a big shared expense split across all ten,
+// then member[1] pays a smaller side expense with two others — a group of
+// pairs disjoint from the first, at the same time.
+func TestGetPairwiseBalances_TenMemberGroup(t *testing.T) {
+	s := TestStore(t)
+	groupID := uuid.New()
+	members := make([]uuid.UUID, 10)
+	for i := range members {
+		members[i] = uuid.New()
+		seedMember(t, s, members[i], fmt.Sprintf("member%d", i))
+	}
+	seedGroupWithMembers(t, s, groupID, members...)
+
+	// member[0] pays 90000 split equally among all 10: each of the other
+	// nine owes member[0] 9000.
+	addExpenseIn(t, s, groupID, uuid.New(), members[0], 90000, members)
+	// member[1] pays 4500 for a side expense with member[2] and member[3]:
+	// each owes member[1] 1500. Disjoint from member[0]'s pairs above.
+	addExpenseIn(t, s, groupID, uuid.New(), members[1], 4500, []uuid.UUID{members[1], members[2], members[3]})
+
+	pairs, err := s.Reads.GetPairwiseBalances(context.Background(), groupID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 9 pairs from the first expense (member[0] vs everyone else) + 2 from
+	// the second (member[1] vs member[2], member[1] vs member[3]) = 11.
+	if len(pairs) != 11 {
+		t.Fatalf("got %d pairs, want 11: %+v", len(pairs), pairs)
+	}
+
+	snap, err := s.Reads.GetBalances(context.Background(), groupID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPairwiseNetsToBalances(t, snap.Balances, pairs)
 }
 
 func TestProperty_PairwiseNetsToMemberBalance(t *testing.T) {
@@ -202,16 +266,22 @@ func TestProperty_PairwiseNetsToMemberBalance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// For each member, the signed sum of every pairwise edge touching them
-	// (positive if they're the one owed, negative if they owe) must equal
-	// their net balance from the independently-computed balances view.
-	for _, mb := range snap.Balances {
+	assertPairwiseNetsToBalances(t, snap.Balances, pairs)
+}
+
+// assertPairwiseNetsToBalances checks invariant #10 (docs/architecture.md):
+// for each member, the signed sum of every pairwise edge touching them
+// (positive if they're owed, negative if they owe) must equal their net
+// balance from the independently-computed balances view.
+func assertPairwiseNetsToBalances(t *testing.T, balances []entry.MemberBalance, pairs []entry.PairwiseBalance) {
+	t.Helper()
+	for _, mb := range balances {
 		var net int64
 		for _, p := range pairs {
 			switch mb.MemberID {
-			case p.A:
-				net -= p.Amount // A owes B `Amount`, so A's net position drops by it
-			case p.B:
+			case p.DebtorID:
+				net -= p.Amount
+			case p.CreditorID:
 				net += p.Amount
 			}
 		}
