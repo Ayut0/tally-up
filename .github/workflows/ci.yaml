@@ -123,5 +123,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Build-only: catches a broken story or Storybook config the same way
+      # a broken `npm run build` would. Interaction/play-function tests via
+      # addon-vitest are deliberately out of scope (#184).
+      - name: Storybook build
+        run: npm run build-storybook
+
       - name: Test
         run: npm test
