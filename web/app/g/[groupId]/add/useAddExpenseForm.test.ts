@@ -106,6 +106,18 @@ describe("useAddExpenseForm", () => {
     expect(result.current.exactRows.find((r) => r.id === "member-a")?.amount).toBe(700);
   });
 
+  it("a de-selected participant's amount survives and resurfaces on re-select", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("exact"));
+    act(() => result.current.setAmount("member-a", 700));
+
+    act(() => result.current.toggleParticipant("member-a"));
+    expect(result.current.exactRows.find((r) => r.id === "member-a")).toBeUndefined();
+
+    act(() => result.current.toggleParticipant("member-a"));
+    expect(result.current.exactRows.find((r) => r.id === "member-a")?.amount).toBe(700);
+  });
+
   it("switching to shares mode shows weight rows and marks the shares tab active", () => {
     const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
     act(() => result.current.setMode("shares"));
