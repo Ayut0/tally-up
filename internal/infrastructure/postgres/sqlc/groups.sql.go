@@ -77,6 +77,25 @@ func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) erro
 	return err
 }
 
+const lockGroup = `-- name: LockGroup :one
+SELECT id FROM groups WHERE id = $1 FOR UPDATE
+`
+
+// Locks the group row for the rest of the transaction. Every ledger write
+// that touches this group inserts a row that references groups.id via a
+// (non-deferrable) foreign key -- entries.group_id, group_members.group_id
+// -- and Postgres takes a FOR KEY SHARE lock on the referenced row as part
+// of that FK check. FOR UPDATE here conflicts with FOR KEY SHARE, so any
+// concurrent entry/membership insert for this group blocks until this
+// transaction commits or rolls back. Zero rows (nonexistent group) is not
+// an error -- there is nothing to lock, and callers that tolerate a
+// nonexistent group (RemoveMember) proceed anyway.
+func (q *Queries) LockGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockGroup, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
 const selectGroup = `-- name: SelectGroup :one
 SELECT id, name FROM groups WHERE id = $1
 `

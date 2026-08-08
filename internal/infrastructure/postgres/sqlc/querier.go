@@ -85,6 +85,16 @@ type Querier interface {
 	// serializes racers: the loser re-checks after the winner commits (row locks
 	// don't fire the append-only trigger — only real UPDATE/DELETE do).
 	LockEntryForUpdate(ctx context.Context, arg LockEntryForUpdateParams) (LockEntryForUpdateRow, error)
+	// Locks the group row for the rest of the transaction. Every ledger write
+	// that touches this group inserts a row that references groups.id via a
+	// (non-deferrable) foreign key -- entries.group_id, group_members.group_id
+	// -- and Postgres takes a FOR KEY SHARE lock on the referenced row as part
+	// of that FK check. FOR UPDATE here conflicts with FOR KEY SHARE, so any
+	// concurrent entry/membership insert for this group blocks until this
+	// transaction commits or rolls back. Zero rows (nonexistent group) is not
+	// an error -- there is nothing to lock, and callers that tolerate a
+	// nonexistent group (RemoveMember) proceed anyway.
+	LockGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Marks a pending key succeeded with its response snapshot, RETURNING the
 	// JSONB-normalized bytes so the first response and every future replay read
 	// byte-identical values from the same column.

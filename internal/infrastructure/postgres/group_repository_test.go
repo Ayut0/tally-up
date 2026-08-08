@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -220,5 +221,55 @@ func TestGroupRepository_RemoveMember_AlreadyRemovedIsNoop(t *testing.T) {
 	}
 	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
 		t.Fatalf("second removal should be a no-op, got: %v", err)
+	}
+}
+
+// TestRemoveMember_BlocksOnConcurrentGroupLock proves RemoveMember's balance
+// check and delete cannot interleave with a concurrent ledger write for the
+// same group. Without a lock, RemoveMember's balance check and its delete
+// are two separate statements under READ COMMITTED, so a concurrent expense
+// could commit in between and this method would still delete on the stale
+// zero-balance read -- silently dropping the member's now-nonzero balance
+// from every view. This holds the group row locked from outside (mimicking
+// what a concurrent expense-insert's FK check would do) and asserts
+// RemoveMember blocks until the lock is released, never interleaving.
+func TestRemoveMember_BlocksOnConcurrentGroupLock(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	repo := NewGroupRepository(s.Pool)
+
+	tx, err := s.Pool.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(context.Background(), `SELECT id FROM groups WHERE id = $1 FOR UPDATE`, rGroup); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- repo.RemoveMember(context.Background(), rGroup, rMemA)
+	}()
+
+	select {
+	case err := <-done:
+		_ = tx.Rollback(context.Background())
+		t.Fatalf("RemoveMember returned (err=%v) while a concurrent transaction held the group lock -- LockGroup isn't actually blocking", err)
+	case <-time.After(200 * time.Millisecond):
+		// Still blocked, as expected: RemoveMember's LockGroup call is
+		// waiting on the FOR UPDATE lock held above.
+	}
+
+	if err := tx.Commit(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RemoveMember failed after the lock released: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("RemoveMember never completed after the lock released")
 	}
 }

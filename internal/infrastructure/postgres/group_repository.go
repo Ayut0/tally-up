@@ -120,16 +120,32 @@ var _ group.MemberRemover = (*GroupRepository)(nil)
 // RemoveMember unlinks a member from a group, blocked unless their balance
 // is exactly zero. Only the group_members row is deleted — members and
 // their historical entries/postings are untouched, so past history stays
-// fully readable. The balance check and the delete run in one transaction
-// (one MVCC snapshot, via the same GetGroupBalances query
-// ReadRepository.GetBalances uses), so there's no gap between checking and
-// deleting for a concurrent write to land in. A member not currently linked
-// to the group (already removed) has no row in the balances result, so the
-// loop below finds nothing nonzero and falls through to the delete, which
-// then affects zero rows — idempotent removal falls out for free.
+// fully readable.
+//
+// The balance check (GetGroupBalances) and the delete are two separate
+// statements, and this transaction runs at Postgres's default READ
+// COMMITTED isolation — each statement sees its own fresh snapshot, not one
+// shared for the whole transaction. Without a lock, a concurrent expense
+// could commit between the two statements and this method would still
+// delete on the stale zero-balance read, silently dropping the member's
+// now-nonzero balance from every view (GetGroupBalances joins FROM
+// group_members, so a removed member simply disappears from it). LockGroup
+// closes that gap: it takes FOR UPDATE on the group row, which conflicts
+// with the FOR KEY SHARE lock Postgres's FK check takes on that same row
+// for any concurrent INSERT into entries or group_members (both reference
+// groups.id, neither is DEFERRABLE) — so a concurrent ledger write for this
+// group blocks until this transaction commits or rolls back.
+//
+// A member not currently linked to the group (already removed) has no row
+// in the balances result, so the loop below finds nothing nonzero and falls
+// through to the delete, which then affects zero rows — idempotent removal
+// falls out for free.
 func (r *GroupRepository) RemoveMember(ctx context.Context, groupID, memberID uuid.UUID) error {
 	return r.tx.Do(ctx, func(ctx context.Context) error {
 		q := r.queries(ctx)
+		if _, err := q.LockGroup(ctx, groupID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
 		rows, err := q.GetGroupBalances(ctx, groupID)
 		if err != nil {
 			return err
