@@ -2,12 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { zEntryAck } from "./api-schemas/zod.gen";
 import {
   addEntry,
+  addMember,
   createGroup,
   getBalance,
   getGroup,
+  getPairwiseBalances,
   getSettlePlan,
   listEntries,
   postIdempotent,
+  removeMember,
 } from "./api";
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -287,5 +290,87 @@ describe("createGroup / addEntry", () => {
     expect(url).toBe("http://localhost:8080/groups/g1/entries");
     expect(JSON.parse(bodyText(init))).toEqual(entry);
     expect(headerValue(init, "Idempotency-Key")).toBe("key-2");
+  });
+});
+
+describe("getPairwiseBalances", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("GETs the group's pairwise balances and returns the parsed body", async () => {
+    const body = { balances: [{ debtor_id: MEMBER_A, creditor_id: MEMBER_B, amount: 4000 }] };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getPairwiseBalances("g1");
+
+    expect(result).toEqual(body);
+    expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8080/groups/g1/pairwise-balances");
+  });
+
+  it("throws ApiError when a 200 body fails contract validation", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { balances: [{ debtor_id: MEMBER_A }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getPairwiseBalances("g1")).rejects.toMatchObject({ status: 200 });
+  });
+});
+
+describe("addMember", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("POSTs the name to /groups/{id}/members with the idempotency key", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(201, { id: MEMBER_A, name: "new friend" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const member = await addMember("g1", "new friend", "key-3");
+
+    expect(member).toEqual({ id: MEMBER_A, name: "new friend" });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://localhost:8080/groups/g1/members");
+    expect(JSON.parse(bodyText(init))).toEqual({ name: "new friend" });
+    expect(headerValue(init, "Idempotency-Key")).toBe("key-3");
+  });
+
+  it("throws ApiError on a 422 (blank name)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(422, { error: "name must be 1-50 characters" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(addMember("g1", "  ", "key-4")).rejects.toMatchObject({ status: 422 });
+  });
+});
+
+describe("removeMember", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("DELETEs the member with no Idempotency-Key header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await removeMember("g1", MEMBER_A);
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`http://localhost:8080/groups/g1/members/${MEMBER_A}`);
+    expect(init?.method).toBe("DELETE");
+    expect(headerValue(init, "Idempotency-Key")).toBeNull();
+  });
+
+  it("throws ApiError with the server's message on a 409 (nonzero balance)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(409, {
+        error: "member has a nonzero balance; settle up before removing",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(removeMember("g1", MEMBER_A)).rejects.toMatchObject({
+      status: 409,
+      message: "member has a nonzero balance; settle up before removing",
+    });
   });
 });

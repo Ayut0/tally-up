@@ -9,6 +9,7 @@ import { getIdentity } from "@/lib/identity";
 import { BalanceList } from "./balanceList";
 import { HistoryList } from "./historyList";
 import { JoinPicker } from "./join";
+import { MemberList } from "./memberList";
 import { useGroupData } from "./useGroupData";
 
 export default function GroupPage() {
@@ -61,6 +62,8 @@ export default function GroupPage() {
       <BalanceList groupId={groupId} rows={balanceRows} />
 
       <HistoryList rows={historyRows} />
+
+      <MemberList groupId={groupId} members={group.members} />
 
       <Link
         href={`/g/${groupId}/add`}
