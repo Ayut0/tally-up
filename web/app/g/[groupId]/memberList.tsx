@@ -1,6 +1,7 @@
 "use client";
 
 import type { components } from "@/lib/api-types";
+import { RemoveMemberControls } from "./removeMemberControls";
 import { useAddMember, useRemoveMember } from "./useMemberActions";
 
 type Member = components["schemas"]["Member"];
@@ -20,34 +21,13 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
           >
             <div className="flex items-center justify-between">
               <span className="text-base text-zinc-950 dark:text-zinc-50">{member.name}</span>
-              {remove.confirmingId === member.id ? (
-                <span className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => remove.confirmRemove(member.id)}
-                    disabled={remove.isRemoving(member.id)}
-                    className="text-sm font-medium text-red-600 hover:underline disabled:opacity-40 dark:text-red-400"
-                  >
-                    {remove.isRemoving(member.id) ? "Removing…" : "Confirm remove?"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={remove.cancelRemove}
-                    disabled={remove.isRemoving(member.id)}
-                    className="text-sm text-zinc-500 hover:underline disabled:opacity-40 dark:text-zinc-400"
-                  >
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => remove.requestRemove(member.id)}
-                  className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-                >
-                  Remove
-                </button>
-              )}
+              <RemoveMemberControls
+                confirming={remove.confirmingId === member.id}
+                removing={remove.isRemoving(member.id)}
+                onRequestRemove={() => remove.requestRemove(member.id)}
+                onConfirmRemove={() => remove.confirmRemove(member.id)}
+                onCancelRemove={remove.cancelRemove}
+              />
             </div>
             {remove.confirmingId === member.id && remove.error && (
               <p className="text-sm text-red-600 dark:text-red-400">{remove.error}</p>

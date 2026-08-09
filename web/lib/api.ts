@@ -1,3 +1,14 @@
+/**
+ * The HTTP layer: `fetch` wrappers with the runtime response validation and
+ * idempotent-retry contract (see `postIdempotent`) every write in this app
+ * needs. Deliberately has no TanStack Query (or any caching/state) here —
+ * that's a separate concern, layered on top in `app/`'s hooks (e.g.
+ * `useGroupData`, `useSettlePlan`, `useMemberActions`), which call these
+ * functions from `useQuery`/`useMutation` and own caching, polling, and
+ * cache invalidation. Keeping this file query-client-agnostic means it's
+ * exercised directly in `api.test.ts` (mocked `fetch`, no `QueryClient`
+ * needed) and could be reused from a non-React context without change.
+ */
 import type { z } from "zod";
 import type { components } from "./api-types";
 import {

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HttpResponse, http } from "msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { MemberList } from "./memberList";
 
@@ -9,54 +9,37 @@ const members = [
   { id: "m3", name: "Carol" },
 ];
 
-/**
- * MemberList's add/remove actions call the real lib/api.ts functions (real
- * `fetch`), and its query invalidation needs a live QueryClient. Storybook
- * has no backend to talk to, so every story stubs `fetch` with canned
- * responses — enough to click through the two-tap confirm-remove flow and
- * the add-member form for real, in isolation. `nonzeroBalanceMemberId`
- * makes DELETE for that one member fail with the same 409 the real server
- * returns, so the "surfaced, not swallowed" error state is reachable too.
- */
-function stubFetch(nonzeroBalanceMemberId?: string) {
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === "string" ? input : input.toString();
-    const method = init?.method ?? "GET";
+// MemberList's add/remove actions call the real lib/api.ts functions, so
+// each story mocks the network with MSW (msw-storybook-addon, wired up in
+// .storybook/preview.tsx) rather than the component itself — enough to
+// click through the two-tap confirm-remove flow and the add-member form
+// for real, in isolation.
+const addMemberSucceeds = http.post("*/groups/:groupId/members", async ({ request }) => {
+  const { name } = (await request.json()) as { name: string };
+  return HttpResponse.json({ id: `new-${Date.now()}`, name }, { status: 201 });
+});
 
-    if (method === "DELETE") {
-      if (nonzeroBalanceMemberId && url.endsWith(`/${nonzeroBalanceMemberId}`)) {
-        return new Response(
-          JSON.stringify({ error: "member has a nonzero balance; settle up before removing" }),
-          { status: 409, headers: { "content-type": "application/json" } },
-        );
-      }
-      return new Response(null, { status: 204 });
+const removeMemberSucceeds = http.delete("*/groups/:groupId/members/:memberId", () => {
+  return new HttpResponse(null, { status: 204 });
+});
+
+/** Blocks removal of one specific member with the same 409 the real server returns for a nonzero balance; every other member still removes cleanly. */
+function removeMemberBlockedFor(nonzeroBalanceMemberId: string) {
+  return http.delete("*/groups/:groupId/members/:memberId", ({ params }) => {
+    if (params.memberId !== nonzeroBalanceMemberId) {
+      return new HttpResponse(null, { status: 204 });
     }
-    if (method === "POST" && url.includes("/members")) {
-      const body = init?.body ? JSON.parse(init.body as string) : {};
-      return new Response(JSON.stringify({ id: `new-${Date.now()}`, name: body.name }), {
-        status: 201,
-        headers: { "content-type": "application/json" },
-      });
-    }
-    return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
-  }) as typeof fetch;
+    return HttpResponse.json(
+      { error: "member has a nonzero balance; settle up before removing" },
+      { status: 409 },
+    );
+  });
 }
 
 const meta = {
   title: "Group/MemberList",
   component: MemberList,
   args: { groupId: "demo-group" },
-  decorators: [
-    (Story) => {
-      const client = new QueryClient();
-      return (
-        <QueryClientProvider client={client}>
-          <Story />
-        </QueryClientProvider>
-      );
-    },
-  ],
 } satisfies Meta<typeof MemberList>;
 
 export default meta;
@@ -64,27 +47,22 @@ type Story = StoryObj<typeof meta>;
 
 export const Populated: Story = {
   args: { members },
-  beforeEach: () => {
-    stubFetch();
-  },
+  parameters: { msw: { handlers: [addMemberSucceeds, removeMemberSucceeds] } },
 };
 
 export const Empty: Story = {
   args: { members: [] },
-  beforeEach: () => {
-    stubFetch();
-  },
+  parameters: { msw: { handlers: [addMemberSucceeds, removeMemberSucceeds] } },
 };
 
 export const RemoveBlockedByNonzeroBalance: Story = {
   args: { members },
-  beforeEach: () => {
-    stubFetch("m1");
-  },
+  parameters: { msw: { handlers: [removeMemberBlockedFor("m1")] } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const aliceRow = canvas.getByText("Alice").closest("li")!;
-    const rowScope = within(aliceRow as HTMLElement);
+    const aliceRow = canvas.getByText("Alice").closest("li");
+    if (!aliceRow) throw new Error("expected an <li> ancestor for Alice's row");
+    const rowScope = within(aliceRow);
 
     await userEvent.click(rowScope.getByRole("button", { name: "Remove" }));
     await userEvent.click(rowScope.getByRole("button", { name: "Confirm remove?" }));

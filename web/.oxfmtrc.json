@@ -2,5 +2,11 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "sortTailwindcss": { "stylesheet": "./app/globals.css" },
   "sortImports": false,
-  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**", "AGENTS.md", "package-lock.json"]
+  "ignorePatterns": [
+    "lib/api-types.ts",
+    "lib/api-schemas/**",
+    "AGENTS.md",
+    "package-lock.json",
+    "public/mockServiceWorker.js"
+  ]
 }
