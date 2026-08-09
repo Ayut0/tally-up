@@ -16,11 +16,16 @@ import { useEffect, useRef } from "react";
  * regardless of `closedby` support.
  *
  * `dismissible` (default `true`) gates all of that: while `false`,
- * `closedby="none"` blocks both backdrop-click and `Esc` at the browser
- * level (and the Safari fallback below is a no-op), leaving only the
- * caller's own `dialog.close()` — driven by `open` — as a way to close it.
- * A caller mid-async-action (e.g. a pending mutation whose result still
- * needs somewhere to render) sets this to `false` so a stray `Esc`/backdrop
+ * `closedby="none"` blocks backdrop-click at the browser level in
+ * supporting browsers (and the Safari click fallback below is a no-op),
+ * and the `cancel`-blocking effect below stops `Esc` everywhere —
+ * `<dialog>` fires a cancelable `cancel` event on `Esc` regardless of
+ * `closedby` support, so `preventDefault()`ing it is the one mechanism
+ * that covers every browser uniformly (harmless where `closedby="none"`
+ * already suppresses it). Together these leave only the caller's own
+ * `dialog.close()` — driven by `open` — as a way to close it. A caller
+ * mid-async-action (e.g. a pending mutation whose result still needs
+ * somewhere to render) sets this to `false` so a stray `Esc`/backdrop
  * click can't close the dialog out from under it: the native close would
  * desync from `open` (which the caller may deliberately not be changing
  * yet), leaving content orphaned in a dialog nothing can reopen.
@@ -71,6 +76,18 @@ export function Dialog({
 
     dialog.addEventListener("click", closeOnBackdropClick);
     return () => dialog.removeEventListener("click", closeOnBackdropClick);
+  }, [dismissible]);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog || dismissible) return;
+
+    function blockCancel(event: Event) {
+      event.preventDefault();
+    }
+
+    dialog.addEventListener("cancel", blockCancel);
+    return () => dialog.removeEventListener("cancel", blockCancel);
   }, [dismissible]);
 
   return (
