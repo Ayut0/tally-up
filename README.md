@@ -66,7 +66,7 @@ On some macOS setups you'll also need `CGO_ENABLED=0` for `go build`/`go run`/`g
 
 ### Migrations
 
-`migrations/*.sql` is the source of truth. It's manually copied into `internal/infrastructure/postgres/migrations/*.sql` because Go's `go:embed` can't reach outside its own package tree — the postgres package embeds its local copy at build time. If you add or change a migration, copy it to both locations; there's no automated drift check yet.
+`internal/infrastructure/postgres/migrations/*.sql` is the schema source of truth — Go's `go:embed` requires the migrations to live inside the postgres package tree, so there's no separate top-level copy to keep in sync.
 
 ### Query layer (sqlc)
 
