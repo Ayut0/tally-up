@@ -1,17 +1,18 @@
 import Link from "next/link";
+import { Text } from "@/components/ui/text";
 import type { BalanceRow } from "@/lib/balance";
 
 export function BalanceList({ groupId, rows }: { groupId: string; rows: BalanceRow[] }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Balances</h2>
+      <Text variant="section-heading">Balances</Text>
       <ul className="flex flex-col gap-1">
         {rows.map((row) => (
           <li
             key={row.id}
             className="flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
           >
-            <span className="text-base text-zinc-950 dark:text-zinc-50">{row.name}</span>
+            <Text variant="body">{row.name}</Text>
             <span className={row.amountClassName}>{row.formattedAmount}</span>
           </li>
         ))}

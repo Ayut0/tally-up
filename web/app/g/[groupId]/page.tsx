@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Text } from "@/components/ui/text";
 import { buildBalanceRows } from "@/lib/balance";
 import { buildHistoryRows } from "@/lib/history";
 import { getIdentity } from "@/lib/identity";
@@ -27,11 +28,19 @@ export default function GroupPage() {
   const inviteUrl = typeof window === "undefined" ? "" : window.location.href;
 
   if (error) {
-    return <p className="p-6 text-sm text-red-600 dark:text-red-400">{error}</p>;
+    return (
+      <div className="p-6">
+        <Text variant="error">{error}</Text>
+      </div>
+    );
   }
 
   if (!group) {
-    return <p className="p-6 text-sm text-zinc-500">Loading…</p>;
+    return (
+      <div className="p-6">
+        <Text variant="muted">Loading…</Text>
+      </div>
+    );
   }
 
   if (memberId === null) {
@@ -48,7 +57,7 @@ export default function GroupPage() {
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-6 p-6 pb-24">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-zinc-950 dark:text-zinc-50">{group.name}</h1>
+        <Text variant="heading">{group.name}</Text>
         <button
           type="button"
           onClick={copyInviteLink}
