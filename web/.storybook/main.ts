@@ -1,7 +1,7 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 
 const config: StorybookConfig = {
-  stories: ["../app/**/*.stories.@(ts|tsx)"],
+  stories: ["../{app,components}/**/*.stories.@(ts|tsx)"],
   addons: ["msw-storybook-addon"],
   framework: "@storybook/nextjs-vite",
   staticDirs: ["../public"],
