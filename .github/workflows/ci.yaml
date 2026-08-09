@@ -114,6 +114,16 @@ jobs:
 
       - run: npm ci
 
+      # Follow-up to #191: a spec/openapi.yaml change that skips
+      # `npm run gen:api-types`/`gen:api-schemas` would otherwise leave
+      # web/lib/api-types.ts and web/lib/api-schemas/ silently stale —
+      # same class of gap `sqlc-check` closes for the Go side. Delegated
+      # to the Makefile for one definition, so this step needs npm's
+      # node_modules (already installed above) but runs from repo root.
+      - name: Web API client up to date
+        working-directory: ${{ github.workspace }}
+        run: make web-api-check
+
       - name: Lint
         run: npm run lint
 
