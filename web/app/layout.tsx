@@ -27,6 +27,13 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // next-themes (see providers.tsx) sets the .dark class on this
+      // element via a script that runs before React hydrates, based on the
+      // client's system preference — something the server can't know when
+      // it renders this same tag. Without this, React would log a
+      // hydration-mismatch warning for the one attribute next-themes
+      // intentionally changes out from under it; this only silences that
+      // warning for this element, not its children.
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
