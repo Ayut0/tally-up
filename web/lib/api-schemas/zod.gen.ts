@@ -280,8 +280,8 @@ export const zTransfer = z.object({
 
 /**
  * Proposed transfers plus the balance snapshot they were computed from.
- * `as_of_seq` is the optimistic-concurrency token a recorded settlement
- * passes back as `plan_seq`.
+ * `as_of_seq` is the ledger `seq` the transfers were derived from, same role
+ * as `BalanceSnapshot.as_of_seq` above.
  */
 export const zSettlePlan = z.object({
     transfers: z.array(zTransfer),
