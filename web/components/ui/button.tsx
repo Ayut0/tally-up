@@ -26,6 +26,7 @@ export function Button({
   disabled,
   fullWidth,
   onClick,
+  "aria-label": ariaLabel,
   children,
 }: {
   variant: ButtonVariant;
@@ -33,6 +34,7 @@ export function Button({
   disabled?: boolean;
   fullWidth?: boolean;
   onClick?: () => void;
+  "aria-label"?: string;
   children: ReactNode;
 }) {
   return (
@@ -42,6 +44,7 @@ export function Button({
       isDisabled={disabled}
       fullWidth={fullWidth}
       onPress={onClick}
+      aria-label={ariaLabel}
     >
       {children}
     </HeroButton>
