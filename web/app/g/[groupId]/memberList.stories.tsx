@@ -13,8 +13,8 @@ const members = [
 // MemberList's add/remove actions call the real lib/api.ts functions, so
 // each story mocks the network with MSW (msw-storybook-addon, wired up in
 // .storybook/preview.tsx) rather than the component itself — enough to
-// click through the two-tap confirm-remove flow and the add-member form
-// for real, in isolation.
+// click through the confirm-remove dialog and the add-member form for
+// real, in isolation.
 const addMemberSucceeds = http.post("*/groups/:groupId/members", async ({ request }) => {
   const { name } = zAddMemberRequest.parse(await request.json());
   return HttpResponse.json({ id: `new-${Date.now()}`, name }, { status: 201 });
@@ -63,14 +63,16 @@ export const RemoveBlockedByNonzeroBalance: Story = {
     const canvas = within(canvasElement);
     const aliceRow = canvas.getByText("Alice").closest("li");
     if (!aliceRow) throw new Error("expected an <li> ancestor for Alice's row");
-    const rowScope = within(aliceRow);
 
-    await userEvent.click(rowScope.getByRole("button", { name: "Remove" }));
-    await userEvent.click(rowScope.getByRole("button", { name: "Confirm remove?" }));
+    await userEvent.click(within(aliceRow).getByRole("button", { name: "Remove" }));
+    // The confirm dialog isn't scoped inside Alice's row — it's one shared
+    // dialog for the whole list — so its confirm button needs a name that
+    // won't collide with the row's own "Remove" button.
+    await userEvent.click(canvas.getByRole("button", { name: "Remove Alice" }));
 
     await waitFor(() =>
       expect(
-        rowScope.getByText("member has a nonzero balance; settle up before removing"),
+        canvas.getByText("member has a nonzero balance; settle up before removing"),
       ).toBeInTheDocument(),
     );
   },
