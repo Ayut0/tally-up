@@ -1,7 +1,7 @@
 "use client";
 
+import { TwoTapConfirm } from "@/components/twoTapConfirm";
 import type { components } from "@/lib/api-types";
-import { RemoveMemberControls } from "./removeMemberControls";
 import { useAddMember, useRemoveMember } from "./useMemberActions";
 
 type Member = components["schemas"]["Member"];
@@ -21,12 +21,15 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
           >
             <div className="flex items-center justify-between">
               <span className="text-base text-zinc-950 dark:text-zinc-50">{member.name}</span>
-              <RemoveMemberControls
+              <TwoTapConfirm
                 confirming={remove.confirmingId === member.id}
-                removing={remove.isRemoving(member.id)}
-                onRequestRemove={() => remove.requestRemove(member.id)}
-                onConfirmRemove={() => remove.confirmRemove(member.id)}
-                onCancelRemove={remove.cancelRemove}
+                pending={remove.isRemoving(member.id)}
+                actionLabel="Remove"
+                confirmLabel="Confirm remove?"
+                pendingLabel="Removing…"
+                onRequest={() => remove.requestRemove(member.id)}
+                onConfirm={() => remove.confirmRemove(member.id)}
+                onCancel={remove.cancelRemove}
               />
             </div>
             {remove.confirmingId === member.id && remove.error && (
