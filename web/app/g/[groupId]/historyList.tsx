@@ -1,11 +1,12 @@
+import { Text } from "@/components/ui/text";
 import type { HistoryRow } from "@/lib/history";
 
 export function HistoryList({ rows }: { rows: HistoryRow[] }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">History</h2>
+      <Text variant="section-heading">History</Text>
       {rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">No entries yet.</p>
+        <Text variant="muted">No entries yet.</Text>
       ) : (
         <ul className="flex flex-col gap-1">
           {rows.map((row) => (

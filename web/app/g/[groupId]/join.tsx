@@ -1,5 +1,6 @@
 "use client";
 
+import { Text } from "@/components/ui/text";
 import type { components } from "@/lib/api-types";
 import { setIdentity } from "@/lib/identity";
 
@@ -19,7 +20,7 @@ export function JoinPicker({
 }) {
   return (
     <div className="flex w-full max-w-sm flex-col gap-4 p-6">
-      <h1 className="text-xl font-semibold text-zinc-950 dark:text-zinc-50">Who are you?</h1>
+      <Text variant="heading">Who are you?</Text>
       <ul className="flex flex-col gap-2">
         {group.members.map((member) => (
           <li key={member.id}>

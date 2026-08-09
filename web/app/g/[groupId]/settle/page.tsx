@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Text } from "@/components/ui/text";
 import { transferKey } from "@/lib/settle";
 import { useRecordTransfer, useSettlePlan } from "./useSettlePlan";
 
@@ -11,11 +12,19 @@ export default function SettlePage() {
   const { record, recording, pendingKey, error: recordError } = useRecordTransfer(groupId);
 
   if (error) {
-    return <p className="p-6 text-sm text-red-600 dark:text-red-400">{error}</p>;
+    return (
+      <div className="p-6">
+        <Text variant="error">{error}</Text>
+      </div>
+    );
   }
 
   if (!group || !plan) {
-    return <p className="p-6 text-sm text-zinc-500">Loading…</p>;
+    return (
+      <div className="p-6">
+        <Text variant="muted">Loading…</Text>
+      </div>
+    );
   }
 
   const membersById = new Map(group.members.map((m) => [m.id, m]));
@@ -24,7 +33,7 @@ export default function SettlePage() {
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-950 dark:text-zinc-50">Settle up</h1>
+        <Text variant="heading">Settle up</Text>
         <Link
           href={`/g/${groupId}`}
           className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
@@ -34,7 +43,7 @@ export default function SettlePage() {
       </div>
 
       {plan.transfers.length === 0 ? (
-        <p className="text-sm text-zinc-500">All settled up — every balance is ¥0.</p>
+        <Text variant="muted">All settled up — every balance is ¥0.</Text>
       ) : (
         // Rendered straight from the polled plan, with no local copy: a
         // transfer a recompute has dropped simply has no row, so it cannot be
@@ -50,10 +59,10 @@ export default function SettlePage() {
                 className="flex items-center justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
               >
                 <span className="flex flex-col">
-                  <span className="text-base text-zinc-950 dark:text-zinc-50">
+                  <Text variant="body">
                     {nameOf(transfer.from)} <span className="text-zinc-500">pays</span>{" "}
                     {nameOf(transfer.to)}
-                  </span>
+                  </Text>
                   <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
                     ¥{transfer.amount.toLocaleString("ja-JP")}
                   </span>
@@ -92,7 +101,7 @@ export default function SettlePage() {
         </ul>
       )}
 
-      {recordError && <p className="text-sm text-red-600 dark:text-red-400">{recordError}</p>}
+      {recordError && <Text variant="error">{recordError}</Text>}
     </div>
   );
 }

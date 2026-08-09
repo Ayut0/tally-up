@@ -17,10 +17,22 @@
             "name": "@testing-library/react",
             "importNames": ["render"],
             "message": "web/ tests never render JSX. Test the hook with renderHook, or move the rule into lib/."
+          },
+          {
+            "name": "@heroui/react",
+            "message": "Import HeroUI components only inside components/ui/ — pages and hooks should not know which library backs the app's UI primitives."
           }
         ]
       }
     ]
   },
+  "overrides": [
+    {
+      "files": ["components/ui/**/*.tsx"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**", "public/mockServiceWorker.js"]
 }
