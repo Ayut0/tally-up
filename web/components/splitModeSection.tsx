@@ -16,6 +16,7 @@ type PreviewRow = { id: string; name: string; formattedShare: string };
  * useAddExpenseForm — this component just lays out the JSX for them.
  */
 export function SplitModeSection({
+  mode,
   splitTabs,
   setMode,
   showExactInputs,
@@ -27,6 +28,7 @@ export function SplitModeSection({
   ruleError,
   previewRows,
 }: {
+  mode: SplitRule["type"];
   splitTabs: SplitTab[];
   setMode: (mode: SplitRule["type"]) => void;
   showExactInputs: boolean;
@@ -38,14 +40,12 @@ export function SplitModeSection({
   ruleError: string | null;
   previewRows: PreviewRow[] | null;
 }) {
-  const activeMode = splitTabs.find((tab) => tab.active)?.mode ?? splitTabs[0].mode;
-
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Split</span>
       <Tabs
         tabs={splitTabs.map((tab) => ({ id: tab.mode, label: tab.label }))}
-        value={activeMode}
+        value={mode}
         onChange={setMode}
       >
         <div className="flex flex-col gap-2">
