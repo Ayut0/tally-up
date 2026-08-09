@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { HttpResponse, http } from "msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { zAddMemberRequest } from "@/lib/api-schemas/zod.gen";
 import { MemberList } from "./memberList";
 
 const members = [
@@ -15,7 +16,7 @@ const members = [
 // click through the two-tap confirm-remove flow and the add-member form
 // for real, in isolation.
 const addMemberSucceeds = http.post("*/groups/:groupId/members", async ({ request }) => {
-  const { name } = (await request.json()) as { name: string };
+  const { name } = zAddMemberRequest.parse(await request.json());
   return HttpResponse.json({ id: `new-${Date.now()}`, name }, { status: 201 });
 });
 
