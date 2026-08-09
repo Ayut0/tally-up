@@ -26,7 +26,6 @@ type Entry struct {
 	TotalAmount  int64
 	SplitRule    []byte
 	Participants []uuid.UUID
-	PlanSeq      *int64
 	Memo         *string
 	OccurredOn   pgtype.Date
 	CreatedBy    uuid.UUID
