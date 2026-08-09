@@ -1,6 +1,9 @@
 "use client";
 
-import { Dialog } from "@/components/dialog";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Text } from "@/components/ui/text";
+import { TextField } from "@/components/ui/textField";
 import type { components } from "@/lib/api-types";
 import { useAddMember, useRemoveMember } from "./useMemberActions";
 
@@ -14,74 +17,62 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Members</h2>
+      <Text variant="section-heading">Members</Text>
       <ul className="flex flex-col gap-1">
         {members.map((member) => (
           <li
             key={member.id}
             className="flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
           >
-            <span className="text-base text-zinc-950 dark:text-zinc-50">{member.name}</span>
-            <button
-              type="button"
-              onClick={() => remove.requestRemove(member.id)}
-              className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-            >
+            <Text variant="body">{member.name}</Text>
+            <Button variant="ghost" onClick={() => remove.requestRemove(member.id)}>
               Remove
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
 
-      <Dialog ref={remove.dialogRef} aria-label="Confirm remove member" {...remove.dialogProps}>
+      <Modal {...remove.modalProps} aria-label="Confirm remove member">
         {confirmingMember && (
           <div className="flex flex-col gap-4">
-            <p className="text-base text-zinc-950 dark:text-zinc-50">
+            <Text variant="body">
               Remove <strong>{confirmingMember.name}</strong> from this group?
-            </p>
-            {remove.error && (
-              <p className="text-sm text-red-600 dark:text-red-400">{remove.error}</p>
-            )}
+            </Text>
+            {remove.error && <Text variant="error">{remove.error}</Text>}
             <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={remove.cancelRemove}
-                disabled={removingConfirmed}
-                className="text-sm text-zinc-500 hover:underline disabled:opacity-40 dark:text-zinc-400"
-              >
+              <Button variant="ghost" onClick={remove.cancelRemove} disabled={removingConfirmed}>
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="danger"
                 onClick={() => remove.confirmRemove(confirmingMember.id)}
                 disabled={removingConfirmed}
                 aria-label={`Remove ${confirmingMember.name}`}
-                className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
               >
                 {removingConfirmed ? "Removing…" : "Remove"}
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </Dialog>
+      </Modal>
 
-      <form onSubmit={addForm.submit} className="flex gap-2">
-        <input
-          type="text"
-          value={addForm.name}
-          onChange={(e) => addForm.setName(e.target.value)}
-          placeholder="Add a member"
-          className="flex-1 rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-        />
-        <button
+      <form onSubmit={addForm.submit} className="flex items-end gap-2">
+        <div className="flex-1">
+          <TextField
+            label="Add a member"
+            value={addForm.name}
+            onChange={(e) => addForm.setName(e.target.value)}
+          />
+        </div>
+        <Button
           type="submit"
+          variant="solid"
           disabled={addForm.submitting || addForm.name.trim() === ""}
-          className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
         >
           {addForm.submitting ? "Adding…" : "Add"}
-        </button>
+        </Button>
       </form>
-      {addForm.error && <p className="text-sm text-red-600 dark:text-red-400">{addForm.error}</p>}
+      {addForm.error && <Text variant="error">{addForm.error}</Text>}
     </section>
   );
 }
