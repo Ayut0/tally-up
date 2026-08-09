@@ -176,7 +176,7 @@ CREATE TABLE members (
 CREATE TABLE groups (
   id               UUID PRIMARY KEY,
   name             TEXT NOT NULL,
-  password_hash    TEXT,                   -- NULL = open group (no password); bcrypt when set (migration 0002)
+  password_hash    TEXT,                   -- NULL = open group (no password); bcrypt when set (migration number TBD — 0002 is already taken by drop_plan_seq)
   password_version INT NOT NULL DEFAULT 0, -- bumped on every set/change/clear → invalidates all issued tokens
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
