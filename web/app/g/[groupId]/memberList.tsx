@@ -33,12 +33,7 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
         ))}
       </ul>
 
-      <Dialog
-        open={confirmingMember !== null}
-        onClose={remove.cancelRemove}
-        ariaLabel="Confirm remove member"
-        dismissible={!removingConfirmed}
-      >
+      <Dialog ref={remove.dialogRef} aria-label="Confirm remove member" {...remove.dialogProps}>
         {confirmingMember && (
           <div className="flex flex-col gap-4">
             <p className="text-base text-zinc-950 dark:text-zinc-50">
