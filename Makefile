@@ -18,7 +18,7 @@ SEED_GROUP_ID   := 00000000-0000-0000-0000-0000000000a1
 # golangci-lint release can't turn CI red on an unrelated PR — see #98.
 GOLANGCI_LINT_VERSION := v2.6.2
 
-.PHONY: db-up db-down run seed smoke test test-nodb sqlc sqlc-check spec lint web-dev web-test web-build
+.PHONY: db-up db-down run seed smoke test test-nodb sqlc sqlc-check spec lint web-dev web-test web-build web-api-check
 
 db-up: ## Start the local Postgres container
 	docker compose up -d db
@@ -72,3 +72,7 @@ web-test: ## Run the web client's unit tests (vitest)
 
 web-build: ## Production build of the web client
 	cd web && npm run build
+
+web-api-check: ## Fail if the generated web API client (api-types.ts, api-schemas/) is stale relative to spec/openapi.yaml (what CI runs)
+	cd web && npm run gen:api-types && npm run gen:api-schemas
+	git diff --exit-code -- web/lib/api-types.ts web/lib/api-schemas
