@@ -22,5 +22,5 @@
       }
     ]
   },
-  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**"]
+  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**", "public/mockServiceWorker.js"]
 }

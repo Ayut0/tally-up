@@ -1,3 +1,14 @@
+/**
+ * The HTTP layer: `fetch` wrappers with the runtime response validation and
+ * idempotent-retry contract (see `postIdempotent`) every write in this app
+ * needs. Deliberately has no TanStack Query (or any caching/state) here —
+ * that's a separate concern, layered on top in `app/`'s hooks (e.g.
+ * `useGroupData`, `useSettlePlan`, `useMemberActions`), which call these
+ * functions from `useQuery`/`useMutation` and own caching, polling, and
+ * cache invalidation. Keeping this file query-client-agnostic means it's
+ * exercised directly in `api.test.ts` (mocked `fetch`, no `QueryClient`
+ * needed) and could be reused from a non-React context without change.
+ */
 import type { z } from "zod";
 import type { components } from "./api-types";
 import {
@@ -6,6 +17,8 @@ import {
   zEntryList,
   zErrorBody,
   zGroupRecord,
+  zMember,
+  zPairwiseBalances,
   zSettlePlan,
 } from "./api-schemas/zod.gen";
 
@@ -158,4 +171,33 @@ export function addEntry(
   key: string,
 ): Promise<components["schemas"]["EntryAck"]> {
   return postIdempotent(`/groups/${groupId}/entries`, entry, key, zEntryAck);
+}
+
+/** Fetches true pairwise "who owes whom" debt, distinct from the settle-plan's minimal-transfer proposal. */
+export function getPairwiseBalances(
+  groupId: string,
+): Promise<components["schemas"]["PairwiseBalances"]> {
+  return getJSON(`/groups/${groupId}/pairwise-balances`, zPairwiseBalances);
+}
+
+/** Adds a member to an existing group; the new member is immediately usable as a participant. */
+export function addMember(
+  groupId: string,
+  name: string,
+  key: string,
+): Promise<components["schemas"]["Member"]> {
+  const body: components["schemas"]["AddMemberRequest"] = { name };
+  return postIdempotent(`/groups/${groupId}/members`, body, key, zMember);
+}
+
+/**
+ * Removes a member from a group. Naturally idempotent — no Idempotency-Key —
+ * so this is a plain DELETE rather than `postIdempotent`. Rejected with 409
+ * unless the member's balance is exactly zero.
+ */
+export async function removeMember(groupId: string, memberId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/groups/${groupId}/members/${memberId}`), { method: "DELETE" });
+  if (!res.ok) {
+    throw new ApiError(res.status, await readErrorMessage(res));
+  }
 }

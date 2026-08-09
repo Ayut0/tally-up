@@ -16,10 +16,12 @@ export function BalanceList({ groupId, rows }: { groupId: string; rows: BalanceR
           </li>
         ))}
       </ul>
-      {/* Settling up and recording a payment are destinations, not creation
-          acts, so they sit with the balances they act on rather than under
-          the `+` (issue #157, #161). */}
-      <div className="flex gap-4">
+      {/* Settling up, recording a payment, and viewing who-owes-whom are
+          destinations, not creation acts, so they sit with the balances
+          they act on rather than under the `+` (issue #157, #161, #185).
+          flex-wrap: three links no longer reliably fit one row at
+          max-w-sm. */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
         <Link
           href={`/g/${groupId}/settle`}
           className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
@@ -31,6 +33,12 @@ export function BalanceList({ groupId, rows }: { groupId: string; rows: BalanceR
           className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
         >
           Record a payment →
+        </Link>
+        <Link
+          href={`/g/${groupId}/owes`}
+          className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+        >
+          Who owes whom →
         </Link>
       </div>
     </section>

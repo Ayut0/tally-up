@@ -20,5 +20,6 @@ export default defineConfig([
     "next-env.d.ts",
     "lib/api-types.ts",
     "lib/api-schemas/**",
+    "public/mockServiceWorker.js",
   ]),
 ]);

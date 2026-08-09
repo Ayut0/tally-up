@@ -3,6 +3,13 @@
 import * as z from 'zod';
 
 /**
+ * What the client sends to add one member to an existing group.
+ */
+export const zAddMemberRequest = z.object({
+    name: z.string()
+});
+
+/**
  * Calendar date in `YYYY-MM-DD`.
  */
 export const zCalendarDate = z.iso.date();
@@ -172,6 +179,21 @@ export const zMemberBalance = z.object({
 export const zBalanceSnapshot = z.object({
     balances: z.array(zMemberBalance),
     as_of_seq: z.number().int()
+});
+
+/**
+ * One nonzero debt relationship between two members, derived from
+ * entries+postings: `debtor_id` owes `creditor_id` `amount`. `amount` is
+ * always positive; zero-net pairs are never returned.
+ */
+export const zPairwiseBalance = z.object({
+    debtor_id: zUuid,
+    creditor_id: zUuid,
+    amount: z.number().int()
+});
+
+export const zPairwiseBalances = z.object({
+    balances: z.array(zPairwiseBalance)
 });
 
 /**
