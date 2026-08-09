@@ -15,10 +15,11 @@ import { generateUuidV7 } from "@/lib/uuidv7";
 type GroupRecord = components["schemas"]["GroupRecord"];
 type SplitRule = components["schemas"]["SplitRule"];
 
-// Every field that binds to a native <input>/<select>/checkbox, or is
-// Record-keyed and changes shape as participants are toggled
-// (`participants`/`amounts`/`weights`). `mode` is the one field that's
-// neither — see the comment at its declaration for why it stays outside.
+// Every field the form tracks, whether bound via register() (totalInput,
+// memo, occurredOn, amounts, weights) or via imperative setters
+// (payerId, participants — see the comment above toggleParticipant/
+// setPayerId for why). `mode` is the one field that's neither — see the
+// comment at its declaration for why it stays outside this useForm().
 type FormValues = {
   payerId: string;
   participants: Record<string, boolean>;
@@ -81,10 +82,13 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submissionRef = useRef<{ id: string; key: string; signature: string } | null>(null);
 
-  // Imperative setters, kept for the renderHook test suite per #138 — it
-  // can't drive register()'s DOM-bound onChange without fabricating an
-  // event object. page.tsx uses the registerX bindings below instead; both
-  // write the same underlying RHF form state.
+  // Imperative setters. Originally added for the renderHook test suite per
+  // #138 (it can't drive register()'s DOM-bound onChange without
+  // fabricating an event object) alongside register()-spread bindings for
+  // page.tsx; #199 moved page.tsx onto these directly too, since
+  // Checkbox/Select (HeroUI's react-aria-components-backed non-native
+  // controls) are controlled via boolean/key state, not a DOM onChange
+  // event, and can't consume a register() spread either.
   //
   // Reads via getValues(), not the `participantsRecord` watched above:
   // negating a snapshot from the last render is the setState(x + 1) vs
@@ -93,6 +97,10 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   // returns what's currently committed.
   function toggleParticipant(memberId: string) {
     setValue(`participants.${memberId}`, !getValues(`participants.${memberId}`));
+  }
+
+  function setPayerId(value: string) {
+    setValue("payerId", value);
   }
 
   function setTotalInput(value: string) {
@@ -209,10 +217,9 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
 
   return {
     payerId,
-    registerPayerId: () => register("payerId"),
+    setPayerId,
     memberRows,
     toggleParticipant,
-    registerParticipant: (memberId: string) => register(`participants.${memberId}`),
     totalInput,
     setTotalInput,
     registerTotalInput: () => register("totalInput"),

@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { SplitModeSection } from "@/components/splitModeSection";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select } from "@/components/ui/select";
+import { TextField } from "@/components/ui/textField";
 import type { components } from "@/lib/api-types";
 import { useAddExpenseForm } from "./useAddExpenseForm";
 import { useGroup } from "./useGroup";
@@ -39,42 +43,31 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
       </div>
 
       <form onSubmit={form.handleSubmit} className="flex flex-col gap-6">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Paid by</span>
-          <select
-            {...form.registerPayerId()}
-            className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-          >
-            {group.members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Paid by"
+          value={form.payerId}
+          onChange={form.setPayerId}
+          options={group.members.map((member) => ({ id: member.id, label: member.name }))}
+        />
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Total (¥)</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            step={1}
-            {...form.registerTotalInput()}
-            placeholder="0"
-            className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-          />
-        </label>
+        <TextField
+          label="Total (¥)"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          step={1}
+          placeholder="0"
+          {...form.registerTotalInput()}
+        />
 
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Participants</span>
           <ul className="flex flex-col gap-1">
             {form.memberRows.map((row) => (
               <li key={row.id}>
-                <label className="flex items-center gap-2 text-base text-zinc-950 dark:text-zinc-50">
-                  <input type="checkbox" {...form.registerParticipant(row.id)} />
+                <Checkbox checked={row.checked} onChange={() => form.toggleParticipant(row.id)}>
                   {row.name}
-                </label>
+                </Checkbox>
               </li>
             ))}
           </ul>
@@ -93,38 +86,22 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
           previewRows={form.previewRows}
         />
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Memo (optional)
-          </span>
-          <input
-            type="text"
-            {...form.registerMemo()}
-            placeholder="e.g. dinner"
-            className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-          />
-        </label>
+        <TextField
+          label="Memo (optional)"
+          type="text"
+          placeholder="e.g. dinner"
+          {...form.registerMemo()}
+        />
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Date</span>
-          <input
-            type="date"
-            {...form.registerOccurredOn()}
-            className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-          />
-        </label>
+        <TextField label="Date" type="date" {...form.registerOccurredOn()} />
 
         {form.submitError && (
           <p className="text-sm text-red-600 dark:text-red-400">{form.submitError}</p>
         )}
 
-        <button
-          type="submit"
-          disabled={form.submitDisabled}
-          className="rounded-full bg-foreground px-5 py-3 text-base font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
-        >
+        <Button type="submit" variant="solid" fullWidth disabled={form.submitDisabled}>
           {form.submitting ? "Adding…" : "Add expense"}
-        </button>
+        </Button>
       </form>
     </div>
   );
