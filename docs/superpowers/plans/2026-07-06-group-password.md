@@ -1,128 +1,115 @@
 # Group Password Protection Implementation Plan
 
+> **Status (2026-08-09):** Refreshed against the current architecture — sqlc +
+> repository (#62-66), the DDD restructure (domain/application/infrastructure/
+> interfaces), and TypeSpec-as-contract (#93) all landed after this plan was
+> first written, and the original plan targeted a `Store`/`api.Server` shape
+> that no longer exists. The **Goal**, **Global Constraints**, and each task's
+> behavior/spec prose (status codes, error semantics, token TTL, exemption
+> rules) are unchanged and still correct — that part of the original plan
+> survived the migration (see #37's closing comment for precedent). What's
+> been rewritten below: **Architecture**, **File Structure**, and each task's
+> **Files/Interfaces** lists and code samples, to match the current tree.
+> Code samples here are illustrative, not copy-paste-ready — cross-check
+> against the pointed-to current file before implementing, since more
+> architectural churn can land after this refresh too (e.g. #194 retired the
+> top-level `migrations/` dir the same week this was refreshed). See #179.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** An optional, server-enforced shared password per group (spec §3 of `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md`) that gates every group-scoped read and write, with no user accounts anywhere.
 
-**Architecture:** A group gets a nullable `password_hash` + monotonic `password_version`. Unlocking exchanges a correct password for a compact, stateless HMAC-signed token (`group_id` + `password_version` + expiry) — no session table, no JWT library. One shared middleware wraps every group-scoped route: if a group has no password, it's a no-op (fully backward compatible); if it does, it requires a valid, current-version token. The client gates its entire `/g/[groupId]/*` route tree with one new layout, so none of the already-planned pages (balances, add-expense, settle-up, who-owes-whom) need to change.
+**Architecture:** A group gets a nullable `password_hash` + monotonic `password_version`. Unlocking exchanges a correct password for a compact, stateless HMAC-signed token (`group_id` + `password_version` + expiry) — no session table, no JWT library. One shared middleware wraps every group-scoped route: if a group has no password, it's a no-op (fully backward compatible); if it does, it requires a valid, current-version token. The client gates its entire `/g/[groupId]/*` route tree with one new layout, so none of the already-shipped pages (balances, add-expense, settle-up, who-owes-whom) need to change.
 
-**Tech Stack:** Go 1.23+, `pgx/v5`, `golang.org/x/crypto/bcrypt`, stdlib `crypto/hmac`/`crypto/sha256` (no JWT dependency), Next.js/TypeScript client.
+This lands across the same four layers as every other feature in this repo (`docs/mapping.md`): a `domain/group` port + errors, an `application/*` service orchestrating the idempotency gate where one applies, an `infrastructure/postgres` repository backed by sqlc-generated queries, and `interfaces/rest` handlers. **New relative to every prior plan in this repo: the API contract is TypeSpec-first (`spec/main.tsp`, #93)** — every new route and model MUST be added there and regenerated (`make spec`) before the Go handler is written, because `internal/interfaces/rest/openapi_spec_test.go` validates every response against `spec/openapi.yaml` and will fail a handler that returns something the contract doesn't describe. The web client's types (`web/lib/api-types.ts`) and runtime Zod validators (`web/lib/api-schemas/zod.gen.ts`) are also generated from that same spec.
 
-**Prerequisites:** All four original plans plus `docs/superpowers/plans/2026-07-06-pairwise-and-member-management.md` are executed — this plan's middleware wraps routes those add too (`pairwise-balances`, `members`).
+**Tech Stack:** Go 1.25, `pgx/v5` + sqlc, `golang.org/x/crypto/bcrypt`, stdlib `crypto/hmac`/`crypto/sha256` (no JWT dependency), TypeSpec (`spec/main.tsp`) → OpenAPI → generated Go-side validation + web-side types/schemas, Next.js/TypeScript client.
+
+**Prerequisites:** The four original ledger-core plans plus `docs/superpowers/plans/2026-07-06-pairwise-and-member-management.md` are executed — all of #37-#41 are closed, so this plan's middleware wraps real, shipped routes (`pairwise-balances`, `members`). Note: the pairwise plan's client task (member-management UI) was split out to a separate, still-open effort (#185) with its own web/ conventions — if that lands first, this plan's middleware still applies uniformly regardless of which UI patterns #185 settles on.
 
 ## Global Constraints
 
 - No user registration or accounts anywhere. The password is one shared secret per group, not per-person credentials — unlocking proves knowledge of the secret, not identity. Identity remains picking a name from the member list, unchanged.
 - The password gates **everything** — every group-scoped read and write — except the two endpoints needed to bootstrap unlocking itself (`password-required`, `unlock`) and group creation (no group exists yet to have a password).
-- `password_hash IS NULL` means the group is fully open — today's behavior, unchanged. Every already-planned endpoint must keep working exactly as before for groups with no password.
+- `password_hash IS NULL` means the group is fully open — today's behavior, unchanged. Every already-shipped endpoint must keep working exactly as before for groups with no password.
 - Changing or clearing a password bumps `password_version`, which invalidates every previously issued token immediately — no explicit revocation list needed.
 - Lost password = permanently locked out. No recovery path exists or is planned. The client states this plainly when a password is set.
 - Money/ledger invariants from prior plans are untouched by this plan.
-- Branch: `feat/issue-9-group-password`.
+- Branch: `feat/issue-<n>-group-password` (per-task issue numbers TBD when this plan is broken into issues — see `to-issues`).
 
 ## File Structure
 
 ```
-migrations/0002_group_password.up.sql
-migrations/0002_group_password.down.sql
-internal/infrastructure/postgres/migrations/0002_group_password.up.sql   — embedded copy
-internal/infrastructure/postgres/migrations/0002_group_password.down.sql
-internal/auth/token.go              — Sign, Verify, Token
-internal/auth/token_test.go
-internal/infrastructure/postgres/password.go         — GetPasswordState, SetPassword, VerifyPassword
-internal/infrastructure/postgres/password_test.go
-internal/interfaces/rest/password.go           — PUT password, POST unlock, GET password-required
+internal/infrastructure/postgres/migrations/0003_group_password.up.sql   — next free migration number; 0001 and 0002 (drop_plan_seq, #193) are taken. Confirm 0003 is still free before writing this (ls internal/infrastructure/postgres/migrations/) — embedded-only now, no top-level migrations/ dir to keep in sync (#194 retired it)
+internal/infrastructure/postgres/migrations/0003_group_password.down.sql
+internal/domain/group/group.go                          — modify: PasswordState, ErrWrongPassword, ErrNoPasswordSet, and the port interfaces below
+internal/infrastructure/postgres/query/groups.sql        — modify: new sqlc queries (or a new query/password.sql — either is fine, groups.sql already owns the groups table)
+internal/infrastructure/postgres/sqlc/                   — regenerated by `make sqlc` (docs/development.md), not hand-edited; `make sqlc-check` is what CI enforces
+internal/infrastructure/postgres/group_repository.go     — modify: GetPasswordState, SetPassword, VerifyPassword (or a new password_repository.go on the same *GroupRepository receiver — see Task 1)
+internal/infrastructure/postgres/password_repository_test.go
+internal/infrastructure/token/token.go                   — Sign, Verify, Token (pure, no DB dependency — relocated from this plan's original `internal/auth` to fit the domain/application/infrastructure/interfaces convention; confirm this placement still makes sense when you pick this up, it's a recommendation not a settled fact)
+internal/infrastructure/token/token_test.go
+internal/application/setpassword/setpassword.go          — Service.SetPassword, following addmember.Service's Command/Result/ValidationError/GateError shape
+internal/application/unlockgroup/unlockgroup.go          — Service.Unlock (see Task 4 for whether this needs the idempotency gate at all — open question, unlike every other mutating service in this codebase)
+internal/interfaces/rest/password.go                     — PUT password, POST unlock, GET password-required handlers
 internal/interfaces/rest/password_test.go
-internal/interfaces/rest/middleware.go         — passwordMiddleware
+internal/interfaces/rest/middleware.go                   — passwordMiddleware
 internal/interfaces/rest/middleware_test.go
-internal/interfaces/rest/server.go             — modify: NewServer takes a token secret, wires middleware
-cmd/api/main.go                    — modify: TOKEN_SIGNING_SECRET env var
-web/lib/groupAuth.ts               — token storage (localStorage)
+internal/interfaces/rest/server.go                       — modify: NewServer grows a passwordReader/setPassword/unlock/tokenSecret parameter, same pattern as every prior feature's constructor growth
+cmd/api/main.go                                          — modify: TOKEN_SIGNING_SECRET env var, wire the new services
+spec/main.tsp                                            — modify: PasswordRequired/UnlockRequest/UnlockResponse/SetPasswordRequest models + passwordRequired/unlock/setPassword ops (Task 0, new — this plan predates TypeSpec-as-contract)
+web/lib/groupAuth.ts                                     — token storage (localStorage)
 web/lib/groupAuth.test.ts
-web/lib/api.ts                     — modify: attach token, handle 401, isPasswordRequired/unlock
-web/app/g/[groupId]/layout.tsx     — unlock gate for the whole group route tree
+web/lib/api.ts                                           — modify: isPasswordRequired, unlock, attach token + handle 401 (see Task 6 — current shape is getJSON/postIdempotent validated against generated Zod schemas, not the hand-rolled fetch this plan originally sketched)
+web/app/g/[groupId]/layout.tsx                           — unlock gate for the whole group route tree (confirm it wraps the full current tree: add/, settle/, record-payment/, and whatever #185 lands)
 ```
+
+---
+
+### Task 0: TypeSpec contract additions (new — this plan predates #93)
+
+**Files:**
+- Modify: `spec/main.tsp` (add models + ops near the existing group ops, `spec/main.tsp:383-480`)
+- Regenerate: `spec/openapi.yaml` (`make spec`), `web/lib/api-types.ts` (`cd web && npm run gen:api-types`), `web/lib/api-schemas/zod.gen.ts` (`npm run gen:api-schemas`)
+
+**Why this has to be first:** `internal/interfaces/rest/openapi_spec_test.go` validates every handler's response against the committed `spec/openapi.yaml` — a handler for a route the spec doesn't describe fails that test regardless of how correct the handler logic is. Every following task's REST step assumes the contract already exists.
+
+- [ ] **Step 1: Add models** — `PasswordRequired { required: boolean }`, `UnlockRequest { password: string }`, `UnlockResponse { token: string }`, `SetPasswordRequest { password: string | null }`, following the existing model style (e.g. `CreateGroupRequest`, `AddMemberRequest` near `spec/main.tsp:49-56`).
+- [ ] **Step 2: Add ops** — `passwordRequired` (`GET /groups/{group_id}/password-required`), `unlock` (`POST /groups/{group_id}/unlock`), `setPassword` (`PUT /groups/{group_id}/password`), following the `@route`/`op` style of `getBalance`/`addMember` (`spec/main.tsp:401-467`). Reuse the existing `ReadErrors`/`WriteErrors`/`NoContent` aliases (`spec/main.tsp:359-365`) for the shared 404/validation shapes; add a 401 variant if one doesn't already exist for the locked-group case.
+- [ ] **Step 3: Regenerate and commit** — `make spec && cd web && npm run gen:api-types && npm run gen:api-schemas`, commit `spec/main.tsp`, `spec/openapi.yaml`, `web/lib/api-types.ts`, `web/lib/api-schemas/zod.gen.ts` together.
 
 ---
 
 ### Task 1: Schema migration + `GetPasswordState`
 
 **Files:**
-- Create: `migrations/0002_group_password.up.sql`, `migrations/0002_group_password.down.sql`, and identical copies at `internal/infrastructure/postgres/migrations/0002_group_password.up.sql` / `.down.sql` (the embedded copy `go:embed` reads — same two-copy pattern as migration `0001`)
-- Modify: `internal/infrastructure/postgres/groups.go` (add `GetPasswordState`)
-- Test: `internal/infrastructure/postgres/password_test.go`
+- Create: `internal/infrastructure/postgres/migrations/0003_group_password.up.sql`, `.down.sql` (embedded-dir only — no top-level `migrations/` copy step; that pattern was retired in #194)
+- Modify: `internal/domain/group/group.go` (add `PasswordState`, a `PasswordReader` port), `internal/infrastructure/postgres/query/groups.sql` (new sqlc query), `internal/infrastructure/postgres/group_repository.go` (add `GetPasswordState`)
+- Test: `internal/infrastructure/postgres/password_repository_test.go`, following `group_repository_test.go`'s `TestStore(t)` + `NewGroupRepository(s.Pool)` pattern
 
 **Interfaces:**
-- Consumes: `TestStore`, `ErrGroupNotFound` (already defined in `groups.go`).
+- Consumes: `group.ErrNotFound` (already defined in `internal/domain/group/group.go`).
 - Produces:
-  - `store.PasswordState{Required bool; Version int}`.
-  - `(*Store) GetPasswordState(ctx context.Context, groupID uuid.UUID) (PasswordState, error)` — `ErrGroupNotFound` if the group doesn't exist.
+  - `group.PasswordState{Required bool; Version int}` (domain type, not a postgres-package type — this repo's domain errors/shapes for `group` already live in `internal/domain/group/group.go`, e.g. `ErrNonzeroBalance`).
+  - A `group.PasswordReader` port: `GetPasswordState(ctx context.Context, groupID uuid.UUID) (PasswordState, error)` — `ErrNotFound` if the group doesn't exist.
+  - `(*GroupRepository) GetPasswordState(...)` implementing that port, same file/receiver as `GetGroup`.
 
-- [ ] **Step 1: Write the migration**
+- [ ] **Step 1: Confirm the migration number is free, then write it**
 
-`migrations/0002_group_password.up.sql`:
+`ls internal/infrastructure/postgres/migrations/` — as of this refresh the highest is `0002_drop_plan_seq`, so this is `0003`. Confirm again before writing in case something else claimed it since.
 
 ```sql
+-- 0003_group_password.up.sql
 ALTER TABLE groups ADD COLUMN password_hash TEXT;
 ALTER TABLE groups ADD COLUMN password_version INT NOT NULL DEFAULT 0;
 ```
-
-`migrations/0002_group_password.down.sql`:
-
 ```sql
+-- 0003_group_password.down.sql
 ALTER TABLE groups DROP COLUMN password_version;
 ALTER TABLE groups DROP COLUMN password_hash;
 ```
 
-Copy both into the embedded directory:
-
-```bash
-cp migrations/0002_group_password.up.sql migrations/0002_group_password.down.sql internal/infrastructure/postgres/migrations/
-```
-
-- [ ] **Step 2: Write the failing test**
-
-`internal/infrastructure/postgres/password_test.go`:
-
-```go
-package store
-
-import (
-	"context"
-	"errors"
-	"testing"
-
-	"github.com/google/uuid"
-)
-
-func TestGetPasswordState_DefaultsToNotRequired(t *testing.T) {
-	s := TestStore(t)
-	seedReadGroup(t, s)
-	state, err := s.GetPasswordState(context.Background(), rGroup)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state.Required || state.Version != 0 {
-		t.Fatalf("fresh group should be open at version 0, got %+v", state)
-	}
-}
-
-func TestGetPasswordState_UnknownGroup(t *testing.T) {
-	s := TestStore(t)
-	if _, err := s.GetPasswordState(context.Background(), uuid.New()); !errors.Is(err, ErrGroupNotFound) {
-		t.Fatalf("got %v, want ErrGroupNotFound", err)
-	}
-}
-```
-
-- [ ] **Step 3: Run to verify failure**
-
-Run: `go test ./internal/infrastructure/postgres/ -v -run PasswordState`
-Expected: compile FAIL — `s.GetPasswordState undefined`. (If migration 0002 isn't applied to a fresh `TestStore`, you'd instead see a "column password_hash does not exist" runtime error once the function compiles — the migration copy step above prevents that.)
-
-- [ ] **Step 4: Implement**
-
-Append to `internal/infrastructure/postgres/groups.go`:
+- [ ] **Step 2: Add the domain port and type** in `internal/domain/group/group.go`, next to `Reader`/`MemberRemover`:
 
 ```go
 type PasswordState struct {
@@ -130,142 +117,76 @@ type PasswordState struct {
 	Version  int
 }
 
-// GetPasswordState reports whether a group has a password set (and its
-// current version, for token validation). NULL password_hash means open.
-func (s *Store) GetPasswordState(ctx context.Context, groupID uuid.UUID) (PasswordState, error) {
-	var hash *string
-	var version int
-	err := s.Pool.QueryRow(ctx,
-		`SELECT password_hash, password_version FROM groups WHERE id = $1`,
-		groupID).Scan(&hash, &version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return PasswordState{}, ErrGroupNotFound
-	}
-	if err != nil {
-		return PasswordState{}, err
-	}
-	return PasswordState{Required: hash != nil, Version: version}, nil
+// PasswordReader reports whether a group has a password set. NULL
+// password_hash means open.
+type PasswordReader interface {
+	GetPasswordState(ctx context.Context, groupID uuid.UUID) (PasswordState, error)
 }
 ```
 
-- [ ] **Step 5: Run tests, commit**
+- [ ] **Step 3: Write the failing sqlc query** in `internal/infrastructure/postgres/query/groups.sql`, following `SelectGroup`'s style:
 
-Run: `go test ./internal/infrastructure/postgres/ -v -run PasswordState`
-Expected: PASS.
+```sql
+-- name: SelectPasswordState :one
+SELECT password_hash, password_version FROM groups WHERE id = $1;
+```
+
+Run `make sqlc` (docs/development.md) — this fails to compile against `GroupRepository` until Step 4 is also done, which is fine, sqlc generation itself doesn't depend on the repository.
+
+- [ ] **Step 4: Implement**, in `internal/infrastructure/postgres/group_repository.go` next to `GetGroup`, following its `errors.Is(err, pgx.ErrNoRows)` → `group.ErrNotFound` translation:
+
+```go
+func (r *GroupRepository) GetPasswordState(ctx context.Context, groupID uuid.UUID) (group.PasswordState, error) {
+	row, err := r.queries(ctx).SelectPasswordState(ctx, groupID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return group.PasswordState{}, group.ErrNotFound
+	}
+	if err != nil {
+		return group.PasswordState{}, err
+	}
+	return group.PasswordState{Required: row.PasswordHash != nil, Version: int(row.PasswordVersion)}, nil
+}
+```
+
+Add `var _ group.PasswordReader = (*GroupRepository)(nil)` near the file's other such assertions.
+
+- [ ] **Step 5: Test, then run everything**
+
+Follow `group_repository_test.go`'s existing pattern (`TestStore(t)`, `NewGroupRepository(s.Pool)`, a group created via `CreateGroup` first) rather than a bespoke seed helper — there's no `seedReadGroup`/`rGroup` in this package; check `internal/infrastructure/postgres/reads_test.go` if you want the read-path package's actual seed helper name instead.
+
+Run: `go test ./internal/infrastructure/postgres/... -run PasswordState -v`, then `go test ./... -race`.
 
 ```bash
-git add migrations/0002_group_password.up.sql migrations/0002_group_password.down.sql \
-        internal/infrastructure/postgres/migrations/0002_group_password.up.sql internal/infrastructure/postgres/migrations/0002_group_password.down.sql \
-        internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/password_test.go
+git add internal/infrastructure/postgres/migrations/0003_group_password.up.sql internal/infrastructure/postgres/migrations/0003_group_password.down.sql \
+        internal/infrastructure/postgres/query/groups.sql internal/infrastructure/postgres/sqlc/ \
+        internal/domain/group/group.go internal/infrastructure/postgres/group_repository.go internal/infrastructure/postgres/password_repository_test.go
 git commit -m "feat: group password schema + password state read"
 ```
 
 ---
 
-### Task 2: `internal/auth` — stateless signed tokens
+### Task 2: `internal/infrastructure/token` — stateless signed tokens
 
 **Files:**
-- Create: `internal/auth/token.go`
-- Test: `internal/auth/token_test.go`
+- Create: `internal/infrastructure/token/token.go`, `internal/infrastructure/token/token_test.go`
 
 **Interfaces:**
 - Produces:
-  - `auth.Token{GroupID uuid.UUID; PasswordVersion int; ExpiresAt int64}` (unix seconds).
-  - `auth.Sign(secret []byte, tok Token) (string, error)`.
-  - `auth.Verify(secret []byte, s string) (Token, error)` — `auth.ErrInvalidToken` (bad format/signature) or `auth.ErrExpiredToken` (valid signature, past expiry).
+  - `token.Token{GroupID uuid.UUID; PasswordVersion int; ExpiresAt int64}` (unix seconds).
+  - `token.Sign(secret []byte, tok Token) (string, error)`.
+  - `token.Verify(secret []byte, s string) (Token, error)` — `token.ErrInvalidToken` (bad format/signature) or `token.ErrExpiredToken` (valid signature, past expiry).
 
-This package has no DB dependency — pure, fast, unit-testable in isolation.
+This package is pure crypto with no DB or domain dependency, so its logic doesn't drift with the rest of the migration — the only change from the original plan is the import path (`tallyup/internal/auth` → `tallyup/internal/infrastructure/token`) and package name, to fit this repo's `domain/application/infrastructure/interfaces` layering (`docs/mapping.md`). Confirm that placement still reads right when you pick this up; it's this refresh's one judgment call rather than a fact pulled from the current tree.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing tests** — round-trip, wrong secret rejected, tampered payload rejected, expired token rejected, malformed string rejected. (Same five cases as the original plan; only the package name changes — `package token` instead of `package auth`.)
 
-`internal/auth/token_test.go`:
-
-```go
-package auth
-
-import (
-	"errors"
-	"testing"
-	"time"
-
-	"github.com/google/uuid"
-)
-
-var secretA = []byte("test-secret-a")
-var secretB = []byte("test-secret-b")
-
-func TestSignAndVerify_RoundTrips(t *testing.T) {
-	tok := Token{GroupID: uuid.New(), PasswordVersion: 3, ExpiresAt: time.Now().Add(time.Hour).Unix()}
-	s, err := Sign(secretA, tok)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := Verify(secretA, s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != tok {
-		t.Fatalf("got %+v, want %+v", got, tok)
-	}
-}
-
-func TestVerify_WrongSecretRejected(t *testing.T) {
-	tok := Token{GroupID: uuid.New(), PasswordVersion: 1, ExpiresAt: time.Now().Add(time.Hour).Unix()}
-	s, err := Sign(secretA, tok)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Verify(secretB, s); !errors.Is(err, ErrInvalidToken) {
-		t.Fatalf("got %v, want ErrInvalidToken", err)
-	}
-}
-
-func TestVerify_TamperedPayloadRejected(t *testing.T) {
-	tok := Token{GroupID: uuid.New(), PasswordVersion: 1, ExpiresAt: time.Now().Add(time.Hour).Unix()}
-	s, err := Sign(secretA, tok)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tampered := s[:len(s)-4] + "abcd" // corrupt the signature tail
-	if _, err := Verify(secretA, tampered); !errors.Is(err, ErrInvalidToken) {
-		t.Fatalf("got %v, want ErrInvalidToken", err)
-	}
-}
-
-func TestVerify_ExpiredTokenRejected(t *testing.T) {
-	tok := Token{GroupID: uuid.New(), PasswordVersion: 1, ExpiresAt: time.Now().Add(-time.Hour).Unix()}
-	s, err := Sign(secretA, tok)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Verify(secretA, s); !errors.Is(err, ErrExpiredToken) {
-		t.Fatalf("got %v, want ErrExpiredToken", err)
-	}
-}
-
-func TestVerify_MalformedStringRejected(t *testing.T) {
-	for _, bad := range []string{"", "no-dot-here", "..", "not-base64!.also-not-base64!"} {
-		if _, err := Verify(secretA, bad); !errors.Is(err, ErrInvalidToken) {
-			t.Fatalf("input %q: got %v, want ErrInvalidToken", bad, err)
-		}
-	}
-}
-```
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `go test ./internal/auth/ -v`
-Expected: compile FAIL — package doesn't exist yet.
-
-- [ ] **Step 3: Implement**
-
-`internal/auth/token.go`:
+- [ ] **Step 2: Implement**
 
 ```go
-// Package auth signs and verifies compact, stateless tokens proving
-// knowledge of a group's password. Not a login system: a token proves
-// the secret was known, not who the caller is.
-package auth
+// Package token signs and verifies compact, stateless tokens proving
+// knowledge of a group's password. Not a login system: a token proves the
+// secret was known, not who the caller is.
+package token
 
 import (
 	"crypto/hmac"
@@ -291,7 +212,7 @@ type Token struct {
 }
 
 // Sign produces "payload.signature", both base64url-encoded, HMAC-SHA256
-// signed with secret. A fixed, small shape — no JWT library needed.
+// signed with secret.
 func Sign(secret []byte, tok Token) (string, error) {
 	payload, err := json.Marshal(tok)
 	if err != nil {
@@ -299,8 +220,7 @@ func Sign(secret []byte, tok Token) (string, error) {
 	}
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(payload)
-	sig := mac.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(sig), nil
+	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
 // Verify checks the signature and expiry, returning the decoded Token.
@@ -319,8 +239,7 @@ func Verify(secret []byte, s string) (Token, error) {
 	}
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(payload)
-	want := mac.Sum(nil)
-	if !hmac.Equal(sig, want) {
+	if !hmac.Equal(sig, mac.Sum(nil)) {
 		return Token{}, ErrInvalidToken
 	}
 	var tok Token
@@ -334,14 +253,10 @@ func Verify(secret []byte, s string) (Token, error) {
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
-
-Run: `go test ./internal/auth/ -v`
-Expected: PASS (5/5).
+- [ ] **Step 3: Run, commit**
 
 ```bash
-go get github.com/google/uuid@latest # already a dependency; ensures go.sum is current
-git add internal/auth/
+git add internal/infrastructure/token/
 git commit -m "feat: stateless HMAC-signed group unlock tokens"
 ```
 
@@ -350,219 +265,37 @@ git commit -m "feat: stateless HMAC-signed group unlock tokens"
 ### Task 3: `SetPassword` + `PUT /groups/{group_id}/password`
 
 **Files:**
-- Create: `internal/interfaces/rest/password.go`
-- Modify: `internal/infrastructure/postgres/groups.go` (add `SetPassword`)
-- Test: append to `internal/infrastructure/postgres/password_test.go`, create `internal/interfaces/rest/password_test.go`
+- Modify: `internal/domain/group/group.go` (a `PasswordSetter` port), `internal/infrastructure/postgres/query/groups.sql` + `group_repository.go` (`SetPassword`), `internal/interfaces/rest/server.go` (register route), `spec/main.tsp` (done in Task 0)
+- Create: `internal/application/setpassword/setpassword.go`, `internal/interfaces/rest/password.go`
+- Test: append to `password_repository_test.go`, create `internal/application/setpassword/setpassword_test.go`, `internal/interfaces/rest/password_test.go`
 
 **Interfaces:**
 - Produces:
-  - `(*Store) SetPassword(ctx context.Context, groupID uuid.UUID, password *string) error` — `nil` clears the password (reopens the group); a non-nil string bcrypt-hashes and sets it. Always increments `password_version`, even when clearing. `ErrGroupNotFound` if the group doesn't exist.
-  - Route: `PUT /groups/{group_id}/password`, body `{"password": "<string>" | null}`. 204 on success, 404 unknown group. (Auth enforcement on this route itself is added uniformly by Task 5's middleware — this task's handler has no bespoke auth logic.)
+  - `group.PasswordSetter`: `SetPassword(ctx, groupID uuid.UUID, password *string) error` — `nil` clears the password (reopens the group); a non-nil string bcrypt-hashes and sets it. Always increments `password_version`, even when clearing. `group.ErrNotFound` if the group doesn't exist.
+  - `(*GroupRepository) SetPassword(...)` implementing it, using `bcrypt.GenerateFromPassword` — same shape as the original plan's implementation, just moved onto the sqlc query path (`UPDATE groups SET password_hash = $2, password_version = password_version + 1 WHERE id = $1 RETURNING ...` or an `:execrows` query checked against 0 rows for `ErrNotFound`, following `RemoveMember`'s `ct.RowsAffected()` check if you go the `pgx.Exec` route instead of sqlc for this one).
+  - `internal/application/setpassword.Service`, following `addmember.Service`'s shape (`ValidationError`/`GateError` wrappers, `Command`/`Result`) — *unlike* `addmember`, this is a PUT with no `Idempotency-Key`, so there's likely no idempotency gate here at all; `Service` may just be a thin validate-then-call wrapper. Decide this when implementing — don't assume `addmember`'s gate applies unmodified.
+  - Route: `PUT /groups/{group_id}/password`, body `{"password": "<string>" | null}`. 204 on success, 404 unknown group. (Auth enforcement on this route itself is added uniformly by Task 5's middleware — this handler has no bespoke auth logic.)
 
-- [ ] **Step 1: Write the failing store tests**
+- [ ] **Step 1-4: Store layer** — failing test in `password_repository_test.go` (set-then-verify-hash, clear-reopens-group bumping version, unknown-group), implement `SetPassword` on `GroupRepository`. `golang.org/x/crypto/bcrypt` is not yet a dependency as of this refresh (not in `go.mod`) — `go get golang.org/x/crypto/bcrypt` first.
 
-Append to `internal/infrastructure/postgres/password_test.go`:
+- [ ] **Step 5: Application service** — `internal/application/setpassword/setpassword.go`, modeled on `addmember.Service.AddMember`'s structure but without assuming the idempotency gate; validate password length/policy if any (none specified by the spec — an empty string is presumably still a valid password, since `nil` is the distinct "clear" sentinel, not `""`).
+
+- [ ] **Step 6: REST handler** — `internal/interfaces/rest/password.go`, `package rest`, following `groups.go`'s `handleCreateGroup` error-translation style (`errors.Is(err, group.ErrNotFound)` → 404, not `store.ErrGroupNotFound`). Register in `server.go`:
 
 ```go
-func TestSetPassword_SetThenVerifyHash(t *testing.T) {
-	s := TestStore(t)
-	seedReadGroup(t, s)
-	pw := "correct horse battery staple"
-	if err := s.SetPassword(context.Background(), rGroup, &pw); err != nil {
-		t.Fatal(err)
-	}
-	state, err := s.GetPasswordState(context.Background(), rGroup)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !state.Required || state.Version != 1 {
-		t.Fatalf("got %+v, want Required=true Version=1", state)
-	}
-}
-
-func TestSetPassword_ClearReopensGroup(t *testing.T) {
-	s := TestStore(t)
-	seedReadGroup(t, s)
-	pw := "secret"
-	if err := s.SetPassword(context.Background(), rGroup, &pw); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SetPassword(context.Background(), rGroup, nil); err != nil {
-		t.Fatal(err)
-	}
-	state, err := s.GetPasswordState(context.Background(), rGroup)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state.Required || state.Version != 2 {
-		t.Fatalf("got %+v, want Required=false Version=2 (both set and clear bump version)", state)
-	}
-}
-
-func TestSetPassword_UnknownGroup(t *testing.T) {
-	s := TestStore(t)
-	pw := "x"
-	if err := s.SetPassword(context.Background(), uuid.New(), &pw); !errors.Is(err, ErrGroupNotFound) {
-		t.Fatalf("got %v, want ErrGroupNotFound", err)
-	}
-}
+mux.HandleFunc("PUT /groups/{group_id}/password", srv.handleSetPassword)
 ```
 
-- [ ] **Step 2: Run to verify failure**
+`Server`'s constructor grows a `setPassword *setpassword.Service` parameter, same pattern as every prior feature (`server.go`'s `NewServer` already takes ten-plus parameters — one more is consistent, not a smell here).
 
-Run: `go test ./internal/infrastructure/postgres/ -v -run SetPassword`
-Expected: compile FAIL — `s.SetPassword undefined`.
+- [ ] **Step 7: Run everything, commit**
 
-- [ ] **Step 3: Implement**
+Run: `go test ./... -race`.
 
 ```bash
-go get golang.org/x/crypto/bcrypt@latest
-```
-
-Append to `internal/infrastructure/postgres/groups.go`:
-
-```go
-// SetPassword hashes and stores a new password, or clears it (password=nil,
-// reopening the group). Always bumps password_version, invalidating every
-// previously issued token — including on clear, so a token from before a
-// clear can't be replayed if the same password is set again later.
-func (s *Store) SetPassword(ctx context.Context, groupID uuid.UUID, password *string) error {
-	var hash *string
-	if password != nil {
-		h, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
-		if err != nil {
-			return err
-		}
-		hs := string(h)
-		hash = &hs
-	}
-	ct, err := s.Pool.Exec(ctx,
-		`UPDATE groups SET password_hash = $2, password_version = password_version + 1 WHERE id = $1`,
-		groupID, hash)
-	if err != nil {
-		return err
-	}
-	if ct.RowsAffected() == 0 {
-		return ErrGroupNotFound
-	}
-	return nil
-}
-```
-
-Add `"golang.org/x/crypto/bcrypt"` to `internal/infrastructure/postgres/groups.go`'s imports.
-
-- [ ] **Step 4: Run store tests**
-
-Run: `go test ./internal/infrastructure/postgres/ -v -run SetPassword`
-Expected: PASS.
-
-- [ ] **Step 5: API test, handler, route**
-
-`internal/interfaces/rest/password_test.go`:
-
-```go
-package api
-
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"testing"
-
-	"github.com/google/uuid"
-)
-
-func TestSetPassword_Endpoint(t *testing.T) {
-	srv, _ := newTestServer(t)
-	body, _ := json.Marshal(map[string]any{"password": "hunter2"})
-	req, _ := http.NewRequest("PUT", srv.URL+fmt.Sprintf("/groups/%s/password", gID), bytes.NewReader(body))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("status %d, want 204", resp.StatusCode)
-	}
-}
-
-func TestSetPassword_ClearWithNull(t *testing.T) {
-	srv, _ := newTestServer(t)
-	body, _ := json.Marshal(map[string]any{"password": nil})
-	req, _ := http.NewRequest("PUT", srv.URL+fmt.Sprintf("/groups/%s/password", gID), bytes.NewReader(body))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("status %d, want 204", resp.StatusCode)
-	}
-}
-```
-
-`internal/interfaces/rest/password.go`:
-
-```go
-package api
-
-import (
-	"encoding/json"
-	"errors"
-	"io"
-	"net/http"
-
-	"github.com/google/uuid"
-
-	"tallyup/internal/infrastructure/postgres"
-)
-
-type setPasswordRequest struct {
-	Password *string `json:"password"`
-}
-
-func (s *Server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
-	groupID, err := uuid.Parse(r.PathValue("group_id"))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid group id")
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "unreadable body")
-		return
-	}
-	var req setPasswordRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON")
-		return
-	}
-	err = s.store.SetPassword(r.Context(), groupID, req.Password)
-	switch {
-	case errors.Is(err, store.ErrGroupNotFound):
-		httpError(w, http.StatusNotFound, err.Error())
-	case err != nil:
-		httpError(w, http.StatusInternalServerError, "set password failed")
-	default:
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-```
-
-In `internal/interfaces/rest/server.go`:
-
-```go
-	mux.HandleFunc("PUT /groups/{group_id}/password", srv.handleSetPassword)
-```
-
-- [ ] **Step 6: Run everything, commit**
-
-Run: `go test ./... -race`
-Expected: PASS.
-
-```bash
-git add internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/password_test.go internal/interfaces/rest/password.go internal/interfaces/rest/password_test.go internal/interfaces/rest/server.go go.mod go.sum
+git add internal/domain/group/group.go internal/infrastructure/postgres/query/groups.sql internal/infrastructure/postgres/sqlc/ \
+        internal/infrastructure/postgres/group_repository.go internal/infrastructure/postgres/password_repository_test.go \
+        internal/application/setpassword/ internal/interfaces/rest/password.go internal/interfaces/rest/password_test.go internal/interfaces/rest/server.go go.mod go.sum
 git commit -m "feat: set/clear group password"
 ```
 
@@ -571,276 +304,51 @@ git commit -m "feat: set/clear group password"
 ### Task 4: `VerifyPassword` + unlock + password-required endpoints
 
 **Files:**
-- Modify: `internal/infrastructure/postgres/groups.go` (add `VerifyPassword`), `internal/interfaces/rest/password.go` (add two handlers)
-- Modify: `internal/interfaces/rest/server.go`
-- Test: append to `internal/infrastructure/postgres/password_test.go`, `internal/interfaces/rest/password_test.go`
+- Modify: `internal/domain/group/group.go` (`ErrWrongPassword`, `ErrNoPasswordSet`, a `PasswordVerifier` port), `internal/infrastructure/postgres/group_repository.go` (`VerifyPassword`), `internal/interfaces/rest/password.go` (two more handlers), `internal/interfaces/rest/server.go`
+- Create: `internal/application/unlockgroup/unlockgroup.go`
+- Test: append to `password_repository_test.go`, `internal/interfaces/rest/password_test.go`
 
 **Interfaces:**
 - Produces:
-  - `store.ErrWrongPassword`, `store.ErrNoPasswordSet`.
-  - `(*Store) VerifyPassword(ctx context.Context, groupID uuid.UUID, password string) (version int, err error)`.
-  - Route `GET /groups/{group_id}/password-required` → `{"required": bool}`, 404 if the group doesn't exist.
-  - Route `POST /groups/{group_id}/unlock`, body `{"password": "<string>"}` → 200 + `{"token": "<signed token>"}` on match; 401 wrong password; 400 no password set; 404 unknown group. Token expiry: 30 days from issuance.
+  - `group.ErrWrongPassword`, `group.ErrNoPasswordSet` in `internal/domain/group/group.go`, next to `ErrNonzeroBalance`.
+  - `group.PasswordVerifier`: `VerifyPassword(ctx, groupID uuid.UUID, password string) (version int, err error)`.
+  - Route `GET /groups/{group_id}/password-required` → `{"required": bool}`, 404 if the group doesn't exist — this can call `group.PasswordReader.GetPasswordState` directly from the handler; it likely doesn't need its own application service, same as `handleGetGroup` calls `groupReader.GetGroup` directly.
+  - Route `POST /groups/{group_id}/unlock`, body `{"password": "<string>"}` → 200 + `{"token": "<signed token>"}` on match; 401 wrong password; 400 no password set; 404 unknown group. Token expiry: 30 days from issuance, via `internal/infrastructure/token.Sign`.
+  - `internal/application/unlockgroup.Service.Unlock(ctx, cmd) (token string, err error)` — orchestrates `PasswordVerifier.VerifyPassword` then `token.Sign`. No idempotency gate: unlocking is a pure verify-then-mint, safe to call any number of times with no side effect to replay-protect (unlike `AddMember`/`CreateGroup`, nothing is being created).
 
-- [ ] **Step 1: Write the failing store tests**
+- [ ] **Step 1-3: Store layer** — failing tests (`VerifyPassword` correct/wrong, no-password-set), implement using `bcrypt.CompareHashAndPassword` against the hash read by the same query as `GetPasswordState` (reuse `SelectPasswordState` rather than adding a near-duplicate query).
 
-Append to `internal/infrastructure/postgres/password_test.go`:
-
-```go
-func TestVerifyPassword_CorrectAndWrong(t *testing.T) {
-	s := TestStore(t)
-	seedReadGroup(t, s)
-	pw := "hunter2"
-	if err := s.SetPassword(context.Background(), rGroup, &pw); err != nil {
-		t.Fatal(err)
-	}
-
-	version, err := s.VerifyPassword(context.Background(), rGroup, pw)
-	if err != nil || version != 1 {
-		t.Fatalf("correct password: version=%d err=%v, want 1/nil", version, err)
-	}
-
-	if _, err := s.VerifyPassword(context.Background(), rGroup, "wrong"); !errors.Is(err, ErrWrongPassword) {
-		t.Fatalf("got %v, want ErrWrongPassword", err)
-	}
-}
-
-func TestVerifyPassword_NoPasswordSet(t *testing.T) {
-	s := TestStore(t)
-	seedReadGroup(t, s)
-	if _, err := s.VerifyPassword(context.Background(), rGroup, "anything"); !errors.Is(err, ErrNoPasswordSet) {
-		t.Fatalf("got %v, want ErrNoPasswordSet", err)
-	}
-}
-```
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `go test ./internal/infrastructure/postgres/ -v -run VerifyPassword`
-Expected: compile FAIL — `s.VerifyPassword undefined`.
-
-- [ ] **Step 3: Implement the store side**
-
-Append to `internal/infrastructure/postgres/groups.go`:
+- [ ] **Step 4: Application service** — `internal/application/unlockgroup/unlockgroup.go`:
 
 ```go
-var (
-	ErrWrongPassword = errors.New("incorrect password")
-	ErrNoPasswordSet = errors.New("group has no password set")
-)
+package unlockgroup
 
-// VerifyPassword checks a candidate password against the group's stored
-// hash, returning the current password_version for the caller to embed in
-// a freshly issued token.
-func (s *Store) VerifyPassword(ctx context.Context, groupID uuid.UUID, password string) (int, error) {
-	var hash *string
-	var version int
-	err := s.Pool.QueryRow(ctx,
-		`SELECT password_hash, password_version FROM groups WHERE id = $1`,
-		groupID).Scan(&hash, &version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrGroupNotFound
-	}
-	if err != nil {
-		return 0, err
-	}
-	if hash == nil {
-		return 0, ErrNoPasswordSet
-	}
-	if bcrypt.CompareHashAndPassword([]byte(*hash), []byte(password)) != nil {
-		return 0, ErrWrongPassword
-	}
-	return version, nil
-}
-```
-
-- [ ] **Step 4: Run store tests**
-
-Run: `go test ./internal/infrastructure/postgres/ -v -run VerifyPassword`
-Expected: PASS.
-
-- [ ] **Step 5: API tests, handlers, routes**
-
-Append to `internal/interfaces/rest/password_test.go`:
-
-```go
-func TestPasswordRequired_Endpoint(t *testing.T) {
-	srv, _ := newTestServer(t)
-	var body struct {
-		Required bool `json:"required"`
-	}
-	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/password-required", gID), &body)
-	if resp.StatusCode != http.StatusOK || body.Required {
-		t.Fatalf("status %d required %v, want 200/false", resp.StatusCode, body.Required)
-	}
-
-	setPw, _ := json.Marshal(map[string]any{"password": "hunter2"})
-	req, _ := http.NewRequest("PUT", srv.URL+fmt.Sprintf("/groups/%s/password", gID), bytes.NewReader(setPw))
-	http.DefaultClient.Do(req)
-
-	resp = getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/password-required", gID), &body)
-	if resp.StatusCode != http.StatusOK || !body.Required {
-		t.Fatalf("after set: status %d required %v, want 200/true", resp.StatusCode, body.Required)
-	}
+type Service struct {
+	Passwords group.PasswordVerifier
+	Secret    []byte
 }
 
-func TestPasswordRequired_UnknownGroupIs404(t *testing.T) {
-	srv, _ := newTestServer(t)
-	var body struct{ Required bool `json:"required"` }
-	resp := getJSON(t, srv.URL+"/groups/"+uuid.NewString()+"/password-required", &body)
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("status %d, want 404", resp.StatusCode)
-	}
-}
-
-func TestUnlock_CorrectAndWrongPassword(t *testing.T) {
-	srv, _ := newTestServer(t)
-	setPw, _ := json.Marshal(map[string]any{"password": "hunter2"})
-	req, _ := http.NewRequest("PUT", srv.URL+fmt.Sprintf("/groups/%s/password", gID), bytes.NewReader(setPw))
-	http.DefaultClient.Do(req)
-
-	ok, _ := json.Marshal(map[string]any{"password": "hunter2"})
-	resp, err := http.Post(srv.URL+fmt.Sprintf("/groups/%s/unlock", gID), "application/json", bytes.NewReader(ok))
+func (s *Service) Unlock(ctx context.Context, groupID uuid.UUID, password string) (string, error) {
+	version, err := s.Passwords.VerifyPassword(ctx, groupID, password)
 	if err != nil {
-		t.Fatal(err)
+		return "", err // caller (REST handler) translates group.ErrWrongPassword/ErrNoPasswordSet/ErrNotFound
 	}
-	var okBody struct {
-		Token string `json:"token"`
-	}
-	json.NewDecoder(resp.Body).Decode(&okBody)
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || okBody.Token == "" {
-		t.Fatalf("status %d, token %q", resp.StatusCode, okBody.Token)
-	}
-
-	wrong, _ := json.Marshal(map[string]any{"password": "nope"})
-	resp2, err := http.Post(srv.URL+fmt.Sprintf("/groups/%s/unlock", gID), "application/json", bytes.NewReader(wrong))
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp2.Body.Close()
-	if resp2.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status %d, want 401", resp2.StatusCode)
-	}
-}
-
-func TestUnlock_NoPasswordSetIs400(t *testing.T) {
-	srv, _ := newTestServer(t)
-	body, _ := json.Marshal(map[string]any{"password": "anything"})
-	resp, err := http.Post(srv.URL+fmt.Sprintf("/groups/%s/unlock", gID), "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status %d, want 400", resp.StatusCode)
-	}
-}
-```
-
-(`uuid` is already imported at the top of this file, added in Task 3.)
-
-Append to `internal/interfaces/rest/password.go`:
-
-```go
-const unlockTokenTTL = 30 * 24 * time.Hour
-
-func (s *Server) handlePasswordRequired(w http.ResponseWriter, r *http.Request) {
-	groupID, err := uuid.Parse(r.PathValue("group_id"))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid group id")
-		return
-	}
-	state, err := s.store.GetPasswordState(r.Context(), groupID)
-	if errors.Is(err, store.ErrGroupNotFound) {
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "password state read failed")
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"required": state.Required})
-}
-
-type unlockRequest struct {
-	Password string `json:"password"`
-}
-
-func (s *Server) handleUnlock(w http.ResponseWriter, r *http.Request) {
-	groupID, err := uuid.Parse(r.PathValue("group_id"))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "invalid group id")
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, "unreadable body")
-		return
-	}
-	var req unlockRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid JSON")
-		return
-	}
-	version, err := s.store.VerifyPassword(r.Context(), groupID, req.Password)
-	switch {
-	case errors.Is(err, store.ErrGroupNotFound):
-		httpError(w, http.StatusNotFound, err.Error())
-		return
-	case errors.Is(err, store.ErrNoPasswordSet):
-		httpError(w, http.StatusBadRequest, err.Error())
-		return
-	case errors.Is(err, store.ErrWrongPassword):
-		httpError(w, http.StatusUnauthorized, err.Error())
-		return
-	case err != nil:
-		httpError(w, http.StatusInternalServerError, "unlock failed")
-		return
-	}
-	tok, err := auth.Sign(s.tokenSecret, auth.Token{
+	return token.Sign(s.Secret, token.Token{
 		GroupID: groupID, PasswordVersion: version,
-		ExpiresAt: time.Now().Add(unlockTokenTTL).Unix(),
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour).Unix(),
 	})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "token signing failed")
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": tok})
 }
 ```
 
-Add `"time"` and `"tallyup/internal/auth"` to `internal/interfaces/rest/password.go`'s imports.
-
-`Server` needs the signing secret. In `internal/interfaces/rest/server.go`, modify:
-
-```go
-type Server struct {
-	store       *store.Store
-	tokenSecret []byte
-}
-
-func NewServer(s *store.Store, corsOrigin string, tokenSecret []byte) http.Handler {
-	srv := &Server{store: s, tokenSecret: tokenSecret}
-	mux := http.NewServeMux()
-	// … all existing mux.HandleFunc registrations, plus:
-	mux.HandleFunc("GET /groups/{group_id}/password-required", srv.handlePasswordRequired)
-	mux.HandleFunc("POST /groups/{group_id}/unlock", srv.handleUnlock)
-	return corsMiddleware(corsOrigin, mux)
-}
-```
-
-Update every caller of `NewServer`: `cmd/api/main.go` → `api.NewServer(s, os.Getenv("CORS_ORIGIN"), []byte(os.Getenv("TOKEN_SIGNING_SECRET")))`; the test helper `newTestServer` in `internal/interfaces/rest/entries_test.go` → `NewServer(s, "*", []byte("test-signing-secret"))`.
+- [ ] **Step 5: REST handlers** — `handlePasswordRequired`, `handleUnlock` in `password.go`, following `groups.go`'s error-translation switch style; register both routes in `server.go`. `Server` gains `unlock *unlockgroup.Service` and `passwordReader group.PasswordReader` (or reuse whatever port `handleGetGroup`-adjacent reads already use).
 
 - [ ] **Step 6: Run everything, commit**
 
-Run: `go test ./... -race`
-Expected: PASS.
+Run: `go test ./... -race`.
 
 ```bash
-git add internal/infrastructure/postgres/groups.go internal/infrastructure/postgres/password_test.go internal/interfaces/rest/password.go internal/interfaces/rest/password_test.go internal/interfaces/rest/server.go internal/interfaces/rest/entries_test.go cmd/
+git add internal/domain/group/group.go internal/infrastructure/postgres/group_repository.go internal/infrastructure/postgres/password_repository_test.go \
+        internal/application/unlockgroup/ internal/interfaces/rest/password.go internal/interfaces/rest/password_test.go internal/interfaces/rest/server.go cmd/
 git commit -m "feat: password-required check and unlock token issuance"
 ```
 
@@ -854,162 +362,13 @@ git commit -m "feat: password-required check and unlock token issuance"
 - Test: `internal/interfaces/rest/middleware_test.go`
 
 **Interfaces:**
-- Consumes: `store.GetPasswordState`, `auth.Verify`.
-- Produces: `passwordMiddleware(s *store.Store, secret []byte, next http.Handler) http.Handler` — wraps every group-scoped route (extracted by path shape `/groups/<uuid>/...`) except `POST /groups` (exact), and any path ending in `/password-required` or `/unlock`. Passes through untouched when the group has no password. Otherwise requires `Authorization: Bearer <token>`, valid signature, matching `group_id`, matching **current** `password_version`, not expired — 401 on any failure.
+- Consumes: `group.PasswordReader`, `internal/infrastructure/token.Verify`.
+- Produces: `passwordMiddleware(reader group.PasswordReader, secret []byte, next http.Handler) http.Handler` — wraps every group-scoped route (extracted by path shape `/groups/<uuid>/...`) except `POST /groups` (exact), and any path ending in `/password-required` or `/unlock`. Passes through untouched when the group has no password. Otherwise requires `Authorization: Bearer <token>`, valid signature, matching `group_id`, matching **current** `password_version`, not expired — 401 on any failure.
 
-- [ ] **Step 1: Write the failing tests**
-
-`internal/interfaces/rest/middleware_test.go`:
+The middleware's own logic is unchanged from the original plan (path-shape parsing since it runs before the mux populates `PathValue`, the exemption list, the version check) — what changes is where it gets its dependencies from:
 
 ```go
-package api
-
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
-
-	"github.com/google/uuid"
-
-	"tallyup/internal/auth"
-)
-
-func setGroupPassword(t *testing.T, srv *httptest.Server, password string) {
-	t.Helper()
-	body, _ := json.Marshal(map[string]any{"password": password})
-	req, _ := http.NewRequest("PUT", srv.URL+fmt.Sprintf("/groups/%s/password", gID), bytes.NewReader(body))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-}
-
-func unlockGroup(t *testing.T, srv *httptest.Server, password string) string {
-	t.Helper()
-	body, _ := json.Marshal(map[string]any{"password": password})
-	resp, err := http.Post(srv.URL+fmt.Sprintf("/groups/%s/unlock", gID), "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	var out struct {
-		Token string `json:"token"`
-	}
-	json.NewDecoder(resp.Body).Decode(&out)
-	return out.Token
-}
-
-func getWithToken(t *testing.T, url, token string) *http.Response {
-	t.Helper()
-	req, _ := http.NewRequest("GET", url, nil)
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return resp
-}
-
-func TestMiddleware_OpenGroupNeedsNoToken(t *testing.T) {
-	srv, _ := newTestServer(t)
-	resp := getWithToken(t, srv.URL+fmt.Sprintf("/groups/%s/balance", gID), "")
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status %d, want 200 for an open group", resp.StatusCode)
-	}
-}
-
-func TestMiddleware_LockedGroupRejectsNoToken(t *testing.T) {
-	srv, _ := newTestServer(t)
-	setGroupPassword(t, srv, "hunter2")
-	resp := getWithToken(t, srv.URL+fmt.Sprintf("/groups/%s/balance", gID), "")
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status %d, want 401", resp.StatusCode)
-	}
-}
-
-func TestMiddleware_LockedGroupAcceptsValidToken(t *testing.T) {
-	srv, _ := newTestServer(t)
-	setGroupPassword(t, srv, "hunter2")
-	token := unlockGroup(t, srv, "hunter2")
-	resp := getWithToken(t, srv.URL+fmt.Sprintf("/groups/%s/balance", gID), token)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status %d, want 200 with a valid token", resp.StatusCode)
-	}
-}
-
-func TestMiddleware_PasswordChangeInvalidatesOldToken(t *testing.T) {
-	srv, _ := newTestServer(t)
-	setGroupPassword(t, srv, "hunter2")
-	oldToken := unlockGroup(t, srv, "hunter2")
-	setGroupPassword(t, srv, "new-password") // bumps password_version
-
-	resp := getWithToken(t, srv.URL+fmt.Sprintf("/groups/%s/balance", gID), oldToken)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status %d, want 401 for a pre-change token", resp.StatusCode)
-	}
-}
-
-func TestMiddleware_TokenForDifferentGroupRejected(t *testing.T) {
-	srv, _ := newTestServer(t)
-	setGroupPassword(t, srv, "hunter2")
-
-	foreignToken, err := auth.Sign([]byte("test-signing-secret"), auth.Token{
-		GroupID: uuid.New(), PasswordVersion: 1, ExpiresAt: time.Now().Add(time.Hour).Unix(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp := getWithToken(t, srv.URL+fmt.Sprintf("/groups/%s/balance", gID), foreignToken)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status %d, want 401 for a foreign group's token", resp.StatusCode)
-	}
-}
-
-func TestMiddleware_ExemptRoutesNeedNoToken(t *testing.T) {
-	srv, _ := newTestServer(t)
-	setGroupPassword(t, srv, "hunter2")
-
-	resp := getWithToken(t, srv.URL+fmt.Sprintf("/groups/%s/password-required", gID), "")
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("password-required: status %d, want 200 even when locked", resp.StatusCode)
-	}
-
-	body, _ := json.Marshal(map[string]any{"password": "hunter2"})
-	unlockResp, err := http.Post(srv.URL+fmt.Sprintf("/groups/%s/unlock", gID), "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	unlockResp.Body.Close()
-	if unlockResp.StatusCode != http.StatusOK {
-		t.Fatalf("unlock: status %d, want 200 even when locked", unlockResp.StatusCode)
-	}
-}
-```
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `go test ./internal/interfaces/rest/ -v -run Middleware`
-Expected: FAIL — `TestMiddleware_LockedGroupRejectsNoToken` gets 200 instead of 401 (no enforcement wired yet).
-
-- [ ] **Step 3: Implement**
-
-`internal/interfaces/rest/middleware.go`:
-
-```go
-package api
+package rest
 
 import (
 	"net/http"
@@ -1017,15 +376,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"tallyup/internal/auth"
-	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/domain/group"
+	"tallyup/internal/infrastructure/token"
 )
 
-// passwordMiddleware enforces the optional per-group password on every
-// group-scoped route except the ones needed to bootstrap unlocking. It runs
-// before the mux dispatches, so it parses group_id from the raw path rather
-// than relying on http.Request.PathValue (populated only during routing).
-func passwordMiddleware(s *store.Store, secret []byte, next http.Handler) http.Handler {
+func passwordMiddleware(reader group.PasswordReader, secret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.URL.Path == "/groups" {
 			next.ServeHTTP(w, r)
@@ -1042,15 +397,9 @@ func passwordMiddleware(s *store.Store, secret []byte, next http.Handler) http.H
 			return
 		}
 
-		state, err := s.GetPasswordState(r.Context(), groupID)
-		if err != nil {
-			// Unknown group (or a transient DB error) — let the real handler
-			// produce its own, more specific error rather than masking it here.
-			next.ServeHTTP(w, r)
-			return
-		}
-		if !state.Required {
-			next.ServeHTTP(w, r)
+		state, err := reader.GetPasswordState(r.Context(), groupID)
+		if err != nil || !state.Required {
+			next.ServeHTTP(w, r) // unknown group or open group: let the real handler produce its own error, or proceed
 			return
 		}
 
@@ -1060,7 +409,7 @@ func passwordMiddleware(s *store.Store, secret []byte, next http.Handler) http.H
 			httpError(w, http.StatusUnauthorized, "password required")
 			return
 		}
-		tok, err := auth.Verify(secret, strings.TrimPrefix(authHeader, bearerPrefix))
+		tok, err := token.Verify(secret, strings.TrimPrefix(authHeader, bearerPrefix))
 		if err != nil || tok.GroupID != groupID || tok.PasswordVersion != state.Version {
 			httpError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
@@ -1069,33 +418,23 @@ func passwordMiddleware(s *store.Store, secret []byte, next http.Handler) http.H
 	})
 }
 
-// groupIDFromPath extracts the UUID from a "/groups/<id>/..." path. Group
-// routes are always shaped this way, so a fixed-position parse is sufficient.
 func groupIDFromPath(path string) (uuid.UUID, bool) {
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	if len(parts) < 2 || parts[0] != "groups" {
 		return uuid.Nil, false
 	}
 	id, err := uuid.Parse(parts[1])
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return id, true
+	return id, err == nil
 }
 ```
 
-Wire it into `NewServer` in `internal/interfaces/rest/server.go`, between the mux and the CORS wrap:
+Wire it into `NewServer`, between the mux and the CORS wrap — check `server.go`'s current `corsMiddleware(corsOrigin, mux)` return line and insert `passwordMiddleware` between them (CORS stays outermost, same rationale as the original plan: its `OPTIONS` short-circuit means preflight never reaches `passwordMiddleware`).
 
-```go
-	return corsMiddleware(corsOrigin, passwordMiddleware(s, tokenSecret, mux))
-```
-
-(CORS stays outermost — its existing `OPTIONS` short-circuit means preflight requests never reach `passwordMiddleware`, so no separate exemption for `OPTIONS` is needed.)
+- [ ] **Step 1-3: Tests then implementation** — same seven test cases as the original plan (open group needs no token, locked rejects no token, locked accepts valid token, password change invalidates old token, foreign-group token rejected, exempt routes need no token). Adapt `setGroupPassword`/`unlockGroup`/`getWithToken` test helpers to call through whatever `password.go` handlers Task 3/4 actually produced.
 
 - [ ] **Step 4: Run tests, commit**
 
-Run: `go test ./internal/interfaces/rest/ -v -run Middleware`
-Expected: PASS (7/7). Then: `go test ./... -race` for the full suite.
+Run: `go test ./internal/interfaces/rest/... -run Middleware -v`, then `go test ./... -race`.
 
 ```bash
 git add internal/interfaces/rest/middleware.go internal/interfaces/rest/middleware_test.go internal/interfaces/rest/server.go
@@ -1109,272 +448,30 @@ git commit -m "feat: enforce per-group password on every group-scoped route"
 **Files:**
 - Create: `web/lib/groupAuth.ts`, `web/app/g/[groupId]/layout.tsx`
 - Test: `web/lib/groupAuth.test.ts`
-- Modify: `web/lib/api.ts` (attach token, handle 401, add `isPasswordRequired`/`unlock`; also fix `removeMember` from the pairwise/member-management plan to attach the token too, since it predates this plan)
+- Modify: `web/lib/api.ts` (add `isPasswordRequired`, `unlock`; attach the token and handle 401 on group-scoped calls)
+
+**Before writing client code:** check current `web/` conventions, the same way #185 (the pairwise plan's own split-out client task) was scoped to do — the `useXForm` + thin-page pattern already used by `web/app/g/[groupId]/add/useAddExpenseForm.ts` and similar, rather than this plan's original hand-rolled sketch. `web/lib/api.ts` today validates every response against a generated Zod schema (`getJSON<T>(path, schema)`, `postIdempotent(path, body, key, schema)` — see `web/lib/api.ts`'s existing `getGroup`/`addEntry` for the current shape), not the plan's original `getJSON`/`ApiError` fetch wrapper. The new `isPasswordRequired`/`unlock` functions should follow that same schema-validated shape, using the `zPasswordRequired`/`zUnlockResponse` schemas Task 0's `gen:api-schemas` step produces.
 
 **Interfaces:**
-- Produces:
-  - `groupAuth.ts`: `getToken(groupId): string | null`, `setToken(groupId, token): void`, `clearToken(groupId): void` — localStorage key `tallyup:token:<groupId>`, SSR-guarded exactly like `identity.ts`.
-  - `api.ts`: `isPasswordRequired(groupId): Promise<boolean>`; `unlock(groupId, password): Promise<string>` (returns the token, throws `ApiError` on failure); every existing `getJSON`/`postIdempotent` call now attaches `Authorization: Bearer <token>` automatically when a token is stored for that path's group, and a `401` response clears the stored token and throws an `ApiError` whose message tells the user to refresh.
-  - `web/app/g/[groupId]/layout.tsx` — a client-component layout wrapping every page under `/g/[groupId]/*`. On mount: checks `isPasswordRequired`; if required and no valid token is stored, renders an unlock form instead of `children`; once unlocked (or if never required), renders `children` unchanged. **No existing page file changes** — this is the one deliberate integration point.
+- `groupAuth.ts`: `getToken(groupId): string | null`, `setToken(groupId, token): void`, `clearToken(groupId): void` — localStorage key `tallyup:token:<groupId>`, SSR-guarded exactly like `web/lib/identity.ts`. This part is pure and has no dependency on anything that changed — keep as originally sketched.
+- `api.ts`: `isPasswordRequired(groupId): Promise<boolean>`; `unlock(groupId, password): Promise<string>` (returns the token, throws `ApiError` on failure, validated via the generated schema); every group-scoped call attaches `Authorization: Bearer <token>` when one is stored for that group, and a `401` clears the stored token and throws an `ApiError` telling the user to refresh. Exactly which existing functions need this (`getJSON`, `postIdempotent`, and any DELETE helper #185 introduces for `removeMember`) depends on what's landed in `api.ts` by the time this task starts — audit the file fresh rather than assuming the original plan's function list.
+- `web/app/g/[groupId]/layout.tsx` — a client-component layout wrapping every page under `/g/[groupId]/*`. On mount: checks `isPasswordRequired`; if required and no valid token is stored, renders an unlock form instead of `children`; once unlocked (or if never required), renders `children` unchanged. Confirm this wraps the *current* tree — `add/`, `settle/`, `record-payment/` all exist today, plus whatever `owes/` page #185 adds — a layout at `g/[groupId]/layout.tsx` wraps all child routes by construction, so this should need no per-page changes, but verify after #185 lands.
 
-- [ ] **Step 1: Token storage (test-first)**
+- [ ] **Step 1: Token storage (test-first)** — same as originally sketched: `getToken`/`setToken`/`clearToken` round-trip per group, SSR-guarded. No changes needed from the original plan's code here.
 
-`web/lib/groupAuth.test.ts`:
+- [ ] **Step 2: Wire tokens into the API client** — extend `web/lib/api.ts` with `isPasswordRequired`/`unlock` (schema-validated, per the note above), and thread `Authorization` header attachment + 401 handling through whatever the current `getJSON`/`postIdempotent`/delete-helper shapes are at implementation time.
 
-```ts
-import { beforeEach, describe, expect, it } from "vitest";
-import { clearToken, getToken, setToken } from "./groupAuth";
-
-describe("group token storage", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("round-trips per group and clears independently", () => {
-    expect(getToken("g1")).toBeNull();
-    setToken("g1", "token-1");
-    setToken("g2", "token-2");
-    expect(getToken("g1")).toBe("token-1");
-    expect(getToken("g2")).toBe("token-2");
-    clearToken("g1");
-    expect(getToken("g1")).toBeNull();
-    expect(getToken("g2")).toBe("token-2");
-  });
-});
-```
-
-Run: `cd web && npm test -- groupAuth` → FAIL (no module).
-
-`web/lib/groupAuth.ts`:
-
-```ts
-const keyFor = (groupId: string) => `tallyup:token:${groupId}`;
-
-export function getToken(groupId: string): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(keyFor(groupId));
-}
-
-export function setToken(groupId: string, token: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(keyFor(groupId), token);
-}
-
-export function clearToken(groupId: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(keyFor(groupId));
-}
-```
-
-Run: `cd web && npm test -- groupAuth` → PASS.
-
-- [ ] **Step 2: Wire tokens into the API client**
-
-In `web/lib/api.ts`, add near the top (after the existing imports):
-
-```ts
-import { clearToken, getToken } from "./groupAuth";
-
-/** Group-scoped routes are always "/groups/<uuid>/...". */
-function groupIdFromPath(path: string): string | null {
-  const m = path.match(/^\/groups\/([0-9a-fA-F-]{36})/);
-  return m ? m[1]! : null;
-}
-```
-
-Modify `getJSON` to attach the token and handle 401:
-
-```ts
-async function getJSON<T>(path: string): Promise<T> {
-  const gid = groupIdFromPath(path);
-  const headers: Record<string, string> = {};
-  if (gid) {
-    const token = getToken(gid);
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-  }
-  const res = await fetch(apiUrl(path), { headers });
-  if (res.status === 401) {
-    if (gid) clearToken(gid);
-    throw new ApiError(401, "session expired — refresh the page and re-enter the password");
-  }
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, body.error ?? res.statusText);
-  return body as T;
-}
-```
-
-Modify `postIdempotent` to attach the token on every attempt and handle 401. **This function already has a `PlanStaleError` check inside its 409 branch, added by the settle-up plan (`docs/superpowers/plans/2026-07-05-settle-up.md` Task 4) — preserve it exactly; only the header construction and the new 401 branch are additions:**
-
-```ts
-export async function postIdempotent<T>(path: string, body: unknown, key: string): Promise<T> {
-  const backoff = [300, 900, 2700];
-  const gid = groupIdFromPath(path);
-  let lastError = "request failed";
-  for (let attempt = 0; ; attempt++) {
-    const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": key };
-    if (gid) {
-      const token = getToken(gid);
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-    }
-    let res: Response;
-    try {
-      res = await fetch(apiUrl(path), { method: "POST", headers, body: JSON.stringify(body) });
-    } catch {
-      lastError = "network error";
-      if (attempt >= backoff.length) throw new ApiError(0, lastError);
-      await sleep(backoff[attempt]!);
-      continue;
-    }
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 200 || res.status === 201) return data as T;
-    if (res.status === 401) {
-      if (gid) clearToken(gid);
-      throw new ApiError(401, "session expired — refresh the page and re-enter the password");
-    }
-    if (res.status === 409) {
-      if (typeof data.as_of_seq === "number") throw new PlanStaleError(data.as_of_seq);
-      lastError = data.error ?? "in flight";
-      if (attempt >= backoff.length) throw new ApiError(409, lastError);
-      await sleep(500);
-      continue;
-    }
-    if (res.status >= 500) {
-      lastError = data.error ?? "server error";
-      if (attempt >= backoff.length) throw new ApiError(res.status, lastError);
-      await sleep(backoff[attempt]!);
-      continue;
-    }
-    throw new ApiError(res.status, data.error ?? "request rejected");
-  }
-}
-```
-
-Add the new endpoints and fix `removeMember` (from the pairwise/member-management plan) to attach the token too:
-
-```ts
-export const isPasswordRequired = (groupId: string) =>
-  getJSON<{ required: boolean }>(`/groups/${groupId}/password-required`).then((r) => r.required);
-
-export async function unlock(groupId: string, password: string): Promise<string> {
-  const res = await fetch(apiUrl(`/groups/${groupId}/unlock`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, body.error ?? "unlock failed");
-  return body.token as string;
-}
-
-export async function removeMember(groupId: string, memberId: string): Promise<void> {
-  const headers: Record<string, string> = {};
-  const token = getToken(groupId);
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(apiUrl(`/groups/${groupId}/members/${memberId}`), { method: "DELETE", headers });
-  if (res.status === 401) {
-    clearToken(groupId);
-    throw new ApiError(401, "session expired — refresh the page and re-enter the password");
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error ?? "failed to remove member");
-  }
-}
-```
-
-This last function replaces the `removeMember` defined in `docs/superpowers/plans/2026-07-06-pairwise-and-member-management.md` Task 5 — same signature, now token-aware.
-
-- [ ] **Step 3: The unlock gate layout**
-
-`web/app/g/[groupId]/layout.tsx`:
-
-```tsx
-"use client";
-
-import { use, useEffect, useState } from "react";
-import { isPasswordRequired, unlock } from "@/lib/api";
-import { getToken, setToken } from "@/lib/groupAuth";
-
-export default function GroupLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: Promise<{ groupId: string }>;
-}) {
-  const { groupId } = use(params);
-  const [status, setStatus] = useState<"checking" | "locked" | "unlocked">("checking");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    isPasswordRequired(groupId)
-      .then((required) => {
-        if (cancelled) return;
-        setStatus(required && !getToken(groupId) ? "locked" : "unlocked");
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("unlocked"); // group not found yet — let the page's own fetch surface that
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [groupId]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const token = await unlock(groupId, password);
-      setToken(groupId, token);
-      setStatus("unlocked");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "wrong password");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (status === "checking") return <main className="p-4 text-gray-500">Loading…</main>;
-
-  if (status === "locked") {
-    return (
-      <main className="mx-auto max-w-md p-4">
-        <h1 className="mb-4 text-xl font-bold">This group is locked</h1>
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <input
-            type="password"
-            className="rounded-lg border p-3"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoFocus
-          />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button className="rounded-lg bg-blue-600 p-3 font-semibold text-white disabled:opacity-50" disabled={busy}>
-            {busy ? "Checking…" : "Unlock"}
-          </button>
-        </form>
-      </main>
-    );
-  }
-
-  return <>{children}</>;
-}
-```
+- [ ] **Step 3: The unlock gate layout** — same structure as originally sketched (`"checking" | "locked" | "unlocked"` state machine, form on lock, `use(params)` for the async `params` prop), calling the Task 2 client functions.
 
 - [ ] **Step 4: Hand verification**
 
-With API + web dev server running:
-1. Create a group, open it, add an expense — unaffected (no password set): the layout's check resolves `required: false` and renders children immediately.
-2. On the server, set a password directly: `curl -X PUT localhost:8080/groups/<id>/password -d '{"password":"hunter2"}'`. Reload `/g/<id>` → unlock form appears instead of the balances page.
-3. Enter the wrong password → inline error, form stays. Enter the right one → balances page renders normally, and the token persists across a reload (check `localStorage`).
-4. Change the password (another `curl -X PUT .../password`), then try any action in the still-open tab (e.g. add an expense) → `ApiError` with the "session expired" message; reload the tab → back to the unlock form, as documented in the plan (no live re-prompt without reload — this is the explicit v1 trade-off, not a bug).
-5. Clear the password (`{"password": null}`) → group opens back up; a fresh tab needs no unlock at all.
+1. Create a group, open it, add an expense — unaffected (no password set).
+2. Set a password via `PUT /groups/<id>/password`. Reload `/g/<id>` → unlock form appears.
+3. Wrong password → inline error. Right password → renders normally, token persists in `localStorage`.
+4. Change the password, then try an action in a still-open tab → `ApiError` "session expired"; reload → back to the unlock form (documented v1 trade-off, not a bug — see Deferred).
+5. Clear the password → group reopens; a fresh tab needs no unlock.
 
-Run: `cd web && npm test && npx tsc --noEmit && npm run build && cd .. && go test ./... -race`
-Expected: everything PASS.
+Run: `cd web && npm test && npx tsc --noEmit && npm run build && cd .. && go test ./... -race`.
 
 ```bash
 git add web/

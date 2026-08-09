@@ -1,5 +1,15 @@
 # Pairwise Balances + Member Management Implementation Plan
 
+> **Status (2026-08-09):** All five tasks shipped as issues #37-#41 (all
+> closed). The spec/algorithm sections below held up unchanged, but the code
+> samples were written against the pre-sqlc/pre-DDD `Store`/`api.Server`
+> shape (`s.Pool.Query`, flat `store`/`api` packages) and do not match what
+> actually landed — see #37's closing comment and the current
+> `internal/domain/group`, `internal/infrastructure/postgres`,
+> `internal/interfaces/rest` for the real implementation. Kept for
+> historical/design reference only; do not use the code blocks below as an
+> implementation guide. (See issue #179.)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add true pairwise "who owes whom" balances (spec §1) and the ability to add/remove group members after creation (spec §2), per `docs/superpowers/specs/2026-07-06-group-membership-privacy-pairwise-design.md`.
