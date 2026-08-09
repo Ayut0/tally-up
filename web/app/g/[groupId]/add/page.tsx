@@ -74,6 +74,7 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
         </div>
 
         <SplitModeSection
+          mode={form.mode}
           splitTabs={form.splitTabs}
           setMode={form.setMode}
           showExactInputs={form.showExactInputs}
