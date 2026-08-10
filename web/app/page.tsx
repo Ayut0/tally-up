@@ -104,7 +104,7 @@ export default function Home() {
                 key={row.id}
                 className="flex items-center gap-[10px] rounded-field border-[1.5px] border-ink/[.18] bg-surface px-[14px] py-3"
               >
-                <Avatar memberId={String(index)} initial={avatarInitial(row.name)} size={30} />
+                <Avatar memberId={String(row.id)} initial={avatarInitial(row.name)} size={30} />
                 <input
                   type="text"
                   value={row.name}
