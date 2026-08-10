@@ -2,21 +2,67 @@
 @import "@heroui/styles";
 
 /*
- * --background/--foreground are no longer defined here: @heroui/styles
- * ships its own light (:root) and dark (.dark / [data-theme="dark"])
- * values for both, and this repo now uses those as the single source of
- * truth instead of maintaining a second, colliding definition. See
- * providers.tsx for how the .dark class gets applied.
+ * Design tokens from docs/design/design-handoff.md's "Design Tokens"
+ * section — the single source of truth every web/components/ui/
+ * primitive reads from instead of hard-coding hex values (issue #50 AC).
+ * HeroUI ships these same var names with its own default palette
+ * (@heroui/styles/dist/themes/default/variables.css); overriding them
+ * here in `:root` wins the cascade the same way this file previously
+ * relied on HeroUI's un-overridden values. The handoff is light-only —
+ * no dark-mode palette is specified — so `.dark`/`[data-theme="dark"]`
+ * are deliberately left on HeroUI's defaults rather than guessed at.
  */
+:root {
+  --background: #ece5d8; /* app canvas */
+  --foreground: #2b2118; /* ink */
+  --surface: #ffffff; /* cards/inputs — the handoff's #faf6ee is the
+    mockup tool's own canvas chrome, not a product surface */
+  --accent: #b4562e;
+  --accent-pressed: #8f3f1d;
+  --accent-hover: var(--accent-pressed); /* handoff defines no separate
+    hover tone; reusing the pressed tone is the minimal choice */
+
+  --highlight: #f3e7c9;
+  --highlight-text: #6d4a12;
+  --highlight-text-strong: #8a5a1d;
+  --positive: oklch(0.52 0.12 150);
+  --negative: oklch(0.52 0.14 25);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: var(--foreground);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-pressed: var(--accent-pressed);
+  --color-highlight: var(--highlight);
+  --color-highlight-text: var(--highlight-text);
+  --color-highlight-text-strong: var(--highlight-text-strong);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+
+  --font-sans: var(--font-karla);
+  --font-mono: var(--font-spline-mono);
+
+  /*
+   * Radius scale (handoff's Design Tokens > "Radius scale"), deliberately
+   * namespaced away from Tailwind's own rounded-sm/md/lg defaults: HeroUI's
+   * component CSS already consumes those default names (e.g. button.css's
+   * base class uses rounded-3xl), so reusing them here would silently
+   * reskin every existing HeroUI component repo-wide — out of scope for
+   * this foundation slice.
+   */
+  --radius-segment: 9px;
+  --radius-field: 12px;
+  --radius-button: 14px;
+  --radius-card: 16px;
+  --radius-screen: 22px;
+
+  --shadow-pressed: 0 3px 0 var(--accent-pressed);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
