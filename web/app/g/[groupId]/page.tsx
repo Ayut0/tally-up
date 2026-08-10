@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { buildBalanceRows } from "@/lib/balance";
 import { buildHistoryRows } from "@/lib/history";
@@ -58,14 +59,9 @@ export default function GroupPage() {
     <div className="mx-auto flex w-full max-w-sm flex-col gap-6 p-6 pb-24">
       <header className="flex flex-col gap-1">
         <Text variant="heading">{group.name}</Text>
-        <button
-          type="button"
-          onClick={copyInviteLink}
-          suppressHydrationWarning
-          className="self-start truncate text-xs text-zinc-500 hover:underline"
-        >
+        <Button variant="ghost" onClick={copyInviteLink}>
           {inviteUrl || "…"} · copy invite link
-        </button>
+        </Button>
       </header>
 
       <BalanceList groupId={groupId} rows={balanceRows} />

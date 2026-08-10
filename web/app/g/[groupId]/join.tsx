@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import type { components } from "@/lib/api-types";
 import { setIdentity } from "@/lib/identity";
@@ -24,16 +25,16 @@ export function JoinPicker({
       <ul className="flex flex-col gap-2">
         {group.members.map((member) => (
           <li key={member.id}>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              fullWidth
               onClick={() => {
                 setIdentity(group.id, member.id);
                 onPicked(member.id);
               }}
-              className="w-full rounded-lg border border-black/[.08] px-4 py-3 text-left text-base font-medium text-zinc-950 transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:text-zinc-50 dark:hover:bg-white/[.06]"
             >
               {member.name}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { transferKey } from "@/lib/settle";
 import { useRecordTransfer, useSettlePlan } from "./useSettlePlan";
@@ -68,8 +69,8 @@ export default function SettlePage() {
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
-                  <button
-                    type="button"
+                  <Button
+                    variant="solid"
                     onClick={() => record(transfer)}
                     // Without this every row's button is announced as the same
                     // bare "Mark paid", with nothing to say which payment it
@@ -79,10 +80,9 @@ export default function SettlePage() {
                     // just this one: the plan has not been recomputed yet, so a
                     // tap on another row would be acting on a stale proposal.
                     disabled={recording}
-                    className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
                   >
                     {pendingKey === key ? "Recording…" : "Mark paid"}
-                  </button>
+                  </Button>
                   {/* Escape hatch for a payment that isn't for this exact
                       proposed amount — partial, rounded, or fronted (#161).
                       Deep-links with payer/counterparty prefilled so only the
