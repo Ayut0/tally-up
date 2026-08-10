@@ -8,6 +8,13 @@ type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"> &
   label: string;
   error?: string | null;
   ref?: Ref<HTMLInputElement>;
+  // Both optional and defaulted to today's look, so existing call sites
+  // (add-expense, member-list, record-payment — not yet skinned) render
+  // byte-for-byte the same. A skinned screen opts in per field rather than
+  // this component reskinning every TextField at once (design-handoff.md's
+  // screen-skinning slices land one screen at a time).
+  labelVariant?: "section-heading" | "label";
+  inputClassName?: string;
 };
 
 /**
@@ -20,11 +27,18 @@ type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"> &
  * register() case and plain controlled value/onChange working the same
  * way a native `<input>` always has.
  */
-export function TextField({ label, error, ref, ...inputProps }: TextFieldProps) {
+export function TextField({
+  label,
+  error,
+  ref,
+  labelVariant = "section-heading",
+  inputClassName,
+  ...inputProps
+}: TextFieldProps) {
   return (
     <label className="flex flex-col gap-1">
-      <Text variant="section-heading">{label}</Text>
-      <Input ref={ref} aria-invalid={!!error} {...inputProps} />
+      <Text variant={labelVariant}>{label}</Text>
+      <Input ref={ref} aria-invalid={!!error} className={inputClassName} {...inputProps} />
       {error && <Text variant="error">{error}</Text>}
     </label>
   );

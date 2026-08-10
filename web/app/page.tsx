@@ -2,6 +2,12 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
+import { TextField } from "@/components/ui/textField";
+import { Wordmark } from "@/components/ui/wordmark";
 import { ApiError, createGroup } from "@/lib/api";
 import { setIdentity } from "@/lib/identity";
 import { generateUuidV7 } from "@/lib/uuidv7";
@@ -11,6 +17,12 @@ const MAX_MEMBERS = 20;
 const INITIAL_MEMBER_ROWS = 5;
 
 type MemberRow = { id: number; name: string };
+
+// Falls back to "?" for a still-blank row, so a member's avatar never
+// shifts the row's layout once a name is typed.
+function avatarInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
 
 export default function Home() {
   const router = useRouter();
@@ -67,65 +79,69 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-12 dark:bg-black">
-      <form
-        onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-6 rounded-xl border border-black/[.08] bg-white p-6 dark:border-white/[.145] dark:bg-zinc-950"
-      >
-        <h1 className="text-xl font-semibold text-zinc-950 dark:text-zinc-50">Start a new tab</h1>
+    <div className="flex flex-1 justify-center bg-background px-[26px] pt-9 pb-[30px]">
+      <form onSubmit={handleSubmit} className="flex w-full max-w-[390px] flex-col gap-6">
+        <Wordmark size="lg" />
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Group name</span>
-          <input
-            type="text"
-            value={groupName}
-            onChange={(e) => setGroupName(e.target.value)}
-            placeholder="e.g. Kyoto trip"
-            className="rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-          />
-        </label>
+        <Text variant="subhead">
+          Split expenses with your group. No accounts, no installs — just a link.
+        </Text>
+
+        <TextField
+          label="Group name"
+          labelVariant="label"
+          inputClassName="rounded-field border-[1.5px] border-ink/[.18] bg-surface px-4 py-[14px] text-[17px] font-semibold text-ink"
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          placeholder="e.g. Kyoto trip"
+        />
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Members</span>
-          {memberRows.map((row, index) => (
-            <div key={row.id} className="flex gap-2">
-              <input
-                type="text"
-                value={row.name}
-                onChange={(e) => updateMemberName(row.id, e.target.value)}
-                placeholder={`Member ${index + 1}`}
-                aria-label={`Member ${index + 1} name`}
-                className="flex-1 rounded-lg border border-black/[.08] px-3 py-2 text-base dark:border-white/[.145] dark:bg-black"
-              />
-              <button
-                type="button"
-                onClick={() => removeMember(row.id)}
-                disabled={memberRows.length <= MIN_MEMBERS}
-                className="rounded-lg border border-black/[.08] px-3 text-zinc-500 disabled:opacity-30 dark:border-white/[.145]"
+          <Text variant="label">Members — put yourself first</Text>
+          <div className="flex flex-col gap-2">
+            {memberRows.map((row, index) => (
+              <div
+                key={row.id}
+                className="flex items-center gap-[10px] rounded-field border-[1.5px] border-ink/[.18] bg-surface px-[14px] py-3"
               >
-                Remove
-              </button>
-            </div>
-          ))}
+                <Avatar memberId={String(index)} initial={avatarInitial(row.name)} size={30} />
+                <input
+                  type="text"
+                  value={row.name}
+                  onChange={(e) => updateMemberName(row.id, e.target.value)}
+                  placeholder={`Member ${index + 1}`}
+                  aria-label={`Member ${index + 1} name`}
+                  className="flex-1 bg-transparent text-base font-semibold text-ink outline-none placeholder:text-ink/[.4]"
+                />
+                {index === 0 && <Badge>YOU</Badge>}
+                {index !== 0 && memberRows.length > MIN_MEMBERS && (
+                  <button
+                    type="button"
+                    onClick={() => removeMember(row.id)}
+                    aria-label={`Remove member ${index + 1}`}
+                    className="text-ink/[.4] hover:text-ink/[.6]"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
           <button
             type="button"
             onClick={addMember}
             disabled={memberRows.length >= MAX_MEMBERS}
-            className="self-start text-sm font-medium text-zinc-700 hover:underline disabled:opacity-30 dark:text-zinc-300"
+            className="flex items-center justify-center gap-2 rounded-field border-[1.5px] border-dashed border-ink/[.3] bg-transparent p-[13px] text-[14px] font-bold text-ink/[.6] disabled:opacity-30"
           >
             + add member
           </button>
         </div>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <Text variant="error">{error}</Text>}
 
-        <button
-          type="submit"
-          disabled={!canSubmit || submitting}
-          className="rounded-full bg-foreground px-5 py-3 text-base font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
-        >
+        <Button type="submit" variant="solid" fullWidth disabled={!canSubmit || submitting}>
           {submitting ? "Creating…" : "Create group"}
-        </button>
+        </Button>
       </form>
     </div>
   );
