@@ -1,7 +1,14 @@
 import { Heading, Paragraph } from "@heroui/react";
 import type { ReactNode } from "react";
 
-type TextVariant = "heading" | "section-heading" | "label" | "body" | "error" | "muted";
+type TextVariant =
+  | "heading"
+  | "section-heading"
+  | "label"
+  | "wordmark"
+  | "body"
+  | "error"
+  | "muted";
 
 const VARIANT_CLASS_NAME: Record<TextVariant, string> = {
   heading: "text-xl font-semibold text-zinc-950 dark:text-zinc-50",
@@ -11,6 +18,9 @@ const VARIANT_CLASS_NAME: Record<TextVariant, string> = {
   // that variant is already live on TextField/Select field labels in
   // screens this issue doesn't skin — see design-tokens plan for #50.
   label: "text-ink/[.55] text-xs font-bold tracking-[.06em] uppercase",
+  // The "tally-up" wordmark lockup (wordmark.tsx) — its own variant per
+  // review feedback on #50, rather than a raw <span> at the call site.
+  wordmark: "text-[26px] leading-none font-extrabold tracking-[-.02em] text-ink",
   body: "text-base text-zinc-950 dark:text-zinc-50",
   error: "text-sm text-red-600 dark:text-red-400",
   muted: "text-sm text-zinc-500",
@@ -26,7 +36,7 @@ const VARIANT_CLASS_NAME: Record<TextVariant, string> = {
  * Adopting HeroUI's color system itself is a separate decision from this
  * migration (#197's "no visual redesign" scope).
  *
- * These 6 variants cover this app's heading/label/body/error/muted text —
+ * These 7 variants cover this app's heading/label/body/error/muted text —
  * they're not meant to grow a one-off variant per unique className a page
  * has ever used. Dense list-row microtypography (e.g. a bolded amount
  * column) that doesn't cleanly fit one of these is left as plain Tailwind
