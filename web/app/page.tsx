@@ -127,14 +127,14 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
+          <Button
+            variant="dashed"
+            fullWidth
             onClick={addMember}
             disabled={memberRows.length >= MAX_MEMBERS}
-            className="flex items-center justify-center gap-2 rounded-field border-[1.5px] border-dashed border-ink/[.3] bg-transparent p-[13px] text-[14px] font-bold text-ink/[.6] disabled:opacity-30"
           >
             + add member
-          </button>
+          </Button>
         </div>
 
         {error && <Text variant="error">{error}</Text>}
