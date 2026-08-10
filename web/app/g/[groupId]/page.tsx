@@ -3,13 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { Wordmark } from "@/components/ui/wordmark";
 import { buildBalanceRows } from "@/lib/balance";
 import { buildHistoryRows } from "@/lib/history";
 import { getIdentity } from "@/lib/identity";
 import { BalanceList } from "./balanceList";
+import { EmptyLedgerCard } from "./emptyLedger";
 import { HistoryList } from "./historyList";
+import { InviteBanner } from "./inviteBanner";
 import { JoinPicker } from "./join";
 import { MemberList } from "./memberList";
 import { useGroupData } from "./useGroupData";
@@ -23,10 +25,6 @@ export default function GroupPage() {
   // unreachable until well after hydration, so there's nothing for this
   // lazy initializer's client-only value to mismatch against.
   const [memberId, setMemberId] = useState(() => getIdentity(groupId));
-  // Same reasoning applies here: `window` doesn't exist during the server
-  // render, but that only matters if this text is part of the SSR output,
-  // and it never is (gated behind the same `!group` check below).
-  const inviteUrl = typeof window === "undefined" ? "" : window.location.href;
 
   if (error) {
     return (
@@ -50,33 +48,43 @@ export default function GroupPage() {
 
   const balanceRows = buildBalanceRows(group.members, balance?.balances ?? []);
   const historyRows = buildHistoryRows(group.members, entries);
-
-  async function copyInviteLink() {
-    await navigator.clipboard.writeText(inviteUrl);
-  }
+  const isEmpty = entries.length === 0;
+  const memberCount = group.members.length;
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-col gap-6 p-6 pb-24">
-      <header className="flex flex-col gap-1">
-        <Text variant="heading">{group.name}</Text>
-        <Button variant="ghost" onClick={copyInviteLink}>
-          {inviteUrl || "…"} · copy invite link
-        </Button>
+    <div className="mx-auto flex w-full max-w-sm flex-col gap-[22px] px-[22px] pt-8 pb-24">
+      <header className="flex items-start justify-between">
+        <div>
+          <h1 className="text-[24px] font-extrabold tracking-[-.02em] text-ink">{group.name}</h1>
+          <p className="mt-[5px] text-[12px] font-semibold text-ink/50">
+            {memberCount} {memberCount === 1 ? "member" : "members"} · updates live
+          </p>
+        </div>
+        <Wordmark size="sm" />
       </header>
 
-      <BalanceList groupId={groupId} rows={balanceRows} />
+      {isEmpty ? (
+        <EmptyLedgerCard />
+      ) : (
+        <>
+          <BalanceList groupId={groupId} rows={balanceRows} currentMemberId={memberId} />
+          <HistoryList rows={historyRows} />
+        </>
+      )}
 
-      <HistoryList rows={historyRows} />
+      <InviteBanner variant={isEmpty ? "empty" : "default"} />
 
       <MemberList groupId={groupId} members={group.members} />
 
-      <Link
-        href={`/g/${groupId}/add`}
-        aria-label="Add expense"
-        className="fixed right-6 bottom-6 flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-2xl text-background shadow-lg transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
-      >
-        +
-      </Link>
+      <div className="fixed inset-x-0 bottom-[22px] flex justify-center px-[22px]">
+        <Link
+          href={`/g/${groupId}/add`}
+          aria-label="Add expense"
+          className="flex min-h-[56px] w-full max-w-sm items-center justify-center rounded-card bg-accent p-[17px] text-[17px] font-extrabold text-background shadow-[0_4px_14px_rgba(180,86,46,.4),0_3px_0_var(--accent-pressed)]"
+        >
+          + Add expense
+        </Link>
+      </div>
     </div>
   );
 }

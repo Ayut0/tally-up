@@ -21,6 +21,10 @@ export const Ghost: Story = {
   args: { variant: "ghost", children: "Cancel" },
 };
 
+export const Dark: Story = {
+  args: { variant: "dark", children: "Copy link" },
+};
+
 export const Disabled: Story = {
   args: { variant: "solid", disabled: true, children: "Add expense" },
 };
