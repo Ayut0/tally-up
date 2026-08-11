@@ -3,24 +3,31 @@
 import { Button as HeroButton } from "@heroui/react";
 import type { ReactNode } from "react";
 
-type ButtonVariant = "solid" | "danger" | "ghost";
+type ButtonVariant = "solid" | "danger" | "ghost" | "dashed";
 
-const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost"> = {
+const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outline"> = {
   solid: "primary",
   danger: "danger",
   ghost: "ghost",
+  dashed: "outline",
 };
 
 /**
  * design-handoff.md's "pressed button" treatment for the "solid"/primary
- * variant only — danger/ghost aren't specced by the handoff and stay on
+ * variant, and the dashed-outline "+ add member" affordance (Screen 01) for
+ * "dashed" — danger/ghost aren't specced by the handoff and stay on
  * HeroUI's defaults. HeroUI's Button merges this className with its own
  * variant classes via tailwind-merge (see composeTwRenderProps), so later,
  * more specific utilities here win over the base rounded-3xl/px-4 HeroUI
- * ships.
+ * ships — "dashed" overrides HeroUI's solid-bordered "outline" variant's
+ * border-style/color/bg/typography the same way "solid" overrides
+ * "primary"'s.
  */
-const PRESSED_BUTTON_CLASS_NAME =
-  "rounded-button p-[17px] min-h-[52px] text-[17px] font-extrabold shadow-pressed";
+const VARIANT_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
+  solid: "rounded-button p-[17px] min-h-[52px] text-[17px] font-extrabold shadow-pressed",
+  dashed:
+    "rounded-field border-[1.5px] border-dashed border-ink/[.3] bg-transparent p-[13px] text-[14px] font-bold text-ink/[.6]",
+};
 
 /**
  * Curated wrapper over HeroUI's Button: `onClick` is this app's name for
@@ -56,7 +63,7 @@ export function Button({
       fullWidth={fullWidth}
       onPress={onClick}
       aria-label={ariaLabel}
-      className={variant === "solid" ? PRESSED_BUTTON_CLASS_NAME : undefined}
+      className={VARIANT_CLASS_NAME[variant]}
     >
       {children}
     </HeroButton>
