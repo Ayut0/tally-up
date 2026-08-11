@@ -52,11 +52,12 @@ describe("buildHistoryRows", () => {
     expect(row.label).toBe("Dinner");
   });
 
-  it("marks a reversal entry itself as struck", () => {
-    const [row] = buildHistoryRows(members, [
-      { ...baseEntry, id: "e1", kind: EntryKind.Reversal, reverses_id: "e0" },
+  it("drops the reversal entry itself — it's a bookkeeping artifact, not a user-facing row", () => {
+    const rows = buildHistoryRows(members, [
+      { ...baseEntry, id: "e1", kind: EntryKind.Expense },
+      { ...baseEntry, id: "e2", kind: EntryKind.Reversal, reverses_id: "e1" },
     ]);
-    expect(row.struck).toBe(true);
+    expect(rows.map((r) => r.id)).toEqual(["e1"]);
   });
 
   it("marks the entry a reversal reverses as struck too", () => {
