@@ -21,12 +21,16 @@ export function BalanceList({
           {rows.map((row) => (
             <li key={row.id} className="flex items-center gap-3 px-4 py-[14px]">
               <Avatar memberId={row.id} initial={row.name.charAt(0).toUpperCase()} />
-              <Text variant="body" className="flex-1 text-[16px] font-bold text-ink">
-                {row.name}
+              <div className="flex flex-1 items-baseline gap-1">
+                <Text variant="body" className="text-[16px] font-bold text-ink">
+                  {row.name}
+                </Text>
                 {row.id === currentMemberId && (
-                  <span className="ml-1 text-[12px] font-semibold text-ink/45">(you)</span>
+                  <Text variant="body" className="text-[12px] font-semibold text-ink/45">
+                    (you)
+                  </Text>
                 )}
-              </Text>
+              </div>
               <Text
                 variant="body"
                 className={`font-mono text-[17px] font-bold tabular-nums ${row.amountClassName}`}
