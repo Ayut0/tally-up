@@ -55,10 +55,12 @@ export default function GroupPage() {
     <div className="mx-auto flex w-full max-w-sm flex-col gap-[22px] px-[22px] pt-8 pb-24">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-[24px] font-extrabold tracking-[-.02em] text-ink">{group.name}</h1>
-          <p className="mt-[5px] text-[12px] font-semibold text-ink/50">
+          <Text variant="heading" className="text-[24px] font-extrabold tracking-[-.02em] text-ink">
+            {group.name}
+          </Text>
+          <Text variant="body" className="mt-[5px] text-[12px] font-semibold text-ink/50">
             {memberCount} {memberCount === 1 ? "member" : "members"} · updates live
-          </p>
+          </Text>
         </div>
         <Wordmark size="sm" />
       </header>

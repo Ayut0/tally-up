@@ -7,28 +7,35 @@ function HistoryCard({ row }: { row: HistoryRow }) {
     return (
       <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-dashed border-ink/[.15] bg-white/50 px-4 py-[13px]">
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-bold text-ink/40 line-through">{row.label}</p>
-          <p className="mt-[3px] text-[12px] font-medium text-ink/35">
+          <Text variant="body" className="text-[15px] font-bold text-ink/40 line-through">
+            {row.label}
+          </Text>
+          <Text variant="body" className="mt-[3px] text-[12px] font-medium text-ink/35">
             deleted — the ledger never forgets
-          </p>
+          </Text>
         </div>
-        <span className="font-mono text-[15.5px] font-bold text-ink/35 tabular-nums line-through">
+        <Text
+          variant="body"
+          className="font-mono text-[15.5px] font-bold text-ink/35 tabular-nums line-through"
+        >
           {row.formattedAmount}
-        </span>
+        </Text>
       </div>
     );
   }
   return (
     <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-ink/[.12] bg-surface px-4 py-[13px]">
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-bold text-ink">{row.label}</p>
-        <p className="mt-[3px] text-[12px] font-medium text-ink/50">
+        <Text variant="body" className="text-[15px] font-bold text-ink">
+          {row.label}
+        </Text>
+        <Text variant="body" className="mt-[3px] text-[12px] font-medium text-ink/50">
           {row.payerName} paid · {row.occurredOn}
-        </p>
+        </Text>
       </div>
-      <span className="font-mono text-[15.5px] font-bold text-ink tabular-nums">
+      <Text variant="body" className="font-mono text-[15.5px] font-bold text-ink tabular-nums">
         {row.formattedAmount}
-      </span>
+      </Text>
     </div>
   );
 }

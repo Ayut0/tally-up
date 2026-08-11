@@ -28,3 +28,11 @@ export const Error: Story = {
 export const Muted: Story = {
   args: { variant: "muted", children: "Loading…" },
 };
+
+export const WithClassNameOverride: Story = {
+  args: {
+    variant: "body",
+    className: "font-mono text-[17px] font-bold tabular-nums text-positive",
+    children: "+¥6,200",
+  },
+};

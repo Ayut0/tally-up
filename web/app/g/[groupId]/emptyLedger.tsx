@@ -1,3 +1,5 @@
+import { Text } from "@/components/ui/text";
+
 /**
  * design-handoff.md's bonus empty state (`#1h`): a brand-new group with
  * zero expenses. The 4-bar glyph here is dimmed and never gets the
@@ -13,10 +15,15 @@ export function EmptyLedgerCard() {
           <div key={i} className="h-[26px] w-1 rounded-[2px] bg-[#e4d5b8]" />
         ))}
       </div>
-      <p className="text-[17px] font-extrabold text-ink">A fresh ledger</p>
-      <p className="max-w-[250px] text-[14px] leading-[1.5] font-medium text-ink/55">
+      <Text variant="body" className="text-[17px] font-extrabold text-ink">
+        A fresh ledger
+      </Text>
+      <Text
+        variant="body"
+        className="max-w-[250px] text-[14px] leading-[1.5] font-medium text-ink/55"
+      >
         Everyone starts at ¥0. Add the first expense and balances appear here — exact, always.
-      </p>
+      </Text>
     </div>
   );
 }

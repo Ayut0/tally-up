@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 import { useCopyInviteLink } from "./useCopyInviteLink";
 
 /**
@@ -16,7 +17,7 @@ export function InviteBanner({ variant }: { variant: "default" | "empty" }) {
 
   return (
     <div className="flex items-center gap-3 rounded-[14px] bg-highlight px-4 py-[13px]">
-      <p className="flex-1 text-[13px] font-semibold text-highlight-text">
+      <Text variant="body" className="flex-1 text-[13px] font-semibold text-highlight-text">
         {variant === "empty" ? (
           "Friends haven't joined yet."
         ) : (
@@ -25,7 +26,7 @@ export function InviteBanner({ variant }: { variant: "default" | "empty" }) {
             the invite.
           </>
         )}
-      </p>
+      </Text>
       <Button variant="dark" onClick={copy}>
         {copied ? "Copied!" : "Copy link"}
       </Button>
