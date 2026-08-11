@@ -1,6 +1,7 @@
 "use client";
 
 import { ListBox, ListBoxItem, ListBoxItemIndicator, Select as HeroSelect } from "@heroui/react";
+import type { ReactNode } from "react";
 import { Text } from "./text";
 
 type SelectOption = { id: string; label: string };
@@ -17,22 +18,40 @@ type SelectOption = { id: string; label: string };
  */
 export function Select({
   label,
+  labelVariant = "section-heading",
   value,
   onChange,
   options,
+  renderTrigger,
+  triggerClassName,
 }: {
   label: string;
+  // Same opt-in-per-screen idiom as TextField's own labelVariant: existing
+  // call sites (record-payment, not yet skinned) keep rendering byte-for-byte
+  // the same until a screen-skinning slice opts in.
+  labelVariant?: "section-heading" | "label";
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
+  // Fully replaces the default `<Value/><Indicator/>` trigger content when
+  // set — the add-expense screen's "Paid by" row needs an avatar + chevron
+  // a plain text Value can't render; unset, the trigger is unchanged.
+  renderTrigger?: () => ReactNode;
+  triggerClassName?: string;
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <Text variant="section-heading">{label}</Text>
+      <Text variant={labelVariant}>{label}</Text>
       <HeroSelect.Root selectedKey={value} onSelectionChange={(key) => onChange(String(key))}>
-        <HeroSelect.Trigger>
-          <HeroSelect.Value />
-          <HeroSelect.Indicator />
+        <HeroSelect.Trigger className={triggerClassName}>
+          {renderTrigger ? (
+            renderTrigger()
+          ) : (
+            <>
+              <HeroSelect.Value />
+              <HeroSelect.Indicator />
+            </>
+          )}
         </HeroSelect.Trigger>
         <HeroSelect.Popover>
           <ListBox>
