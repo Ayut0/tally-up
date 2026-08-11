@@ -373,6 +373,41 @@ func TestListEntries_AfterSeqIncremental(t *testing.T) {
 	}
 }
 
+// TestListEntries_CreatedAtIsUTC guards #217: spec/main.tsp types created_at
+// as utcDateTime, and the web client's generated zod schema enforces that
+// strictly (UTC/"Z"-suffixed only). The Postgres driver hands scanned
+// timestamptz values back located in whatever time.Local currently is, so
+// forcing a non-UTC time.Local here reproduces the bug regardless of the
+// host's own system timezone — notably including CI, which typically already
+// runs in UTC and would otherwise mask this. Mutating the package-level
+// time.Local is safe only because nothing in this file calls t.Parallel();
+// don't add it to this test (or reintroduce it elsewhere in this file)
+// without reworking this to avoid the shared global.
+func TestListEntries_CreatedAtIsUTC(t *testing.T) {
+	jst, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		t.Skipf("Asia/Tokyo tzdata unavailable: %v", err)
+	}
+	orig := time.Local
+	time.Local = jst
+	t.Cleanup(func() { time.Local = orig })
+
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	addExpense(t, s, uuid.New(), rYuto, 1000, []uuid.UUID{rYuto, rMemA})
+
+	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if loc := entries[0].CreatedAt.Location(); loc != time.UTC {
+		t.Fatalf("CreatedAt.Location() = %v, want UTC (time.Local was forced to %v)", loc, jst)
+	}
+}
+
 func TestListEntries_LimitClamped(t *testing.T) {
 	s := TestStore(t)
 	seedReadGroup(t, s)
