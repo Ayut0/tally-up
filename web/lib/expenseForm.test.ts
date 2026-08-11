@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSubmitExpense, parseTotal } from "./expenseForm";
+import { canSubmitExpense, parseTotal, stripNonDigits } from "./expenseForm";
 
 describe("parseTotal", () => {
   it("parses a positive whole-yen string as valid", () => {
@@ -48,5 +48,27 @@ describe("canSubmitExpense", () => {
 
   it("blocks submit with an invalid split", () => {
     expect(canSubmitExpense({ ...valid, splitValid: false })).toBe(false);
+  });
+});
+
+describe("stripNonDigits", () => {
+  it("leaves a plain digit string untouched", () => {
+    expect(stripNonDigits("12000")).toBe("12000");
+  });
+
+  it("drops a decimal point and the digits after it stay", () => {
+    expect(stripNonDigits("12.5")).toBe("125");
+  });
+
+  it("strips pasted currency formatting", () => {
+    expect(stripNonDigits("¥1,000")).toBe("1000");
+  });
+
+  it("strips a leading minus sign", () => {
+    expect(stripNonDigits("-100")).toBe("100");
+  });
+
+  it("returns an empty string unchanged", () => {
+    expect(stripNonDigits("")).toBe("");
   });
 });

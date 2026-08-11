@@ -1,6 +1,8 @@
 import type { UseFormRegisterReturn } from "react-hook-form";
 import type { components } from "@/lib/api-types";
+import { SplitMode } from "@/lib/split";
 import { Tabs } from "./ui/tabs";
+import { Text } from "./ui/text";
 import { TextField } from "./ui/textField";
 
 type SplitRule = components["schemas"]["SplitRule"];
@@ -42,7 +44,7 @@ export function SplitModeSection({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Split</span>
+      <Text variant="label">Split</Text>
       <Tabs
         tabs={splitTabs.map((tab) => ({ id: tab.mode, label: tab.label }))}
         value={mode}
@@ -83,14 +85,20 @@ export function SplitModeSection({
             </ul>
           )}
 
-          {ruleError && <p className="text-sm text-red-600 dark:text-red-400">{ruleError}</p>}
+          {ruleError && <Text variant="error">{ruleError}</Text>}
 
-          {previewRows && (
-            <ul className="flex flex-col gap-1 rounded-lg bg-black/[.03] p-2 text-sm dark:bg-white/[.06]">
+          {/* design-handoff.md's Equal-mode-only preview strip (§4, panel
+              #1d) — Exact/Shares/Percent (#1e-#1g) each show their own
+              footer treatment instead (deferred to #55), so gating here
+              stops this from doubling up alongside their row lists above. */}
+          {mode === SplitMode.Equal && previewRows && (
+            <ul className="flex flex-wrap gap-x-[14px] gap-y-[6px] rounded-field bg-highlight p-3">
               {previewRows.map((row) => (
-                <li key={row.id} className="flex items-center justify-between">
-                  <span className="text-zinc-700 dark:text-zinc-300">{row.name}</span>
-                  <span className="text-zinc-950 dark:text-zinc-50">{row.formattedShare}</span>
+                <li
+                  key={row.id}
+                  className="font-mono text-[13.5px] font-semibold text-highlight-text tabular-nums"
+                >
+                  {row.name} {row.formattedShare}
                 </li>
               ))}
             </ul>
