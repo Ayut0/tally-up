@@ -77,7 +77,6 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
 
         <Select
           label="Paid by"
-          labelVariant="label"
           value={form.payerId}
           onChange={form.setPayerId}
           options={group.members.map((member) => ({ id: member.id, label: member.name }))}

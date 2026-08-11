@@ -18,7 +18,6 @@ type SelectOption = { id: string; label: string };
  */
 export function Select({
   label,
-  labelVariant = "section-heading",
   value,
   onChange,
   options,
@@ -26,10 +25,6 @@ export function Select({
   triggerClassName,
 }: {
   label: string;
-  // Same opt-in-per-screen idiom as TextField's own labelVariant: existing
-  // call sites (record-payment, not yet skinned) keep rendering byte-for-byte
-  // the same until a screen-skinning slice opts in.
-  labelVariant?: "section-heading" | "label";
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
@@ -41,7 +36,10 @@ export function Select({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <Text variant={labelVariant}>{label}</Text>
+      {/* Unlike TextField, no labelVariant opt-in here: a field's Select
+          label is never a document heading, so "section-heading" (h2)
+          isn't offered as a choice at all, not just defaulted away from. */}
+      <Text variant="label">{label}</Text>
       <HeroSelect.Root selectedKey={value} onSelectionChange={(key) => onChange(String(key))}>
         <HeroSelect.Trigger className={triggerClassName}>
           {renderTrigger ? (
