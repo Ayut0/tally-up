@@ -54,7 +54,9 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
         <div className="flex flex-col gap-2">
           <Text variant="label">Total</Text>
           <div className="flex items-baseline gap-[6px] rounded-button border-[1.5px] border-accent bg-surface px-[18px] py-4">
-            <span className="font-mono text-xl font-bold text-ink/45">¥</span>
+            <Text variant="body" className="font-mono text-xl font-bold text-ink/45">
+              ¥
+            </Text>
             <input
               {...totalField}
               type="text"
@@ -88,6 +90,12 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
                   initial={payer.name.charAt(0).toUpperCase()}
                   size={28}
                 />
+                {/* Not <Text>: HeroUI's Paragraph reads an ambient
+                    react-aria-components slot context, and HeroSelect.Trigger's
+                    subtree provides one scoped to "description"/"errorMessage"
+                    only — an unslotted Paragraph nested in here throws "A slot
+                    prop is required" at runtime (confirmed live, not a
+                    hypothetical). Plain spans sidestep that context entirely. */}
                 <span className="flex-1 text-left font-sans text-[15.5px] font-bold text-ink">
                   {payer.name}
                 </span>

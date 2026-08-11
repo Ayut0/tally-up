@@ -3,7 +3,14 @@
 import { Button as HeroButton } from "@heroui/react";
 import type { ReactNode } from "react";
 
-type ButtonVariant = "solid" | "danger" | "ghost" | "dashed" | "dark";
+type ButtonVariant =
+  | "solid"
+  | "danger"
+  | "ghost"
+  | "dashed"
+  | "dark"
+  | "pillSelected"
+  | "pillUnselected";
 
 const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outline"> = {
   solid: "primary",
@@ -11,6 +18,8 @@ const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outli
   ghost: "ghost",
   dashed: "outline",
   dark: "ghost",
+  pillSelected: "ghost",
+  pillUnselected: "ghost",
 };
 
 /**
@@ -42,10 +51,30 @@ const DASHED_BUTTON_CLASS_NAME =
 const DARK_PILL_CLASS_NAME =
   "[--button-bg:var(--foreground)] [--button-bg-hover:var(--foreground)] [--button-bg-pressed:var(--foreground)] [--button-fg:var(--background)] rounded-[10px] px-[14px] py-[10px] min-h-[38px] text-[12.5px] font-extrabold";
 
+/**
+ * design-handoff.md's "Who shared it?" pill toggle (§4, panel #1d) — the
+ * selected/deselected looks a participant row cycles through via
+ * ParticipantPills. Same --button-bg{,-hover,-pressed}/--button-fg
+ * mechanism as "dark" above (both build on "ghost", whose :hover/:active
+ * rules read those variables rather than a plain background-color — see
+ * button.css's `.button--ghost`), so hovering a pill in a desktop browser
+ * doesn't flash to ghost's own default gray tint. "pillUnselected" reuses
+ * ui/tabs.tsx's inactive-segment color rather than inventing a third one —
+ * the mockup only ever shows every pill selected, so there's no ink-bg-
+ * derived spec for "off" to match instead.
+ */
+const PILL_SELECTED_CLASS_NAME =
+  "[--button-bg:var(--foreground)] [--button-bg-hover:var(--foreground)] [--button-bg-pressed:var(--foreground)] [--button-fg:var(--background)] rounded-full gap-[7px] px-[14px] min-h-[38px] text-[14px] font-bold";
+
+const PILL_UNSELECTED_CLASS_NAME =
+  "[--button-bg:rgba(43,33,24,.08)] [--button-bg-hover:rgba(43,33,24,.08)] [--button-bg-pressed:rgba(43,33,24,.08)] [--button-fg:rgba(43,33,24,.5)] rounded-full gap-[7px] px-[14px] min-h-[38px] text-[14px] font-bold";
+
 const EXTRA_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
   solid: PRESSED_BUTTON_CLASS_NAME,
   dashed: DASHED_BUTTON_CLASS_NAME,
   dark: DARK_PILL_CLASS_NAME,
+  pillSelected: PILL_SELECTED_CLASS_NAME,
+  pillUnselected: PILL_UNSELECTED_CLASS_NAME,
 };
 
 /**
@@ -64,6 +93,7 @@ export function Button({
   fullWidth,
   onClick,
   "aria-label": ariaLabel,
+  "aria-pressed": ariaPressed,
   children,
 }: {
   variant: ButtonVariant;
@@ -72,6 +102,10 @@ export function Button({
   fullWidth?: boolean;
   onClick?: () => void;
   "aria-label"?: string;
+  // Toggle-button semantics (e.g. ParticipantPills' selected/deselected
+  // state) — unset for every other call site, same opt-in-only shape as
+  // aria-label above.
+  "aria-pressed"?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -82,6 +116,7 @@ export function Button({
       fullWidth={fullWidth}
       onPress={onClick}
       aria-label={ariaLabel}
+      aria-pressed={ariaPressed}
       className={EXTRA_CLASS_NAME[variant]}
     >
       {children}
