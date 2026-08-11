@@ -67,8 +67,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description Page the ledger in `seq` order. Poll by passing the highest `seq` seen as
-         *     `after_seq`.
+         * @description Page the ledger in `seq` order. With neither cursor set, returns the
+         *     *latest* `limit` entries. Poll by passing the highest `seq` seen as
+         *     `after_seq`. Page further back into older history by passing the lowest
+         *     `seq` seen as `before_seq` ("Load more", #221). `after_seq` and
+         *     `before_seq` are mutually exclusive.
          *
          *     `limit` is clamped server-side, not rejected: values below 1 become 100, and
          *     values above 500 become 500.
@@ -288,6 +291,8 @@ export interface components {
         EntryKind: "expense" | "settlement" | "reversal";
         EntryList: {
             entries: components["schemas"]["EntryRecord"][];
+            /** @description Whether more entries exist beyond this page, in the direction requested. */
+            has_more: boolean;
         };
         /** @description An entry as persisted and returned by the server. */
         EntryRecord: {
@@ -722,8 +727,10 @@ export interface operations {
     listEntries: {
         parameters: {
             query?: {
-                /** @description Exclusive cursor. Absent means from the start of the ledger. */
+                /** @description Exclusive forward cursor: entries with `seq` greater than this. */
                 after_seq?: number;
+                /** @description Exclusive backward cursor: entries with `seq` less than this. */
+                before_seq?: number;
                 limit?: number;
             };
             header?: never;

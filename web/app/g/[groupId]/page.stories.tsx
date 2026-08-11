@@ -50,12 +50,14 @@ const entries = {
       ],
     },
   ],
+  has_more: false,
 };
 
-// GroupPage calls useGroupData -> lib/api.ts's getGroup/getBalance/listEntries
-// directly, so every story mocks those endpoints via MSW (msw-storybook-addon,
-// wired up in .storybook/preview.tsx) rather than the page itself — this
-// exercises the real fetch/parse/render path, not a stubbed component.
+// GroupPage calls useGroupData -> lib/api.ts's getGroup/getBalance and
+// useGroupHistory -> listEntries directly, so every story mocks those
+// endpoints via MSW (msw-storybook-addon, wired up in .storybook/preview.tsx)
+// rather than the page itself — this exercises the real fetch/parse/render
+// path, not a stubbed component.
 const groupSucceeds = http.get(`*/groups/${GROUP_ID}`, () => HttpResponse.json(group));
 const balanceSucceeds = http.get(`*/groups/${GROUP_ID}/balance`, () => HttpResponse.json(balance));
 const entriesSucceeds = http.get(`*/groups/${GROUP_ID}/entries`, () => HttpResponse.json(entries));

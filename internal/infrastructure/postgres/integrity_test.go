@@ -71,7 +71,7 @@ func TestGetBalances_MatchesFullLedgerReplay(t *testing.T) {
 	}
 
 	// Replayed: fold every entry's postings from full ledger history.
-	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 500)
+	entries, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 500)
 	if err != nil {
 		t.Fatal(err)
 	}

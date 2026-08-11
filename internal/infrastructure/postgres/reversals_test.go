@@ -45,7 +45,7 @@ func TestReverse_NegatesAndZeroes(t *testing.T) {
 	}
 
 	// The reversal entry references the original and copies its occurred_on.
-	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestReverse_ReversalNotReversible(t *testing.T) {
 	if _, err := reverse(t, s, orig); err != nil {
 		t.Fatal(err)
 	}
-	entries, _ := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _, _ := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 100)
 	revID := entries[len(entries)-1].ID
 	if _, err := reverse(t, s, revID); !errors.Is(err, entry.ErrNotReversible) {
 		t.Fatalf("got %v, want ErrNotReversible", err)
@@ -182,7 +182,7 @@ func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
 	}
 
 	// Ledger shape: original + reversal + replacement = 3 entries.
-	entries, _ := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _, _ := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 100)
 	if len(entries) != 3 {
 		t.Fatalf("%d entries, want 3", len(entries))
 	}

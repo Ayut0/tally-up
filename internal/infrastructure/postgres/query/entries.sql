@@ -72,6 +72,18 @@ WHERE group_id = $1 AND seq > $2
 ORDER BY seq
 LIMIT $3;
 
+-- name: ListEntriesBeforeSeq :many
+-- Seq-ordered keyset page of entries, latest-first: $2 = 0 means "no upper
+-- bound" (the latest page); $2 > 0 pages strictly older than that seq (#221
+-- "Load more"). Callers re-ascend the DESC rows before returning them, so
+-- entry.Record keeps its existing ascending contract.
+SELECT id, seq, kind, reverses_id, payer_id, counterparty, total_amount,
+       split_rule, participants, memo, occurred_on, created_by, created_at
+FROM entries
+WHERE group_id = $1 AND ($2::bigint = 0 OR seq < $2::bigint)
+ORDER BY seq DESC
+LIMIT $3;
+
 -- name: ListPostingsForEntries :many
 -- Second-load of postings for a page of entry ids from ListEntriesAfterSeq.
 SELECT entry_id, member_id, amount FROM postings

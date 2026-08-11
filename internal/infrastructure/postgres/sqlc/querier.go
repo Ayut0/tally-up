@@ -79,6 +79,11 @@ type Querier interface {
 	// Seq-ordered keyset page of entries. occurred_on stays a date column here;
 	// callers format it to the wire "YYYY-MM-DD" string.
 	ListEntriesAfterSeq(ctx context.Context, arg ListEntriesAfterSeqParams) ([]ListEntriesAfterSeqRow, error)
+	// Seq-ordered keyset page of entries, latest-first: $2 = 0 means "no upper
+	// bound" (the latest page); $2 > 0 pages strictly older than that seq (#221
+	// "Load more"). Callers re-ascend the DESC rows before returning them, so
+	// entry.Record keeps its existing ascending contract.
+	ListEntriesBeforeSeq(ctx context.Context, arg ListEntriesBeforeSeqParams) ([]ListEntriesBeforeSeqRow, error)
 	// Second-load of postings for a page of entry ids from ListEntriesAfterSeq.
 	ListPostingsForEntries(ctx context.Context, entryIds []uuid.UUID) ([]Posting, error)
 	// Locks the original entry against concurrent reversal attempts. FOR UPDATE

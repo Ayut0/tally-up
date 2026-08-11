@@ -1,24 +1,21 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ApiError, getBalance, getGroup, listEntries } from "@/lib/api";
+import { ApiError, getBalance, getGroup } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
 type BalanceSnapshot = components["schemas"]["BalanceSnapshot"];
-type EntryList = components["schemas"]["EntryList"];
 
-const POLL_INTERVAL_MS = 5000;
+export const POLL_INTERVAL_MS = 5000;
 
 /**
- * Loads `groupId`'s group, then keeps balance and entries fresh once it's
- * known. TanStack Query's defaults already give this the behavior it needs:
+ * Loads `groupId`'s group, then keeps balance fresh once it's known.
+ * TanStack Query's defaults already give this the behavior it needs:
  * `refetchIntervalInBackground: false` (default) pauses the 5s poll while
  * the tab is hidden, and `refetchOnWindowFocus` (also default) re-polls
- * immediately on refocus. Each poll re-fetches the full entries list rather
- * than an `after_seq`-cursored incremental one — simpler and race-free (no
- * client-held cursor for a concurrent interval-tick/refocus poll to race
- * on), and the backend has no pagination cap to make that expensive.
+ * immediately on refocus. Entries live in `useGroupHistory` (#221) — a
+ * separate hook because, unlike balance, entries page.
  */
 export function useGroupData(groupId: string) {
   const groupQuery = useQuery<GroupRecord, ApiError>({
@@ -33,19 +30,11 @@ export function useGroupData(groupId: string) {
     refetchInterval: POLL_INTERVAL_MS,
   });
 
-  const entriesQuery = useQuery<EntryList, ApiError>({
-    queryKey: ["entries", groupId],
-    queryFn: () => listEntries(groupId),
-    enabled: groupQuery.isSuccess,
-    refetchInterval: POLL_INTERVAL_MS,
-  });
-
-  const queryError = groupQuery.error ?? balanceQuery.error ?? entriesQuery.error;
+  const queryError = groupQuery.error ?? balanceQuery.error;
 
   return {
     group: groupQuery.data,
     balance: balanceQuery.data,
-    entries: entriesQuery.data?.entries ?? [],
     error: queryError?.message ?? null,
   };
 }

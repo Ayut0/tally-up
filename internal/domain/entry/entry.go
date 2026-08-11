@@ -136,9 +136,14 @@ type PairwiseReader interface {
 }
 
 // HistoryReader is the read-side port for paginated ledger history — a
-// pure query, no idempotency gate involved.
+// pure query, no idempotency gate involved. With both cursors zero, it
+// returns the latest `limit` entries; afterSeq pages forward (unused by the
+// frontend today, kept for API compatibility); beforeSeq pages backward
+// into older history ("Load more", #221). afterSeq and beforeSeq are
+// mutually exclusive — callers must not set both. hasMore reports whether
+// entries exist beyond the returned page in the requested direction.
 type HistoryReader interface {
-	ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq int64, limit int) ([]Record, error)
+	ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq, beforeSeq int64, limit int) (records []Record, hasMore bool, err error)
 }
 
 // Reverser persists a reversal — the delete half of the append-only

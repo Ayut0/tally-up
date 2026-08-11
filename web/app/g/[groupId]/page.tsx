@@ -15,10 +15,21 @@ import { InviteBanner } from "./inviteBanner";
 import { JoinPicker } from "./join";
 import { MemberList } from "./memberList";
 import { useGroupData } from "./useGroupData";
+import { useGroupHistory } from "./useGroupHistory";
 
 export default function GroupPage() {
   const { groupId } = useParams<{ groupId: string }>();
-  const { group, balance, entries, error } = useGroupData(groupId);
+  const { group, balance, error: groupError } = useGroupData(groupId);
+  const {
+    entries,
+    pageSize,
+    setPageSize,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    error: historyError,
+  } = useGroupHistory(groupId, !!group);
+  const error = groupError ?? historyError;
   // No effect needed: useGroupData's query never resolves during SSR, so
   // `group` is always falsy on the server and on the client's first
   // (hydration) render — the branch below that reads `memberId` is
@@ -70,7 +81,14 @@ export default function GroupPage() {
       ) : (
         <>
           <BalanceList groupId={groupId} rows={balanceRows} currentMemberId={memberId} />
-          <HistoryList rows={historyRows} />
+          <HistoryList
+            rows={historyRows}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            isLoadingMore={isLoadingMore}
+          />
         </>
       )}
 

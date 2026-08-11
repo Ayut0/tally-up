@@ -206,7 +206,9 @@ describe("getBalance / listEntries", () => {
   });
 
   it("listEntries GETs entries, passing after_seq as a query param when given", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { entries: [] }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { entries: [], has_more: false }));
     vi.stubGlobal("fetch", fetchMock);
 
     await listEntries("g1", 42);
@@ -217,7 +219,33 @@ describe("getBalance / listEntries", () => {
   });
 
   it("listEntries omits after_seq when not given", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { entries: [] }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { entries: [], has_more: false }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listEntries("g1");
+
+    expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8080/groups/g1/entries");
+  });
+
+  it("listEntries passes before_seq and limit as query params when given", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { entries: [], has_more: false }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listEntries("g1", undefined, 42, 20);
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://localhost:8080/groups/g1/entries?before_seq=42&limit=20",
+    );
+  });
+
+  it("listEntries omits before_seq and limit when not given", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { entries: [], has_more: false }));
     vi.stubGlobal("fetch", fetchMock);
 
     await listEntries("g1");

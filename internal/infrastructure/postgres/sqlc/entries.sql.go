@@ -342,6 +342,75 @@ func (q *Queries) ListEntriesAfterSeq(ctx context.Context, arg ListEntriesAfterS
 	return items, nil
 }
 
+const listEntriesBeforeSeq = `-- name: ListEntriesBeforeSeq :many
+SELECT id, seq, kind, reverses_id, payer_id, counterparty, total_amount,
+       split_rule, participants, memo, occurred_on, created_by, created_at
+FROM entries
+WHERE group_id = $1 AND ($2::bigint = 0 OR seq < $2::bigint)
+ORDER BY seq DESC
+LIMIT $3
+`
+
+type ListEntriesBeforeSeqParams struct {
+	GroupID uuid.UUID
+	Column2 int64
+	Limit   int32
+}
+
+type ListEntriesBeforeSeqRow struct {
+	ID           uuid.UUID
+	Seq          *int64
+	Kind         string
+	ReversesID   *uuid.UUID
+	PayerID      uuid.UUID
+	Counterparty *uuid.UUID
+	TotalAmount  int64
+	SplitRule    []byte
+	Participants []uuid.UUID
+	Memo         *string
+	OccurredOn   pgtype.Date
+	CreatedBy    uuid.UUID
+	CreatedAt    pgtype.Timestamptz
+}
+
+// Seq-ordered keyset page of entries, latest-first: $2 = 0 means "no upper
+// bound" (the latest page); $2 > 0 pages strictly older than that seq (#221
+// "Load more"). Callers re-ascend the DESC rows before returning them, so
+// entry.Record keeps its existing ascending contract.
+func (q *Queries) ListEntriesBeforeSeq(ctx context.Context, arg ListEntriesBeforeSeqParams) ([]ListEntriesBeforeSeqRow, error) {
+	rows, err := q.db.Query(ctx, listEntriesBeforeSeq, arg.GroupID, arg.Column2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEntriesBeforeSeqRow
+	for rows.Next() {
+		var i ListEntriesBeforeSeqRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Seq,
+			&i.Kind,
+			&i.ReversesID,
+			&i.PayerID,
+			&i.Counterparty,
+			&i.TotalAmount,
+			&i.SplitRule,
+			&i.Participants,
+			&i.Memo,
+			&i.OccurredOn,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPostingsForEntries = `-- name: ListPostingsForEntries :many
 SELECT entry_id, member_id, amount FROM postings
 WHERE entry_id = ANY($1::uuid[])

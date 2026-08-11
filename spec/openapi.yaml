@@ -203,8 +203,11 @@ paths:
     get:
       operationId: listEntries
       description: |-
-        Page the ledger in `seq` order. Poll by passing the highest `seq` seen as
-        `after_seq`.
+        Page the ledger in `seq` order. With neither cursor set, returns the
+        *latest* `limit` entries. Poll by passing the highest `seq` seen as
+        `after_seq`. Page further back into older history by passing the lowest
+        `seq` seen as `before_seq` ("Load more", #221). `after_seq` and
+        `before_seq` are mutually exclusive.
 
         `limit` is clamped server-side, not rejected: values below 1 become 100, and
         values above 500 become 500.
@@ -217,7 +220,15 @@ paths:
         - name: after_seq
           in: query
           required: false
-          description: Exclusive cursor. Absent means from the start of the ledger.
+          description: 'Exclusive forward cursor: entries with `seq` greater than this.'
+          schema:
+            type: integer
+            format: int64
+          explode: false
+        - name: before_seq
+          in: query
+          required: false
+          description: 'Exclusive backward cursor: entries with `seq` less than this.'
           schema:
             type: integer
             format: int64
@@ -690,11 +701,15 @@ components:
       type: object
       required:
         - entries
+        - has_more
       properties:
         entries:
           type: array
           items:
             $ref: '#/components/schemas/EntryRecord'
+        has_more:
+          type: boolean
+          description: Whether more entries exist beyond this page, in the direction requested.
     EntryRecord:
       type: object
       required:

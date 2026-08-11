@@ -75,6 +75,7 @@ func newEntryResponse(r entry.Record) entryResponse {
 
 type entryListResponse struct {
 	Entries []entryResponse `json:"entries"`
+	HasMore bool            `json:"has_more"`
 }
 
 func (s *Server) handleGetBalance(w http.ResponseWriter, r *http.Request) {
@@ -181,14 +182,19 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid group id")
 		return
 	}
-	afterSeq, _ := strconv.ParseInt(r.URL.Query().Get("after_seq"), 10, 64) // absent → 0
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))                    // absent → 0 → store default
-	records, err := s.history.ListEntries(r.Context(), groupID, afterSeq, limit)
+	afterSeq, _ := strconv.ParseInt(r.URL.Query().Get("after_seq"), 10, 64)   // absent → 0
+	beforeSeq, _ := strconv.ParseInt(r.URL.Query().Get("before_seq"), 10, 64) // absent → 0
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))                      // absent → 0 → store default
+	if afterSeq > 0 && beforeSeq > 0 {
+		httpError(w, http.StatusBadRequest, "after_seq and before_seq are mutually exclusive")
+		return
+	}
+	records, hasMore, err := s.history.ListEntries(r.Context(), groupID, afterSeq, beforeSeq, limit)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "history read failed")
 		return
 	}
-	resp := entryListResponse{Entries: make([]entryResponse, len(records))}
+	resp := entryListResponse{Entries: make([]entryResponse, len(records)), HasMore: hasMore}
 	for i, rec := range records {
 		resp.Entries[i] = newEntryResponse(rec)
 	}

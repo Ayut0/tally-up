@@ -343,7 +343,7 @@ func TestListEntries_AfterSeqIncremental(t *testing.T) {
 	addExpense(t, s, e2, rMemA, 2000, []uuid.UUID{rMemA, rMemB})
 	addExpense(t, s, e3, rMemB, 900, []uuid.UUID{rYuto, rMemA, rMemB})
 
-	all, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	all, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +364,7 @@ func TestListEntries_AfterSeqIncremental(t *testing.T) {
 	}
 
 	// Incremental fetch: only entries after e2's seq.
-	tail, err := s.Reads.ListEntries(context.Background(), rGroup, all[1].Seq, 100)
+	tail, _, err := s.Reads.ListEntries(context.Background(), rGroup, all[1].Seq, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +396,7 @@ func TestListEntries_CreatedAtIsUTC(t *testing.T) {
 	seedReadGroup(t, s)
 	addExpense(t, s, uuid.New(), rYuto, 1000, []uuid.UUID{rYuto, rMemA})
 
-	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,6 +408,66 @@ func TestListEntries_CreatedAtIsUTC(t *testing.T) {
 	}
 }
 
+// TestListEntries_DefaultReturnsLatestEntries covers #221: with no cursor,
+// ListEntries must return the *latest* `limit` entries (ascending order),
+// not the oldest — the prior oldest-first default silently truncated any
+// group past 100 entries, since nothing ever advanced past that page.
+func TestListEntries_DefaultReturnsLatestEntries(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	e1, e2, e3 := uuid.New(), uuid.New(), uuid.New()
+	addExpense(t, s, e1, rYuto, 100, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, e2, rYuto, 200, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, e3, rYuto, 300, []uuid.UUID{rYuto, rMemA})
+
+	page, hasMore, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page) != 2 || page[0].ID != e2 || page[1].ID != e3 {
+		t.Fatalf("got %+v, want latest 2 (e2, e3) ascending", page)
+	}
+	if !hasMore {
+		t.Fatal("has_more = false, want true (e1 not yet loaded)")
+	}
+}
+
+// TestListEntries_BeforeSeqPagesOlderHistory covers #221 "Load more": paging
+// with before_seq set to the lowest seq already loaded returns the next
+// strictly-older page, and reports has_more correctly at the exact boundary
+// (remaining count == limit must not be mistaken for "more still exist").
+func TestListEntries_BeforeSeqPagesOlderHistory(t *testing.T) {
+	s := TestStore(t)
+	seedReadGroup(t, s)
+	e1, e2, e3, e4 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	addExpense(t, s, e1, rYuto, 100, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, e2, rYuto, 200, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, e3, rYuto, 300, []uuid.UUID{rYuto, rMemA})
+	addExpense(t, s, e4, rYuto, 400, []uuid.UUID{rYuto, rMemA})
+
+	page1, hasMore1, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page1) != 2 || page1[0].ID != e3 || page1[1].ID != e4 {
+		t.Fatalf("page1 = %+v, want latest 2 (e3, e4) ascending", page1)
+	}
+	if !hasMore1 {
+		t.Fatal("page1 has_more = false, want true (e1, e2 not yet loaded)")
+	}
+
+	page2, hasMore2, err := s.Reads.ListEntries(context.Background(), rGroup, 0, page1[0].Seq, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page2) != 2 || page2[0].ID != e1 || page2[1].ID != e2 {
+		t.Fatalf("page2 = %+v, want older 2 (e1, e2) ascending", page2)
+	}
+	if hasMore2 {
+		t.Fatal("page2 has_more = true, want false (exactly 2 remained, none older)")
+	}
+}
+
 func TestListEntries_LimitClamped(t *testing.T) {
 	s := TestStore(t)
 	seedReadGroup(t, s)
@@ -415,7 +475,7 @@ func TestListEntries_LimitClamped(t *testing.T) {
 	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
 	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
 
-	one, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 1)
+	one, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +484,7 @@ func TestListEntries_LimitClamped(t *testing.T) {
 	}
 
 	// limit=2 should return exactly 2, proving the limit logic respects sub-default limits.
-	two, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 2)
+	two, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,7 +495,7 @@ func TestListEntries_LimitClamped(t *testing.T) {
 	// limit=0 and limit=10000 don't error and return all available entries.
 	// The exact clamp targets (100 and 500) are not verified here without seeding
 	// 100+ and 500+ rows respectively.
-	zero, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0)
+	zero, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("limit 0: %v", err)
 	}
@@ -443,7 +503,7 @@ func TestListEntries_LimitClamped(t *testing.T) {
 		t.Fatalf("limit 0 returned %d entries, want 3 (all available)", len(zero))
 	}
 
-	large, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 10_000)
+	large, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 10_000)
 	if err != nil {
 		t.Fatalf("limit 10000: %v", err)
 	}

@@ -225,7 +225,8 @@ export const zEntryRecord = z.object({
 });
 
 export const zEntryList = z.object({
-    entries: z.array(zEntryRecord)
+    entries: z.array(zEntryRecord),
+    has_more: z.boolean()
 });
 
 /**
