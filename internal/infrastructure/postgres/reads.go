@@ -103,7 +103,7 @@ func (r *ReadRepository) ListEntries(ctx context.Context, groupID uuid.UUID, aft
 			Memo:         row.Memo,
 			OccurredOn:   row.OccurredOn.Time.Format("2006-01-02"),
 			CreatedBy:    row.CreatedBy,
-			CreatedAt:    row.CreatedAt.Time,
+			CreatedAt:    row.CreatedAt.Time.UTC(),
 			Postings:     []ledger.Posting{},
 		}
 		index[e.ID] = len(entries)
