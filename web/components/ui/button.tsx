@@ -3,13 +3,14 @@
 import { Button as HeroButton } from "@heroui/react";
 import type { ReactNode } from "react";
 
-type ButtonVariant = "solid" | "danger" | "ghost" | "dashed";
+type ButtonVariant = "solid" | "danger" | "ghost" | "dashed" | "dark";
 
 const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outline"> = {
   solid: "primary",
   danger: "danger",
   ghost: "ghost",
   dashed: "outline",
+  dark: "ghost",
 };
 
 /**
@@ -23,10 +24,28 @@ const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outli
  * border-style/color/bg/typography the same way "solid" overrides
  * "primary"'s.
  */
-const VARIANT_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
-  solid: "rounded-button p-[17px] min-h-[52px] text-[17px] font-extrabold shadow-pressed",
-  dashed:
-    "rounded-field border-[1.5px] border-dashed border-ink/[.3] bg-transparent p-[13px] text-[14px] font-bold text-ink/[.6]",
+const PRESSED_BUTTON_CLASS_NAME =
+  "rounded-button p-[17px] min-h-[52px] text-[17px] font-extrabold shadow-pressed";
+
+const DASHED_BUTTON_CLASS_NAME =
+  "rounded-field border-[1.5px] border-dashed border-ink/[.3] bg-transparent p-[13px] text-[14px] font-bold text-ink/[.6]";
+
+/**
+ * design-handoff.md's ink-bg/white-text pill — the invite banner's "Copy
+ * link" is the only place the handoff uses it. Built on the "ghost" base
+ * (bg/fg start transparent) and pins button.css's own `--button-bg{,-hover,
+ * -pressed}`/`--button-fg` custom properties directly, the same mechanism
+ * its other color variants use (see @heroui/styles' button.styles.ts) —
+ * this is a "dark" variant in this wrapper's own vocabulary, not a HeroUI
+ * variant name.
+ */
+const DARK_PILL_CLASS_NAME =
+  "[--button-bg:var(--foreground)] [--button-bg-hover:var(--foreground)] [--button-bg-pressed:var(--foreground)] [--button-fg:var(--background)] rounded-[10px] px-[14px] py-[10px] min-h-[38px] text-[12.5px] font-extrabold";
+
+const EXTRA_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
+  solid: PRESSED_BUTTON_CLASS_NAME,
+  dashed: DASHED_BUTTON_CLASS_NAME,
+  dark: DARK_PILL_CLASS_NAME,
 };
 
 /**
@@ -63,7 +82,7 @@ export function Button({
       fullWidth={fullWidth}
       onPress={onClick}
       aria-label={ariaLabel}
-      className={VARIANT_CLASS_NAME[variant]}
+      className={EXTRA_CLASS_NAME[variant]}
     >
       {children}
     </HeroButton>

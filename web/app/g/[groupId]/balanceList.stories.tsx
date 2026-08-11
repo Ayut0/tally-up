@@ -40,3 +40,14 @@ export const AllSettled: Story = {
 export const Empty: Story = {
   args: { rows: [] },
 };
+
+export const WithCurrentMember: Story = {
+  args: {
+    rows: buildBalanceRows(members, [
+      { member_id: "m1", balance: 1500 },
+      { member_id: "m2", balance: -1500 },
+      { member_id: "m3", balance: 0 },
+    ]),
+    currentMemberId: "m1",
+  },
+};

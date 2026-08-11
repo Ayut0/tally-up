@@ -1,4 +1,4 @@
-import { Heading, Paragraph } from "@heroui/react";
+import { Heading, Paragraph, cn } from "@heroui/react";
 import type { ReactNode } from "react";
 
 type TextVariant =
@@ -42,29 +42,41 @@ const VARIANT_CLASS_NAME: Record<TextVariant, string> = {
  *
  * These 8 variants cover this app's heading/label/body/error/muted text —
  * they're not meant to grow a one-off variant per unique className a page
- * has ever used. Dense list-row microtypography (e.g. a bolded amount
- * column) that doesn't cleanly fit one of these is left as plain Tailwind
- * at the call site rather than forcing a new narrow variant here.
+ * has ever used. Dense, design-handoff-specced microtypography (e.g. a
+ * bolded mono amount column) that doesn't cleanly fit one of these picks
+ * whichever variant is the closest semantic/element match and overrides its
+ * sizing via the optional `className` (merged, not concatenated, via `cn` —
+ * same twMerge-backed override the variants themselves rely on) rather than
+ * reaching for HeroUI's `Heading`/`Paragraph` directly at the call site or
+ * growing a new narrow variant here.
  */
-export function Text({ variant, children }: { variant: TextVariant; children: ReactNode }) {
-  const className = VARIANT_CLASS_NAME[variant];
+export function Text({
+  variant,
+  className,
+  children,
+}: {
+  variant: TextVariant;
+  className?: string;
+  children: ReactNode;
+}) {
+  const combinedClassName = cn(VARIANT_CLASS_NAME[variant], className);
   if (variant === "heading") {
     return (
-      <Heading level={1} className={className}>
+      <Heading level={1} className={combinedClassName}>
         {children}
       </Heading>
     );
   }
   if (variant === "section-heading") {
     return (
-      <Heading level={2} className={className}>
+      <Heading level={2} className={combinedClassName}>
         {children}
       </Heading>
     );
   }
   const size = variant === "body" ? "base" : "sm";
   return (
-    <Paragraph size={size} className={className}>
+    <Paragraph size={size} className={combinedClassName}>
       {children}
     </Paragraph>
   );

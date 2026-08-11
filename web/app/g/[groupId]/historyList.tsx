@@ -1,32 +1,56 @@
 import { Text } from "@/components/ui/text";
 import type { HistoryRow } from "@/lib/history";
 
+/** design-handoff.md: deleted/corrected entries never leave the list — they render struck-through, in place, permanently. */
+function HistoryCard({ row }: { row: HistoryRow }) {
+  if (row.struck) {
+    return (
+      <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-dashed border-ink/[.15] bg-white/50 px-4 py-[13px]">
+        <div className="min-w-0 flex-1">
+          <Text variant="body" className="text-[15px] font-bold text-ink/40 line-through">
+            {row.label}
+          </Text>
+          <Text variant="body" className="mt-[3px] text-[12px] font-medium text-ink/35">
+            deleted — the ledger never forgets
+          </Text>
+        </div>
+        <Text
+          variant="body"
+          className="font-mono text-[15.5px] font-bold text-ink/35 tabular-nums line-through"
+        >
+          {row.formattedAmount}
+        </Text>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-ink/[.12] bg-surface px-4 py-[13px]">
+      <div className="min-w-0 flex-1">
+        <Text variant="body" className="text-[15px] font-bold text-ink">
+          {row.label}
+        </Text>
+        <Text variant="body" className="mt-[3px] text-[12px] font-medium text-ink/50">
+          {row.payerName} paid · {row.occurredOn}
+        </Text>
+      </div>
+      <Text variant="body" className="font-mono text-[15.5px] font-bold text-ink tabular-nums">
+        {row.formattedAmount}
+      </Text>
+    </div>
+  );
+}
+
 export function HistoryList({ rows }: { rows: HistoryRow[] }) {
   return (
-    <section className="flex flex-col gap-2">
-      <Text variant="section-heading">History</Text>
-      {rows.length === 0 ? (
-        <Text variant="muted">No entries yet.</Text>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className={`flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145] ${
-                row.struck ? "line-through opacity-60" : ""
-              }`}
-            >
-              <span className="flex flex-col">
-                <span className="text-sm text-zinc-950 dark:text-zinc-50">{row.label}</span>
-                <span className="text-xs text-zinc-500">
-                  {row.payerName} · {row.occurredOn}
-                </span>
-              </span>
-              <span className="text-sm text-zinc-950 dark:text-zinc-50">{row.formattedAmount}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+    <section className="flex flex-col gap-[10px]">
+      <Text variant="label">History</Text>
+      <ul className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <li key={row.id}>
+            <HistoryCard row={row} />
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

@@ -10,9 +10,16 @@ export type BalanceRow = {
   amountClassName: string;
 };
 
-const POSITIVE_CLASS = "text-green-600 dark:text-green-400";
-const NEGATIVE_CLASS = "text-red-600 dark:text-red-400";
+const POSITIVE_CLASS = "text-positive";
+const NEGATIVE_CLASS = "text-negative";
 const NEUTRAL_CLASS = "text-zinc-500";
+
+/** design-handoff.md's signed form: `+¥6,200` / `−¥3,400` (a real minus sign, not a hyphen). */
+function formatSignedYen(amount: number): string {
+  if (amount === 0) return "¥0";
+  const sign = amount > 0 ? "+" : "−";
+  return `${sign}¥${Math.abs(amount).toLocaleString("ja-JP")}`;
+}
 
 /** One row per group member, in member order, joined against balances by id. */
 export function buildBalanceRows(members: Member[], balances: MemberBalance[]): BalanceRow[] {
@@ -22,7 +29,7 @@ export function buildBalanceRows(members: Member[], balances: MemberBalance[]): 
     return {
       id: member.id,
       name: member.name,
-      formattedAmount: `¥${amount.toLocaleString("ja-JP")}`,
+      formattedAmount: formatSignedYen(amount),
       amountClassName: amount > 0 ? POSITIVE_CLASS : amount < 0 ? NEGATIVE_CLASS : NEUTRAL_CLASS,
     };
   });
