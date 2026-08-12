@@ -10,7 +10,8 @@ type ButtonVariant =
   | "dashed"
   | "dark"
   | "pillSelected"
-  | "pillUnselected";
+  | "pillUnselected"
+  | "row";
 
 const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outline"> = {
   solid: "primary",
@@ -20,6 +21,7 @@ const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outli
   dark: "ghost",
   pillSelected: "ghost",
   pillUnselected: "ghost",
+  row: "outline",
 };
 
 /**
@@ -69,12 +71,24 @@ const PILL_SELECTED_CLASS_NAME =
 const PILL_UNSELECTED_CLASS_NAME =
   "[--button-bg:rgba(43,33,24,.08)] [--button-bg-hover:rgba(43,33,24,.08)] [--button-bg-pressed:rgba(43,33,24,.08)] [--button-fg:rgba(43,33,24,.5)] rounded-full gap-[7px] px-[14px] min-h-[38px] text-[14px] font-bold";
 
+/**
+ * design-handoff.md's join-screen member row (§2, panel #1b): a white,
+ * bordered tap target whose only hover/focus change is the border
+ * brightening to accent — unlike "dashed"'s outline base, the mockup
+ * specifies no gray hover fill, so this pins --button-bg-hover/-pressed to
+ * the same surface color as the resting state instead of leaving outline's
+ * default gray tint.
+ */
+const ROW_BUTTON_CLASS_NAME =
+  "[--button-bg-hover:var(--surface)] [--button-bg-pressed:var(--surface)] w-full justify-start gap-[14px] rounded-card border-[1.5px] border-ink/[.18] bg-surface p-[18px] min-h-[64px] text-left hover:border-accent focus-visible:border-accent";
+
 const EXTRA_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
   solid: PRESSED_BUTTON_CLASS_NAME,
   dashed: DASHED_BUTTON_CLASS_NAME,
   dark: DARK_PILL_CLASS_NAME,
   pillSelected: PILL_SELECTED_CLASS_NAME,
   pillUnselected: PILL_UNSELECTED_CLASS_NAME,
+  row: ROW_BUTTON_CLASS_NAME,
 };
 
 /**
