@@ -52,10 +52,12 @@ export function JoinPicker({
                   initial={member.name.trim().charAt(0).toUpperCase()}
                   size={38}
                 />
-                <span className="flex-1 text-left text-[18px] font-bold text-ink">
+                <Text variant="body" className="flex-1 text-left text-[18px] font-bold text-ink">
                   {member.name}
-                </span>
-                <span className="font-mono text-[18px] text-ink/[.35]">›</span>
+                </Text>
+                <Text variant="body" className="font-mono text-[18px] text-ink/[.35]">
+                  ›
+                </Text>
               </Button>
             </li>
           ))}
