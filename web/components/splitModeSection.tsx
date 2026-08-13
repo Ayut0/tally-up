@@ -1,6 +1,7 @@
 import type { UseFormRegisterReturn } from "react-hook-form";
 import type { components } from "@/lib/api-types";
 import { SplitMode } from "@/lib/split";
+import { Button } from "./ui/button";
 import { Tabs } from "./ui/tabs";
 import { Text } from "./ui/text";
 
@@ -167,29 +168,27 @@ export function SplitModeSection({
                     </Text>
                   </div>
                   <div className="flex items-center gap-[10px]">
-                    <button
-                      type="button"
+                    <Button
+                      variant="stepper"
                       aria-label={`Decrease ${row.name}'s shares`}
                       disabled={row.weight <= 1}
                       onClick={() => decrementWeight(row.id)}
-                      className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border-[1.5px] border-ink/20 bg-background font-mono text-[17px] font-bold text-ink disabled:opacity-40"
                     >
                       −
-                    </button>
+                    </Button>
                     <Text
                       variant="body"
                       className="min-w-5 text-center font-mono text-[17px] font-bold text-ink"
                     >
                       {row.weight}
                     </Text>
-                    <button
-                      type="button"
+                    <Button
+                      variant="stepper"
                       aria-label={`Increase ${row.name}'s shares`}
                       onClick={() => incrementWeight(row.id)}
-                      className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border-[1.5px] border-ink/20 bg-background font-mono text-[17px] font-bold text-ink"
                     >
                       +
-                    </button>
+                    </Button>
                   </div>
                 </li>
               ))}
