@@ -115,10 +115,17 @@ function AddExpenseForm({ groupId, group }: { groupId: string; group: GroupRecor
           setMode={form.setMode}
           showExactInputs={form.showExactInputs}
           exactRows={form.exactRows}
+          exactSummary={form.exactSummary}
           registerAmount={form.registerAmount}
-          showWeightInputs={form.showWeightInputs}
-          weightRows={form.weightRows}
-          registerWeight={form.registerWeight}
+          showSharesInputs={form.showSharesInputs}
+          sharesRows={form.sharesRows}
+          incrementWeight={form.incrementWeight}
+          decrementWeight={form.decrementWeight}
+          sharesSummary={form.sharesSummary}
+          showPercentInputs={form.showPercentInputs}
+          percentRows={form.percentRows}
+          registerPercent={form.registerPercent}
+          percentSummary={form.percentSummary}
           ruleError={form.ruleError}
           previewRows={form.previewRows}
         />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSplitRule, previewShares, SplitMode } from "./split";
+import { buildSplitRule, previewShares, SplitMode, sumEntered, weightedPreview } from "./split";
 
 // Member ids chosen so lexicographic order is a < b < c (mirrors UUID byte order).
 const A = "00000000-0000-0000-0000-00000000000b";
@@ -43,6 +43,26 @@ describe("previewShares — must mirror the Go largest-remainder engine", () => 
   });
 });
 
+describe("weightedPreview — live per-row amounts before a split is fully valid", () => {
+  it("treats a participant missing from the weights map as weight 0", () => {
+    expect(weightedPreview(9000, { [A]: 2 }, [A, B])).toEqual({ [A]: 9000, [B]: 0 });
+  });
+
+  it("returns all-zero shares rather than dividing by zero when every weight is 0", () => {
+    expect(weightedPreview(9000, {}, [A, B])).toEqual({ [A]: 0, [B]: 0 });
+  });
+});
+
+describe("sumEntered — footer running totals tolerate blank/unset fields", () => {
+  it("sums the values entered for the given participants", () => {
+    expect(sumEntered({ [A]: 300, [B]: 200 }, [A, B])).toBe(500);
+  });
+
+  it("treats a missing or NaN entry as 0 instead of propagating NaN", () => {
+    expect(sumEntered({ [A]: 300, [B]: NaN }, [A, B])).toBe(300);
+  });
+});
+
 describe("buildSplitRule validation", () => {
   it("valid inputs return the rule object", () => {
     expect(buildSplitRule(SplitMode.Equal, [A, B], {})).toEqual({
@@ -67,6 +87,11 @@ describe("buildSplitRule validation", () => {
   it("shares must be positive", () => {
     const r = buildSplitRule(SplitMode.Shares, [A, B], { weights: { [A]: 0, [B]: 2 } });
     expect(r.isValid).toBe(false);
+  });
+
+  it("shares defaults a participant missing from the weights map to 1, not an error", () => {
+    const r = buildSplitRule(SplitMode.Shares, [A, B], { weights: { [A]: 2 } });
+    expect(r).toEqual({ isValid: true, rule: { type: "shares", weights: { [A]: 2, [B]: 1 } } });
   });
 
   it("exact rejects a negative amount even if the sum happens to match total", () => {

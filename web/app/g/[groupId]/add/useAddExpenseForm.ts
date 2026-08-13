@@ -9,7 +9,7 @@ import { todayLocal } from "@/lib/date";
 import { EntryKind } from "@/lib/entry";
 import { canSubmitExpense, parseTotal } from "@/lib/expenseForm";
 import { getIdentity } from "@/lib/identity";
-import { SplitMode, buildSplitRule, previewShares } from "@/lib/split";
+import { SplitMode, buildSplitRule, previewShares, sumEntered, weightedPreview } from "@/lib/split";
 import { generateUuidV7 } from "@/lib/uuidv7";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
@@ -119,12 +119,31 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     return register(`amounts.${memberId}`, { valueAsNumber: true });
   }
 
-  function registerWeight(memberId: string) {
+  function registerPercent(memberId: string) {
     return register(`weights.${memberId}`, { valueAsNumber: true });
+  }
+
+  // Shares' UI is a stepper, not a text field (see splitModeSection.tsx) —
+  // both directions go through setWeight so a missing entry (never
+  // stepped) and an explicit one are adjusted the same way, off the
+  // effective (defaulted-to-1) value every row already displays. Reads via
+  // getValues(), not the watched `weights` above, for the same reason
+  // toggleParticipant does above: two clicks in the same tick would
+  // otherwise both read the same stale render's value.
+  function incrementWeight(memberId: string) {
+    setWeight(memberId, (getValues(`weights.${memberId}`) ?? 1) + 1);
+  }
+
+  function decrementWeight(memberId: string) {
+    setWeight(memberId, Math.max(1, (getValues(`weights.${memberId}`) ?? 1) - 1));
   }
 
   function memberName(memberId: string): string {
     return group.members.find((m) => m.id === memberId)?.name ?? memberId;
+  }
+
+  function formatYen(n: number): string {
+    return `¥${n.toLocaleString("ja-JP")}`;
   }
 
   const participantIds = group.members.map((m) => m.id).filter((id) => participantsRecord[id]);
@@ -158,17 +177,64 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     name: memberName(id),
     amount: amounts[id] ?? "",
   }));
-  const weightRows = participantIds.map((id) => ({
-    id,
-    name: memberName(id),
-    weight: weights[id] ?? "",
-  }));
   const previewRows = preview
     ? participantIds.map((id) => ({
         id,
         name: memberName(id),
-        formattedShare: `¥${(preview[id] ?? 0).toLocaleString("ja-JP")}`,
+        formattedShare: formatYen(preview[id] ?? 0),
       }))
+    : null;
+
+  // Shares always defaults a missing weight to 1 (buildSplitRule mirrors
+  // this), so the stepper and its live preview read off the same effective
+  // map rather than the raw, possibly-sparse `weights` field.
+  const effectiveShareWeights = Object.fromEntries(
+    participantIds.map((id) => [id, weights[id] ?? 1]),
+  );
+  const sharesPreview = weightedPreview(total, effectiveShareWeights, participantIds);
+  const sharesRows = participantIds.map((id) => ({
+    id,
+    name: memberName(id),
+    weight: effectiveShareWeights[id]!,
+    formattedShare: formatYen(sharesPreview[id] ?? 0),
+  }));
+
+  const percentPreview = weightedPreview(total, weights, participantIds);
+  const percentRows = group.members.map((m) =>
+    participantsRecord[m.id]
+      ? {
+          id: m.id,
+          name: m.name,
+          active: true as const,
+          percent: weights[m.id] ?? "",
+          formattedShare: formatYen(percentPreview[m.id] ?? 0),
+        }
+      : { id: m.id, name: m.name, active: false as const },
+  );
+
+  // Same gate `preview` above already applies (totalValid && at least one
+  // participant) — without it, deselecting everyone would leave a footer
+  // bar floating over an empty row list instead of hiding along with it.
+  const showSummaries = totalValid && participantIds.length > 0;
+  const exactSummary = showSummaries
+    ? {
+        enteredFormatted: formatYen(sumEntered(amounts, participantIds)),
+        targetFormatted: formatYen(total),
+        matches: mode === SplitMode.Exact && result.isValid,
+      }
+    : null;
+  const sharesSummary = showSummaries
+    ? {
+        count: sumEntered(effectiveShareWeights, participantIds),
+        totalFormatted: formatYen(total),
+      }
+    : null;
+  const percentSummary = showSummaries
+    ? {
+        percentTotal: sumEntered(weights, participantIds),
+        totalFormatted: formatYen(total),
+        complete: mode === SplitMode.Percent && result.isValid,
+      }
     : null;
 
   async function onValid(values: FormValues) {
@@ -227,13 +293,20 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     setMode,
     splitTabs,
     showExactInputs: mode === SplitMode.Exact,
-    showWeightInputs: mode === SplitMode.Shares || mode === SplitMode.Percent,
+    showSharesInputs: mode === SplitMode.Shares,
+    showPercentInputs: mode === SplitMode.Percent,
     exactRows,
+    exactSummary,
     setAmount,
     registerAmount,
-    weightRows,
+    sharesRows,
+    incrementWeight,
+    decrementWeight,
+    sharesSummary,
+    percentRows,
     setWeight,
-    registerWeight,
+    registerPercent,
+    percentSummary,
     ruleError,
     previewRows,
     memo,
