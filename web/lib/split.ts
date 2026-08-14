@@ -52,8 +52,13 @@ export function buildSplitRule(
       // Shares' UI is a stepper, not a text field — there's no "empty" state
       // to type into, so a participant missing from the map (never touched
       // the stepper yet) defaults to 1 share rather than an error, unlike
-      // Exact/Percent which require explicit entry.
-      const weights = Object.fromEntries(participants.map((p) => [p, inputs.weights?.[p] ?? 1]));
+      // Exact/Percent which require explicit entry. finiteOr also catches a
+      // NaN carried over from Percent (they share this field, and a cleared
+      // valueAsNumber field is NaN, not undefined) — `?? 1` alone would let
+      // it through and reject a row the UI already shows defaulted to 1.
+      const weights = Object.fromEntries(
+        participants.map((p) => [p, finiteOr(inputs.weights?.[p], 1)]),
+      );
       if (Object.values(weights).some((v) => v <= 0 || !Number.isInteger(v)))
         return { isValid: false, error: "shares must be positive whole numbers" };
       return { isValid: true, rule: { type: SplitMode.Shares, weights } };

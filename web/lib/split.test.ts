@@ -98,6 +98,11 @@ describe("buildSplitRule validation", () => {
     expect(r).toEqual({ isValid: true, rule: { type: "shares", weights: { [A]: 2, [B]: 1 } } });
   });
 
+  it("shares also defaults a NaN weight (carried over from Percent, which shares this field) to 1", () => {
+    const r = buildSplitRule(SplitMode.Shares, [A, B], { weights: { [A]: 2, [B]: NaN } });
+    expect(r).toEqual({ isValid: true, rule: { type: "shares", weights: { [A]: 2, [B]: 1 } } });
+  });
+
   it("exact rejects a negative amount even if the sum happens to match total", () => {
     const r = buildSplitRule(SplitMode.Exact, [A, B], {
       total: 12000,
