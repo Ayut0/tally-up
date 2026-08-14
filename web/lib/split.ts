@@ -71,16 +71,22 @@ export function buildSplitRule(
 }
 
 /**
- * Sums whatever's been entered so far for a footer running total —
- * `register(..., { valueAsNumber: true })` leaves a blank field as NaN, and
- * a participant may not have an entry yet at all, so both count as 0 rather
- * than propagating NaN into the displayed sum.
+ * `register(..., { valueAsNumber: true })` leaves a cleared field as NaN,
+ * not undefined — `value ?? fallback` lets NaN straight through, so
+ * anywhere a form value feeds live arithmetic needs this instead.
+ */
+export function finiteOr(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * Sums whatever's been entered so far for a footer running total — a
+ * participant may not have an entry yet at all, or may have cleared one
+ * (NaN, see `finiteOr`); both count as 0 rather than propagating NaN into
+ * the displayed sum.
  */
 export function sumEntered(values: Record<string, number>, participants: string[]): number {
-  return participants.reduce((sum, p) => {
-    const v = values[p];
-    return sum + (v !== undefined && Number.isFinite(v) ? v : 0);
-  }, 0);
+  return participants.reduce((sum, p) => sum + finiteOr(values[p], 0), 0);
 }
 
 function pick(
@@ -113,7 +119,7 @@ export function weightedPreview(
   participants: string[],
 ): Record<string, number> {
   const resolved: Record<string, number> = {};
-  for (const p of participants) resolved[p] = weights[p] ?? 0;
+  for (const p of participants) resolved[p] = finiteOr(weights[p], 0);
   const totalWeight = participants.reduce((a, p) => a + resolved[p]!, 0);
   if (totalWeight <= 0) {
     return Object.fromEntries(participants.map((p) => [p, 0]));

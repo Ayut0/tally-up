@@ -9,7 +9,14 @@ import { todayLocal } from "@/lib/date";
 import { EntryKind } from "@/lib/entry";
 import { canSubmitExpense, parseTotal } from "@/lib/expenseForm";
 import { getIdentity } from "@/lib/identity";
-import { SplitMode, buildSplitRule, previewShares, sumEntered, weightedPreview } from "@/lib/split";
+import {
+  SplitMode,
+  buildSplitRule,
+  finiteOr,
+  previewShares,
+  sumEntered,
+  weightedPreview,
+} from "@/lib/split";
 import { generateUuidV7 } from "@/lib/uuidv7";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
@@ -129,13 +136,16 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   // effective (defaulted-to-1) value every row already displays. Reads via
   // getValues(), not the watched `weights` above, for the same reason
   // toggleParticipant does above: two clicks in the same tick would
-  // otherwise both read the same stale render's value.
+  // otherwise both read the same stale render's value. finiteOr (not `??`)
+  // because a NaN left over from Percent (they share this field, and a
+  // cleared valueAsNumber field is NaN, not undefined) would otherwise
+  // stick the stepper at NaN forever — `NaN ?? 1` is still NaN.
   function incrementWeight(memberId: string) {
-    setWeight(memberId, (getValues(`weights.${memberId}`) ?? 1) + 1);
+    setWeight(memberId, finiteOr(getValues(`weights.${memberId}`), 1) + 1);
   }
 
   function decrementWeight(memberId: string) {
-    setWeight(memberId, Math.max(1, (getValues(`weights.${memberId}`) ?? 1) - 1));
+    setWeight(memberId, Math.max(1, finiteOr(getValues(`weights.${memberId}`), 1) - 1));
   }
 
   function memberName(memberId: string): string {
@@ -185,11 +195,13 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
       }))
     : null;
 
-  // Shares always defaults a missing weight to 1 (buildSplitRule mirrors
-  // this), so the stepper and its live preview read off the same effective
-  // map rather than the raw, possibly-sparse `weights` field.
+  // Shares always defaults a missing *or* NaN (a field cleared via
+  // valueAsNumber, possibly carried over from Percent — they share this
+  // field) weight to 1, mirroring buildSplitRule, so the stepper and its
+  // live preview read off the same effective map rather than the raw,
+  // possibly-sparse `weights` field.
   const effectiveShareWeights = Object.fromEntries(
-    participantIds.map((id) => [id, weights[id] ?? 1]),
+    participantIds.map((id) => [id, finiteOr(weights[id], 1)]),
   );
   const sharesPreview = weightedPreview(total, effectiveShareWeights, participantIds);
   const sharesRows = participantIds.map((id) => ({

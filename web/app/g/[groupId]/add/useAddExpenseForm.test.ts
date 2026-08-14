@@ -145,6 +145,17 @@ describe("useAddExpenseForm", () => {
     expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(1);
   });
 
+  it("a NaN weight (a field cleared via valueAsNumber, e.g. carried over from Percent) doesn't stick the stepper", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("shares"));
+    act(() => result.current.setWeight("member-a", NaN));
+
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(1);
+
+    act(() => result.current.incrementWeight("member-a"));
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(2);
+  });
+
   it("two increments in the same tick both land, rather than one clobbering the other", () => {
     const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
     act(() => result.current.setMode("shares"));

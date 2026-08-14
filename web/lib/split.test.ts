@@ -51,6 +51,10 @@ describe("weightedPreview — live per-row amounts before a split is fully valid
   it("returns all-zero shares rather than dividing by zero when every weight is 0", () => {
     expect(weightedPreview(9000, {}, [A, B])).toEqual({ [A]: 0, [B]: 0 });
   });
+
+  it("treats a NaN weight (a field cleared via valueAsNumber) as 0, not poisoning every row", () => {
+    expect(weightedPreview(9000, { [A]: NaN, [B]: 2 }, [A, B])).toEqual({ [A]: 0, [B]: 9000 });
+  });
 });
 
 describe("sumEntered — footer running totals tolerate blank/unset fields", () => {

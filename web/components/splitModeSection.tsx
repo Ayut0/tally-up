@@ -217,7 +217,7 @@ export function SplitModeSection({
                     <div className="flex min-w-[72px] items-baseline gap-1 rounded-segment border-[1.5px] border-ink/20 bg-background px-3 py-2">
                       <input
                         type="number"
-                        inputMode="decimal"
+                        inputMode="numeric"
                         min={1}
                         step={1}
                         aria-label={`${row.name}'s percent share`}
