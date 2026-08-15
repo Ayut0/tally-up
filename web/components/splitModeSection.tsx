@@ -234,12 +234,17 @@ export function SplitModeSection({
                     key={row.id}
                     className="flex items-center gap-3 rounded-field border-[1.5px] border-ink/[.08] bg-surface/45 px-[14px] py-[11px] opacity-55"
                   >
-                    <Text variant="body" className="flex-1 text-[15px] font-bold text-ink">
-                      {row.name}{" "}
-                      <span className="font-sans text-[11.5px] font-semibold text-ink/50">
+                    <div className="min-w-0 flex-1">
+                      <Text variant="body" className="text-[15px] font-bold text-ink">
+                        {row.name}
+                      </Text>
+                      <Text
+                        variant="body"
+                        className="mt-0.5 text-[11.5px] font-semibold text-ink/50"
+                      >
                         — not sharing
-                      </span>
-                    </Text>
+                      </Text>
+                    </div>
                     <Text
                       variant="body"
                       className="font-mono text-[13px] font-semibold text-ink/35"

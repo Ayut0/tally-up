@@ -9,6 +9,7 @@ import { todayLocal } from "@/lib/date";
 import { EntryKind } from "@/lib/entry";
 import { canSubmitExpense, parseTotal } from "@/lib/expenseForm";
 import { getIdentity } from "@/lib/identity";
+import { formatYen } from "@/lib/money";
 import {
   SplitMode,
   buildSplitRule,
@@ -150,10 +151,6 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
 
   function memberName(memberId: string): string {
     return group.members.find((m) => m.id === memberId)?.name ?? memberId;
-  }
-
-  function formatYen(n: number): string {
-    return `¥${n.toLocaleString("ja-JP")}`;
   }
 
   const participantIds = group.members.map((m) => m.id).filter((id) => participantsRecord[id]);
