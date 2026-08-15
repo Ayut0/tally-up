@@ -196,7 +196,7 @@ func TestGroupRepository_RemoveMember_HistoryStaysReadable(t *testing.T) {
 	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
 		t.Fatal(err)
 	}
-	entries, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 100)
+	entries, _, err := s.Reads.ListEntries(context.Background(), rGroup, 0, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -155,6 +155,9 @@ model BalanceSnapshot {
 
 model EntryList {
   entries: EntryRecord[];
+
+  /** Whether more entries exist beyond this page, in the direction requested. */
+  has_more: boolean;
 }
 
 /**
@@ -480,8 +483,11 @@ op getSettlePlan(@path group_id: Uuid): SettlePlan | ReadErrors;
 op getPairwiseBalances(@path group_id: Uuid): PairwiseBalances | ReadErrors;
 
 /**
- * Page the ledger in `seq` order. Poll by passing the highest `seq` seen as
- * `after_seq`.
+ * Page the ledger in `seq` order. With neither cursor set, returns the
+ * *latest* `limit` entries. Poll by passing the highest `seq` seen as
+ * `after_seq`. Page further back into older history by passing the lowest
+ * `seq` seen as `before_seq` ("Load more", #221). `after_seq` and
+ * `before_seq` are mutually exclusive.
  *
  * `limit` is clamped server-side, not rejected: values below 1 become 100, and
  * values above 500 become 500.
@@ -491,8 +497,11 @@ op getPairwiseBalances(@path group_id: Uuid): PairwiseBalances | ReadErrors;
 op listEntries(
   @path group_id: Uuid,
 
-  /** Exclusive cursor. Absent means from the start of the ledger. */
+  /** Exclusive forward cursor: entries with `seq` greater than this. */
   @query after_seq?: int64,
+
+  /** Exclusive backward cursor: entries with `seq` less than this. */
+  @query before_seq?: int64,
 
   @query limit?: int32,
 ): EntryList | ReadErrors;

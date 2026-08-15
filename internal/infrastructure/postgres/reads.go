@@ -69,58 +69,93 @@ const (
 // ListEntries pages the ledger in seq order. No transaction needed: visible
 // entries and postings are immutable (append-only), so two queries cannot
 // disagree about rows they both see.
-func (r *ReadRepository) ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq int64, limit int) ([]entry.Record, error) {
+//
+// With both cursors zero it returns the latest `limit` entries; afterSeq
+// pages forward (ascending, unchanged from before #221); beforeSeq pages
+// backward into older history. Callers must not set both — see
+// entry.HistoryReader. Either direction over-fetches by one row to compute
+// hasMore before trimming back to limit.
+func (r *ReadRepository) ListEntries(ctx context.Context, groupID uuid.UUID, afterSeq, beforeSeq int64, limit int) ([]entry.Record, bool, error) {
 	if limit < 1 {
 		limit = defaultListLimit
 	}
 	if limit > maxListLimit {
 		limit = maxListLimit
 	}
+	fetchLimit := int32(limit + 1) //nolint:gosec // clamped to maxListLimit (500) above; cannot overflow int32
 
 	q := r.queries(ctx)
-	rows, err := q.ListEntriesAfterSeq(ctx, sqlc.ListEntriesAfterSeqParams{
-		GroupID: groupID, Seq: &afterSeq,
-		Limit: int32(limit), //nolint:gosec // clamped to maxListLimit (500) above; cannot overflow int32
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	entries := make([]entry.Record, 0, len(rows))
-	index := map[uuid.UUID]int{}
-	ids := make([]uuid.UUID, 0, len(rows))
-	for _, row := range rows {
-		e := entry.Record{
-			ID:           row.ID,
-			Seq:          *row.Seq,
-			Kind:         entry.Kind(row.Kind),
-			ReversesID:   row.ReversesID,
-			PayerID:      row.PayerID,
-			Counterparty: row.Counterparty,
-			TotalAmount:  row.TotalAmount,
-			SplitRule:    row.SplitRule,
-			Participants: row.Participants,
-			Memo:         row.Memo,
-			OccurredOn:   row.OccurredOn.Time.Format("2006-01-02"),
-			CreatedBy:    row.CreatedBy,
-			CreatedAt:    row.CreatedAt.Time.UTC(),
-			Postings:     []ledger.Posting{},
+	var entries []entry.Record
+	var hasMore bool
+	if afterSeq > 0 {
+		rows, err := q.ListEntriesAfterSeq(ctx, sqlc.ListEntriesAfterSeqParams{
+			GroupID: groupID, Seq: &afterSeq, Limit: fetchLimit,
+		})
+		if err != nil {
+			return nil, false, err
 		}
-		index[e.ID] = len(entries)
-		ids = append(ids, e.ID)
-		entries = append(entries, e)
-	}
-	if len(ids) == 0 {
-		return entries, nil
+		// ASC: the overflow "is there more" row is the newest one fetched,
+		// i.e. the last element — trimming it off here, before any
+		// reordering, keeps the same row regardless of direction below.
+		hasMore = len(rows) > limit
+		if hasMore {
+			rows = rows[:limit]
+		}
+		entries = make([]entry.Record, len(rows))
+		for i, row := range rows {
+			entries[i] = entry.Record{
+				ID: row.ID, Seq: *row.Seq, Kind: entry.Kind(row.Kind), ReversesID: row.ReversesID,
+				PayerID: row.PayerID, Counterparty: row.Counterparty, TotalAmount: row.TotalAmount,
+				SplitRule: row.SplitRule, Participants: row.Participants, Memo: row.Memo,
+				OccurredOn: row.OccurredOn.Time.Format("2006-01-02"), CreatedBy: row.CreatedBy,
+				CreatedAt: row.CreatedAt.Time.UTC(), Postings: []ledger.Posting{},
+			}
+		}
+	} else {
+		// beforeSeq == 0 means "no upper bound" — the latest page.
+		rows, err := q.ListEntriesBeforeSeq(ctx, sqlc.ListEntriesBeforeSeqParams{
+			GroupID: groupID, Column2: beforeSeq, Limit: fetchLimit,
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		// DESC: the overflow row is the oldest one fetched, i.e. the last
+		// element — trim it off before reversing to entry.Record's
+		// ascending contract, or the trim below would drop the newest row
+		// instead of the intended peek row.
+		hasMore = len(rows) > limit
+		if hasMore {
+			rows = rows[:limit]
+		}
+		entries = make([]entry.Record, len(rows))
+		for i, row := range rows {
+			entries[len(rows)-1-i] = entry.Record{
+				ID: row.ID, Seq: *row.Seq, Kind: entry.Kind(row.Kind), ReversesID: row.ReversesID,
+				PayerID: row.PayerID, Counterparty: row.Counterparty, TotalAmount: row.TotalAmount,
+				SplitRule: row.SplitRule, Participants: row.Participants, Memo: row.Memo,
+				OccurredOn: row.OccurredOn.Time.Format("2006-01-02"), CreatedBy: row.CreatedBy,
+				CreatedAt: row.CreatedAt.Time.UTC(), Postings: []ledger.Posting{},
+			}
+		}
 	}
 
+	if len(entries) == 0 {
+		return entries, hasMore, nil
+	}
+
+	index := map[uuid.UUID]int{}
+	ids := make([]uuid.UUID, len(entries))
+	for i, e := range entries {
+		index[e.ID] = i
+		ids[i] = e.ID
+	}
 	postings, err := q.ListPostingsForEntries(ctx, ids)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for _, p := range postings {
 		i := index[p.EntryID]
 		entries[i].Postings = append(entries[i].Postings, ledger.Posting{MemberID: p.MemberID, Amount: p.Amount})
 	}
-	return entries, nil
+	return entries, hasMore, nil
 }

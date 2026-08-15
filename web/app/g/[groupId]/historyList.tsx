@@ -1,5 +1,10 @@
+import { Button } from "@/components/ui/button";
+import { Tabs } from "@/components/ui/tabs";
 import { Text } from "@/components/ui/text";
 import type { HistoryRow } from "@/lib/history";
+import { PAGE_SIZES, type PageSize } from "./useGroupHistory";
+
+const PAGE_SIZE_TABS = PAGE_SIZES.map((size) => ({ id: String(size), label: String(size) }));
 
 /** design-handoff.md: deleted/corrected entries never leave the list — they render struck-through, in place, permanently. */
 function HistoryCard({ row }: { row: HistoryRow }) {
@@ -40,17 +45,44 @@ function HistoryCard({ row }: { row: HistoryRow }) {
   );
 }
 
-export function HistoryList({ rows }: { rows: HistoryRow[] }) {
+export function HistoryList({
+  rows,
+  pageSize,
+  onPageSizeChange,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
+}: {
+  rows: HistoryRow[];
+  pageSize: PageSize;
+  onPageSizeChange: (size: PageSize) => void;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  isLoadingMore: boolean;
+}) {
   return (
     <section className="flex flex-col gap-[10px]">
       <Text variant="label">History</Text>
-      <ul className="flex flex-col gap-2">
-        {rows.map((row) => (
-          <li key={row.id}>
-            <HistoryCard row={row} />
-          </li>
-        ))}
-      </ul>
+      <Tabs
+        tabs={PAGE_SIZE_TABS}
+        value={String(pageSize)}
+        onChange={(id) => onPageSizeChange(Number(id) as PageSize)}
+      >
+        <div className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-2">
+            {rows.map((row) => (
+              <li key={row.id}>
+                <HistoryCard row={row} />
+              </li>
+            ))}
+          </ul>
+          {hasMore && (
+            <Button variant="dashed" fullWidth onClick={onLoadMore} disabled={isLoadingMore}>
+              {isLoadingMore ? "Loading…" : "Load more"}
+            </Button>
+          )}
+        </div>
+      </Tabs>
     </section>
   );
 }

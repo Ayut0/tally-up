@@ -144,12 +144,24 @@ export function getSettlePlan(groupId: string): Promise<components["schemas"]["S
   return getJSON(`/groups/${groupId}/settle-plan`, zSettlePlan);
 }
 
-/** Pages the ledger in seq order; pass the highest seq seen as `afterSeq` to poll for new entries. */
+/**
+ * Pages the ledger in seq order. With neither cursor given, fetches the
+ * latest `limit` entries. Pass the highest seq seen as `afterSeq` to poll
+ * for new entries, or the lowest seq loaded so far as `beforeSeq` to load
+ * an older page ("Load more") — the two are mutually exclusive, matching
+ * the backend contract.
+ */
 export function listEntries(
   groupId: string,
   afterSeq?: number,
+  beforeSeq?: number,
+  limit?: number,
 ): Promise<components["schemas"]["EntryList"]> {
-  const query = typeof afterSeq === "number" ? `?after_seq=${afterSeq}` : "";
+  const params = new URLSearchParams();
+  if (typeof afterSeq === "number") params.set("after_seq", String(afterSeq));
+  if (typeof beforeSeq === "number") params.set("before_seq", String(beforeSeq));
+  if (typeof limit === "number") params.set("limit", String(limit));
+  const query = params.size > 0 ? `?${params.toString()}` : "";
   return getJSON(`/groups/${groupId}/entries${query}`, zEntryList);
 }
 

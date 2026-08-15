@@ -157,6 +157,58 @@ func TestListEntries_Endpoint(t *testing.T) {
 	}
 }
 
+// TestListEntries_HasMoreAndBeforeSeqPaging covers #221: with no cursor the
+// endpoint returns the latest `limit` entries plus has_more, and before_seq
+// pages strictly older entries using the lowest seq already loaded.
+func TestListEntries_HasMoreAndBeforeSeqPaging(t *testing.T) {
+	srv, _ := newTestServer(t)
+	post(t, srv, uuid.New(), expenseBody(uuid.New()))
+	post(t, srv, uuid.New(), expenseBody(uuid.New()))
+	post(t, srv, uuid.New(), expenseBody(uuid.New()))
+
+	var page struct {
+		Entries []struct {
+			Seq int64 `json:"seq"`
+		} `json:"entries"`
+		HasMore bool `json:"has_more"`
+	}
+	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/entries?limit=2", gID), &page)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if len(page.Entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(page.Entries))
+	}
+	if !page.HasMore {
+		t.Fatal("has_more = false, want true (3rd-oldest entry not yet loaded)")
+	}
+
+	resp = getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/entries?before_seq=%d&limit=2", gID, page.Entries[0].Seq), &page)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("before_seq fetch status %d", resp.StatusCode)
+	}
+	if len(page.Entries) != 1 {
+		t.Fatalf("before_seq fetch got %d entries, want 1", len(page.Entries))
+	}
+	if page.HasMore {
+		t.Fatal("has_more = true, want false (that was the last entry)")
+	}
+}
+
+// TestListEntries_AfterSeqAndBeforeSeqRejected covers #221: the two cursors
+// are mutually exclusive, so setting both is a client error, not a silent
+// pick-one.
+func TestListEntries_AfterSeqAndBeforeSeqRejected(t *testing.T) {
+	srv, _ := newTestServer(t)
+	post(t, srv, uuid.New(), expenseBody(uuid.New()))
+
+	var errBody struct{}
+	resp := getJSON(t, srv.URL+fmt.Sprintf("/groups/%s/entries?after_seq=1&before_seq=2", gID), &errBody)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400", resp.StatusCode)
+	}
+}
+
 // TestListEntries_SplitRuleOmittedForSettlementAndReversal covers #160:
 // settlement and reversal entries store a placeholder split_rule
 // ({"type":"settlement"} / {"type":"reversal"}) that isn't a member of the
