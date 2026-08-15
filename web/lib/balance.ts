@@ -21,6 +21,28 @@ function formatSignedYen(amount: number): string {
   return `${sign}¥${Math.abs(amount).toLocaleString("ja-JP")}`;
 }
 
+/**
+ * Which member ids changed balance between two consecutive polls (issue
+ * #56 — Screen 3 pulses a row when its balance actually moved). `previous
+ * === undefined` (first poll) never pulses — the pulse signals a change
+ * being *observed*, and there's no baseline yet to compare against. A
+ * member with no entry in `previous` at all (same case on a later poll,
+ * e.g. joined mid-session) is treated the same way: no baseline, no pulse.
+ */
+export function diffChangedBalanceIds(
+  previous: MemberBalance[] | undefined,
+  current: MemberBalance[],
+): Set<string> {
+  if (previous === undefined) return new Set();
+  const previousByMember = new Map(previous.map((b) => [b.member_id, b.balance]));
+  return new Set(
+    current
+      .filter((b) => previousByMember.has(b.member_id))
+      .filter((b) => previousByMember.get(b.member_id) !== b.balance)
+      .map((b) => b.member_id),
+  );
+}
+
 /** One row per group member, in member order, joined against balances by id. */
 export function buildBalanceRows(members: Member[], balances: MemberBalance[]): BalanceRow[] {
   const balanceByMember = new Map(balances.map((b) => [b.member_id, b.balance]));

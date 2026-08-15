@@ -14,12 +14,14 @@ import { HistoryList } from "./historyList";
 import { InviteBanner } from "./inviteBanner";
 import { JoinPicker } from "./join";
 import { MemberList } from "./memberList";
+import { useBalancePulse } from "./useBalancePulse";
 import { useGroupData } from "./useGroupData";
 import { useGroupHistory } from "./useGroupHistory";
 
 export default function GroupPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const { group, balance, error: groupError } = useGroupData(groupId);
+  const pulsingIds = useBalancePulse(balance?.balances);
   const {
     entries,
     pageSize,
@@ -80,7 +82,12 @@ export default function GroupPage() {
         <EmptyLedgerCard />
       ) : (
         <>
-          <BalanceList groupId={groupId} rows={balanceRows} currentMemberId={memberId} />
+          <BalanceList
+            groupId={groupId}
+            rows={balanceRows}
+            currentMemberId={memberId}
+            pulsingIds={pulsingIds}
+          />
           <HistoryList
             rows={historyRows}
             pageSize={pageSize}
