@@ -22,7 +22,7 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
         {members.map((member) => (
           <li
             key={member.id}
-            className="flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
+            className="flex items-center justify-between rounded-lg border border-ink/[.12] px-4 py-2"
           >
             <Text variant="body">{member.name}</Text>
             <Button variant="ghost" onClick={() => remove.requestRemove(member.id)}>
