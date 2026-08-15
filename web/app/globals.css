@@ -60,6 +60,31 @@
   --radius-screen: 22px;
 
   --shadow-pressed: 0 3px 0 var(--accent-pressed);
+
+  /*
+   * Balance-row pulse (design-handoff.md's Screen 3 pulse behavior, issue
+   * #56): a `--animate-*` theme key auto-generates the
+   * `animate-balance-pulse` utility Tailwind v4 picks up. Duration must
+   * stay equal to useBalancePulse.ts's PULSE_MS — that's what removes the
+   * class, so a mismatch would cut the fade off early or hold a stale
+   * background after the class is already gone.
+   */
+  --animate-balance-pulse: balance-pulse 1.6s ease-out;
+}
+
+@keyframes balance-pulse {
+  from {
+    background-color: var(--highlight);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-balance-pulse {
+    animation: none;
+  }
 }
 
 body {

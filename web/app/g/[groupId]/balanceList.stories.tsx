@@ -51,3 +51,14 @@ export const WithCurrentMember: Story = {
     currentMemberId: "m1",
   },
 };
+
+export const Pulsing: Story = {
+  args: {
+    rows: buildBalanceRows(members, [
+      { member_id: "m1", balance: 1500 },
+      { member_id: "m2", balance: -1500 },
+      { member_id: "m3", balance: 0 },
+    ]),
+    pulsingIds: new Set(["m2"]),
+  },
+};

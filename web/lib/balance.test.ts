@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBalanceRows } from "./balance";
+import { buildBalanceRows, diffChangedBalanceIds } from "./balance";
 
 describe("buildBalanceRows", () => {
   const members = [
@@ -38,5 +38,41 @@ describe("buildBalanceRows", () => {
     const [row] = buildBalanceRows(members, []);
     expect(row.formattedAmount).toBe("¥0");
     expect(row.amountClassName).toBe("text-zinc-500");
+  });
+});
+
+describe("diffChangedBalanceIds", () => {
+  it("returns nothing on the first poll (no previous snapshot)", () => {
+    const changed = diffChangedBalanceIds(undefined, [{ member_id: "m1", balance: 500 }]);
+    expect(changed).toEqual(new Set());
+  });
+
+  it("returns ids whose balance differs from the previous snapshot", () => {
+    const previous = [
+      { member_id: "m1", balance: 500 },
+      { member_id: "m2", balance: -500 },
+    ];
+    const current = [
+      { member_id: "m1", balance: 500 },
+      { member_id: "m2", balance: -800 },
+    ];
+    expect(diffChangedBalanceIds(previous, current)).toEqual(new Set(["m2"]));
+  });
+
+  it("returns nothing when no balance changed", () => {
+    const snapshot = [
+      { member_id: "m1", balance: 500 },
+      { member_id: "m2", balance: -500 },
+    ];
+    expect(diffChangedBalanceIds(snapshot, snapshot)).toEqual(new Set());
+  });
+
+  it("does not pulse a member with no entry in the previous snapshot", () => {
+    const previous = [{ member_id: "m1", balance: 500 }];
+    const current = [
+      { member_id: "m1", balance: 500 },
+      { member_id: "m2", balance: -200 },
+    ];
+    expect(diffChangedBalanceIds(previous, current)).toEqual(new Set());
   });
 });

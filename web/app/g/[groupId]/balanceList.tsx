@@ -8,10 +8,12 @@ export function BalanceList({
   groupId,
   rows,
   currentMemberId,
+  pulsingIds,
 }: {
   groupId: string;
   rows: BalanceRow[];
   currentMemberId?: string | null;
+  pulsingIds?: Set<string>;
 }) {
   return (
     <section className="flex flex-col gap-[10px]">
@@ -19,7 +21,12 @@ export function BalanceList({
       <Card>
         <ul className="divide-y divide-ink/[.08]">
           {rows.map((row) => (
-            <li key={row.id} className="flex items-center gap-3 px-4 py-[14px]">
+            <li
+              key={row.id}
+              className={`flex items-center gap-3 px-4 py-[14px] ${
+                pulsingIds?.has(row.id) ? "animate-balance-pulse" : ""
+              }`}
+            >
               <Avatar memberId={row.id} initial={row.name.charAt(0).toUpperCase()} />
               <div className="flex flex-1 items-baseline gap-1">
                 <Text variant="body" className="text-[16px] font-bold text-ink">
