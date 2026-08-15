@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatYen } from "./money";
+import { formatYen } from "./currency";
 
 describe("formatYen", () => {
   it("formats a whole yen amount with thousands separators", () => {

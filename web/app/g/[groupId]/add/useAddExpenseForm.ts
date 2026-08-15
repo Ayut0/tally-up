@@ -9,7 +9,7 @@ import { todayLocal } from "@/lib/date";
 import { EntryKind } from "@/lib/entry";
 import { canSubmitExpense, parseTotal } from "@/lib/expenseForm";
 import { getIdentity } from "@/lib/identity";
-import { formatYen } from "@/lib/money";
+import { formatYen } from "@/lib/currency";
 import {
   SplitMode,
   buildSplitRule,
