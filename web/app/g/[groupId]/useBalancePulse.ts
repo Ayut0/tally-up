@@ -45,12 +45,5 @@ export function useBalancePulse(balances: MemberBalance[] | undefined): Set<stri
     }
   }, [balances]);
 
-  useEffect(() => {
-    const timers = timersRef.current;
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-    };
-  }, []);
-
   return pulsingIds;
 }
