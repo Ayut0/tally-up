@@ -11,7 +11,8 @@ type ButtonVariant =
   | "dark"
   | "pillSelected"
   | "pillUnselected"
-  | "row";
+  | "row"
+  | "stepper";
 
 const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outline"> = {
   solid: "primary",
@@ -22,6 +23,7 @@ const VARIANT_MAP: Record<ButtonVariant, "primary" | "danger" | "ghost" | "outli
   pillSelected: "ghost",
   pillUnselected: "ghost",
   row: "outline",
+  stepper: "outline",
 };
 
 /**
@@ -82,6 +84,14 @@ const PILL_UNSELECTED_CLASS_NAME =
 const ROW_BUTTON_CLASS_NAME =
   "[--button-bg-hover:var(--surface)] [--button-bg-pressed:var(--surface)] w-full justify-start gap-[14px] rounded-card border-[1.5px] border-ink/[.18] bg-surface p-[18px] min-h-[64px] text-left hover:border-accent focus-visible:border-accent";
 
+/**
+ * design-handoff.md's Shares stepper (§4, panel #1f): a 38px square −/+
+ * tap target. `p-0` cancels HeroUI's own px-4 the same way "dashed"'s
+ * p-[13px] does, so the fixed h-/w- square isn't fought by default padding.
+ */
+const STEPPER_BUTTON_CLASS_NAME =
+  "h-[38px] w-[38px] justify-center rounded-[10px] border-[1.5px] border-ink/20 bg-background p-0 font-mono text-[17px] font-bold text-ink disabled:opacity-40";
+
 const EXTRA_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
   solid: PRESSED_BUTTON_CLASS_NAME,
   dashed: DASHED_BUTTON_CLASS_NAME,
@@ -89,6 +99,7 @@ const EXTRA_CLASS_NAME: Partial<Record<ButtonVariant, string>> = {
   pillSelected: PILL_SELECTED_CLASS_NAME,
   pillUnselected: PILL_UNSELECTED_CLASS_NAME,
   row: ROW_BUTTON_CLASS_NAME,
+  stepper: STEPPER_BUTTON_CLASS_NAME,
 };
 
 /**

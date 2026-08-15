@@ -83,7 +83,8 @@ describe("useAddExpenseForm", () => {
       { mode: "percent", label: "Percent", active: false },
     ]);
     expect(result.current.showExactInputs).toBe(false);
-    expect(result.current.showWeightInputs).toBe(false);
+    expect(result.current.showSharesInputs).toBe(false);
+    expect(result.current.showPercentInputs).toBe(false);
   });
 
   it("switching to exact mode shows exact rows and marks the exact tab active", () => {
@@ -118,24 +119,141 @@ describe("useAddExpenseForm", () => {
     expect(result.current.exactRows.find((r) => r.id === "member-a")?.amount).toBe(700);
   });
 
-  it("switching to shares mode shows weight rows and marks the shares tab active", () => {
+  it("switching to shares mode defaults every row to 1 share and marks the shares tab active", () => {
     const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
     act(() => result.current.setMode("shares"));
 
-    expect(result.current.showWeightInputs).toBe(true);
+    expect(result.current.showSharesInputs).toBe(true);
     expect(result.current.splitTabs.find((t) => t.mode === "shares")?.active).toBe(true);
-    expect(result.current.weightRows).toEqual([
-      { id: "member-a", name: "Alice", weight: "" },
-      { id: "member-b", name: "Bob", weight: "" },
+    expect(result.current.sharesRows.map(({ id, name, weight }) => ({ id, name, weight }))).toEqual(
+      [
+        { id: "member-a", name: "Alice", weight: 1 },
+        { id: "member-b", name: "Bob", weight: 1 },
+      ],
+    );
+  });
+
+  it("incrementWeight/decrementWeight adjust a shares row, clamped at a minimum of 1", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("shares"));
+
+    act(() => result.current.incrementWeight("member-a"));
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(2);
+
+    act(() => result.current.decrementWeight("member-a"));
+    act(() => result.current.decrementWeight("member-a"));
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(1);
+  });
+
+  it("a NaN weight (a field cleared via valueAsNumber, e.g. carried over from Percent) doesn't stick the stepper", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("shares"));
+    act(() => result.current.setWeight("member-a", NaN));
+
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(1);
+
+    act(() => result.current.incrementWeight("member-a"));
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(2);
+  });
+
+  it("two increments in the same tick both land, rather than one clobbering the other", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("shares"));
+
+    act(() => {
+      result.current.incrementWeight("member-a");
+      result.current.incrementWeight("member-a");
+    });
+
+    expect(result.current.sharesRows.find((r) => r.id === "member-a")?.weight).toBe(3);
+  });
+
+  it("switching to percent mode shows every member, with a deselected one rendered inactive", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.toggleParticipant("member-b"));
+    act(() => result.current.setMode("percent"));
+
+    expect(result.current.showPercentInputs).toBe(true);
+    expect(result.current.percentRows).toEqual([
+      { id: "member-a", name: "Alice", active: true, percent: "", formattedShare: "¥0" },
+      { id: "member-b", name: "Bob", active: false },
     ]);
   });
 
-  it("setWeight fills in a weight row's value", () => {
+  it("computes a live formatted share for percent rows from typed percentages", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setTotalInput("1000"));
+    act(() => result.current.setMode("percent"));
+    act(() => result.current.setWeight("member-a", 70));
+    act(() => result.current.setWeight("member-b", 30));
+
+    expect(result.current.percentRows).toEqual([
+      { id: "member-a", name: "Alice", active: true, percent: 70, formattedShare: "¥700" },
+      { id: "member-b", name: "Bob", active: true, percent: 30, formattedShare: "¥300" },
+    ]);
+  });
+
+  it("exactSummary is null until a valid total is entered, then reflects the running sum", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("exact"));
+    expect(result.current.exactSummary).toBeNull();
+
+    act(() => result.current.setTotalInput("1000"));
+    act(() => result.current.setAmount("member-a", 400));
+    expect(result.current.exactSummary).toEqual({
+      enteredFormatted: "¥400",
+      targetFormatted: "¥1,000",
+      matches: false,
+    });
+
+    act(() => result.current.setAmount("member-b", 600));
+    expect(result.current.exactSummary).toEqual({
+      enteredFormatted: "¥1,000",
+      targetFormatted: "¥1,000",
+      matches: true,
+    });
+  });
+
+  it("sharesSummary counts total shares and confirms the yen total once a valid total is set", () => {
     const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
     act(() => result.current.setMode("shares"));
-    act(() => result.current.setWeight("member-a", 2));
+    expect(result.current.sharesSummary).toBeNull();
 
-    expect(result.current.weightRows.find((r) => r.id === "member-a")?.weight).toBe(2);
+    act(() => result.current.setTotalInput("1000"));
+    act(() => result.current.incrementWeight("member-a"));
+    expect(result.current.sharesSummary).toEqual({ count: 3, totalFormatted: "¥1,000" });
+  });
+
+  it("percentSummary reflects the entered percent total and flips complete at 100", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setMode("percent"));
+    act(() => result.current.setTotalInput("1000"));
+
+    act(() => result.current.setWeight("member-a", 60));
+    expect(result.current.percentSummary).toEqual({
+      percentTotal: 60,
+      totalFormatted: "¥1,000",
+      complete: false,
+    });
+
+    act(() => result.current.setWeight("member-b", 40));
+    expect(result.current.percentSummary).toEqual({
+      percentTotal: 100,
+      totalFormatted: "¥1,000",
+      complete: true,
+    });
+  });
+
+  it("every summary goes null once every participant is deselected, even with a valid total", () => {
+    const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP));
+    act(() => result.current.setTotalInput("1000"));
+
+    act(() => result.current.toggleParticipant("member-a"));
+    act(() => result.current.toggleParticipant("member-b"));
+
+    expect(result.current.exactSummary).toBeNull();
+    expect(result.current.sharesSummary).toBeNull();
+    expect(result.current.percentSummary).toBeNull();
   });
 
   it("surfaces the split validation error and no preview when exact amounts don't sum to the total", () => {
