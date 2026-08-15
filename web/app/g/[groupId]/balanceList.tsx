@@ -51,26 +51,26 @@ export function BalanceList({
       {/* Settling up, recording a payment, and viewing who-owes-whom are
           destinations, not creation acts, so they sit with the balances
           they act on rather than under the `+` (issue #157, #161, #185).
-          Not part of the design handoff's 8 screens — left unstyled here,
-          same as MemberList below, pending the design-QA pass (#57).
-          flex-wrap: three links no longer reliably fit one row at
+          Not part of the design handoff's 8 screens, so not covered by the
+          design-QA pass (#57) — styled to the warm palette separately
+          (#229). flex-wrap: three links no longer reliably fit one row at
           max-w-sm. */}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         <Link
           href={`/g/${groupId}/settle`}
-          className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+          className="self-start text-sm font-medium text-accent hover:underline"
         >
           Settle up →
         </Link>
         <Link
           href={`/g/${groupId}/record-payment`}
-          className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+          className="self-start text-sm font-medium text-accent hover:underline"
         >
           Record a payment →
         </Link>
         <Link
           href={`/g/${groupId}/owes`}
-          className="self-start text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+          className="self-start text-sm font-medium text-accent hover:underline"
         >
           Who owes whom →
         </Link>
