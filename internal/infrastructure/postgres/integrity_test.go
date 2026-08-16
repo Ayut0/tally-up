@@ -1,4 +1,4 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
@@ -9,10 +9,11 @@ import (
 
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/ledger"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 func TestCheckIntegrity_CleanLedger(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	orig := uuid.New()
 	addExpense(t, s, orig, rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB})
@@ -35,7 +36,7 @@ func TestCheckIntegrity_CleanLedger(t *testing.T) {
 // equal balances recomputed by folding every entry's postings from
 // ListEntries (full replay). Exercises add + reverse + edit together.
 func TestGetBalances_MatchesFullLedgerReplay(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 
 	e1, e2 := uuid.New(), uuid.New()

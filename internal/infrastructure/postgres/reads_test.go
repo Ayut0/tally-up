@@ -1,4 +1,4 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/ledger"
+	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 var (
@@ -22,7 +24,7 @@ var (
 )
 
 // seedReadGroup inserts the 3-member fixture group (one statement per Exec).
-func seedReadGroup(t *testing.T, s *Store) {
+func seedReadGroup(t *testing.T, s *postgres.Store) {
 	t.Helper()
 	ctx := context.Background()
 	stmts := []struct {
@@ -41,7 +43,7 @@ func seedReadGroup(t *testing.T, s *Store) {
 }
 
 // addExpense writes one equal-split expense through the real write path.
-func addExpense(t *testing.T, s *Store, id uuid.UUID, payer uuid.UUID, total int64, participants []uuid.UUID) {
+func addExpense(t *testing.T, s *postgres.Store, id uuid.UUID, payer uuid.UUID, total int64, participants []uuid.UUID) {
 	t.Helper()
 	postings, err := ledger.ComputePostings(payer, total, ledger.SplitRule{Type: ledger.SplitEqual}, participants)
 	if err != nil {
@@ -63,7 +65,7 @@ func addExpense(t *testing.T, s *Store, id uuid.UUID, payer uuid.UUID, total int
 }
 
 // addSettlement writes one settlement entry through the real write path.
-func addSettlement(t *testing.T, s *Store, payer, counterparty uuid.UUID, amount int64) {
+func addSettlement(t *testing.T, s *postgres.Store, payer, counterparty uuid.UUID, amount int64) {
 	t.Helper()
 	postings, err := ledger.SettlementPostings(payer, counterparty, amount)
 	if err != nil {
@@ -86,7 +88,7 @@ func addSettlement(t *testing.T, s *Store, payer, counterparty uuid.UUID, amount
 
 // addExactExpense writes one exact-split expense — addExpense only covers
 // equal splits.
-func addExactExpense(t *testing.T, s *Store, id, payer uuid.UUID, total int64, amounts map[uuid.UUID]int64) {
+func addExactExpense(t *testing.T, s *postgres.Store, id, payer uuid.UUID, total int64, amounts map[uuid.UUID]int64) {
 	t.Helper()
 	participants := make([]uuid.UUID, 0, len(amounts))
 	for m := range amounts {
@@ -118,7 +120,7 @@ func addExactExpense(t *testing.T, s *Store, id, payer uuid.UUID, total int64, a
 // addExpenseIn writes one equal-split expense in an arbitrary group — needed
 // for tests seeding beyond the 3-person rGroup fixture (addExpense always
 // writes into rGroup).
-func addExpenseIn(t *testing.T, s *Store, groupID, id, payer uuid.UUID, total int64, participants []uuid.UUID) {
+func addExpenseIn(t *testing.T, s *postgres.Store, groupID, id, payer uuid.UUID, total int64, participants []uuid.UUID) {
 	t.Helper()
 	postings, err := ledger.ComputePostings(payer, total, ledger.SplitRule{Type: ledger.SplitEqual}, participants)
 	if err != nil {
@@ -140,7 +142,7 @@ func addExpenseIn(t *testing.T, s *Store, groupID, id, payer uuid.UUID, total in
 }
 
 func TestGetPairwiseBalances_SinglePayerExpense(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	// Yuto pays 12000, 3-way equal: A owes Yuto 4000, B owes Yuto 4000.
 	addExpense(t, s, uuid.New(), rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB})
@@ -159,7 +161,7 @@ func TestGetPairwiseBalances_SinglePayerExpense(t *testing.T) {
 }
 
 func TestGetPairwiseBalances_SettlementReducesDebt(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	addExpense(t, s, uuid.New(), rYuto, 8000, []uuid.UUID{rYuto, rMemA}) // A owes Yuto 4000
 	addSettlement(t, s, rMemA, rYuto, 4000)
@@ -174,7 +176,7 @@ func TestGetPairwiseBalances_SettlementReducesDebt(t *testing.T) {
 }
 
 func TestGetPairwiseBalances_ZeroPairsOmitted(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	pairs, err := s.Reads.GetPairwiseBalances(context.Background(), rGroup)
 	if err != nil {
@@ -186,7 +188,7 @@ func TestGetPairwiseBalances_ZeroPairsOmitted(t *testing.T) {
 }
 
 func TestGetPairwiseBalances_MultiPayerNets(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	// Yuto pays 6000, split exactly 2000/2000/2000 among Yuto, A, B:
 	// A owes Yuto 2000, B owes Yuto 2000.
@@ -217,7 +219,7 @@ func TestGetPairwiseBalances_MultiPayerNets(t *testing.T) {
 // then member[1] pays a smaller side expense with two others — a group of
 // pairs disjoint from the first, at the same time.
 func TestGetPairwiseBalances_TenMemberGroup(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	groupID := uuid.New()
 	members := make([]uuid.UUID, 10)
 	for i := range members {
@@ -251,7 +253,7 @@ func TestGetPairwiseBalances_TenMemberGroup(t *testing.T) {
 }
 
 func TestProperty_PairwiseNetsToMemberBalance(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	addExpense(t, s, uuid.New(), rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB})
 	addExpense(t, s, uuid.New(), rMemA, 3000, []uuid.UUID{rMemA, rMemB})
@@ -292,7 +294,7 @@ func assertPairwiseNetsToBalances(t *testing.T, balances []entry.MemberBalance, 
 }
 
 func TestGetBalances_AllMembersOneSnapshot(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	// Yuto pays 12000 split equally among all three: yuto +8000, a -4000, b -4000.
 	addExpense(t, s, uuid.New(), rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB})
@@ -316,7 +318,7 @@ func TestGetBalances_AllMembersOneSnapshot(t *testing.T) {
 }
 
 func TestGetBalances_EmptyLedgerZeroBalances(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	snap, err := s.Reads.GetBalances(context.Background(), rGroup)
 	if err != nil {
@@ -336,7 +338,7 @@ func TestGetBalances_EmptyLedgerZeroBalances(t *testing.T) {
 }
 
 func TestListEntries_AfterSeqIncremental(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	e1, e2, e3 := uuid.New(), uuid.New(), uuid.New()
 	addExpense(t, s, e1, rYuto, 3000, []uuid.UUID{rYuto, rMemA, rMemB})
@@ -392,7 +394,7 @@ func TestListEntries_CreatedAtIsUTC(t *testing.T) {
 	time.Local = jst
 	t.Cleanup(func() { time.Local = orig })
 
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	addExpense(t, s, uuid.New(), rYuto, 1000, []uuid.UUID{rYuto, rMemA})
 
@@ -413,7 +415,7 @@ func TestListEntries_CreatedAtIsUTC(t *testing.T) {
 // not the oldest — the prior oldest-first default silently truncated any
 // group past 100 entries, since nothing ever advanced past that page.
 func TestListEntries_DefaultReturnsLatestEntries(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	e1, e2, e3 := uuid.New(), uuid.New(), uuid.New()
 	addExpense(t, s, e1, rYuto, 100, []uuid.UUID{rYuto, rMemA})
@@ -437,7 +439,7 @@ func TestListEntries_DefaultReturnsLatestEntries(t *testing.T) {
 // strictly-older page, and reports has_more correctly at the exact boundary
 // (remaining count == limit must not be mistaken for "more still exist").
 func TestListEntries_BeforeSeqPagesOlderHistory(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	e1, e2, e3, e4 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	addExpense(t, s, e1, rYuto, 100, []uuid.UUID{rYuto, rMemA})
@@ -469,7 +471,7 @@ func TestListEntries_BeforeSeqPagesOlderHistory(t *testing.T) {
 }
 
 func TestListEntries_LimitClamped(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})
 	addExpense(t, s, uuid.New(), rYuto, 300, []uuid.UUID{rYuto, rMemA})

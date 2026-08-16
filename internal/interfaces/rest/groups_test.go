@@ -17,7 +17,7 @@ import (
 	"tallyup/internal/application/correctentry"
 	"tallyup/internal/application/creategroup"
 	"tallyup/internal/application/proposesettleplan"
-	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 func createGroupBody(id uuid.UUID, name string, memberNames []string) []byte {
@@ -130,7 +130,7 @@ func TestCreateGroup_Validation(t *testing.T) {
 // middleware, not a spec/main.tsp operation, so it is out of scope for the
 // openapi contract check.
 func TestCreateGroup_CORSPreflight(t *testing.T) {
-	s := postgres.TestStore(t)
+	s := postgrestest.Store(t)
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
 	groups := &creategroup.Service{Gate: s.Idempotency, Groups: s.Groups}

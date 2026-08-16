@@ -22,5 +22,5 @@ func NewBaseRepository(pool *pgxpool.Pool) *BaseRepository {
 
 // queries returns a sqlc query set bound to the active session for ctx.
 func (r *BaseRepository) queries(ctx context.Context) *sqlc.Queries {
-	return sqlc.New(sessionOr(ctx, r.pool))
+	return sqlc.New(SessionOr(ctx, r.pool))
 }

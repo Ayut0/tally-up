@@ -1,13 +1,16 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/google/uuid"
+
+	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
-func seedMember(t *testing.T, s *Store, id uuid.UUID, name string) {
+func seedMember(t *testing.T, s *postgres.Store, id uuid.UUID, name string) {
 	t.Helper()
 	if _, err := s.Pool.Exec(context.Background(),
 		`INSERT INTO members (id, name) VALUES ($1, $2)`, id, name); err != nil {
@@ -15,7 +18,7 @@ func seedMember(t *testing.T, s *Store, id uuid.UUID, name string) {
 	}
 }
 
-func seedGroupWithMembers(t *testing.T, s *Store, groupID uuid.UUID, memberIDs ...uuid.UUID) {
+func seedGroupWithMembers(t *testing.T, s *postgres.Store, groupID uuid.UUID, memberIDs ...uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
 	if _, err := s.Pool.Exec(ctx, `INSERT INTO groups (id, name) VALUES ($1, 'g')`, groupID); err != nil {
@@ -29,7 +32,7 @@ func seedGroupWithMembers(t *testing.T, s *Store, groupID uuid.UUID, memberIDs .
 	}
 }
 
-func memberExists(t *testing.T, s *Store, id uuid.UUID) bool {
+func memberExists(t *testing.T, s *postgres.Store, id uuid.UUID) bool {
 	t.Helper()
 	var n int
 	if err := s.Pool.QueryRow(context.Background(),
@@ -40,9 +43,9 @@ func memberExists(t *testing.T, s *Store, id uuid.UUID) bool {
 }
 
 func TestMembershipRepository_AllMembers(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
-	repo := NewMembershipRepository(s.Pool)
+	repo := postgres.NewMembershipRepository(s.Pool)
 
 	gid := uuid.New()
 	m1, m2, outsider := uuid.New(), uuid.New(), uuid.New()

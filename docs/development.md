@@ -80,7 +80,8 @@ of reporting green. Set it locally too if you want the same strictness:
 TALLYUP_REQUIRE_DB=1 make test    # fails rather than skips if the DB is missing
 ```
 
-See `decideDBURL` in `internal/infrastructure/postgres/store.go`.
+See `decideDBURL` in
+`internal/infrastructure/postgres/postgrestest/postgrestest.go`.
 
 ## sqlc workflow
 

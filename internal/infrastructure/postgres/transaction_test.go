@@ -1,4 +1,4 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
@@ -6,16 +6,19 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 func TestTransaction_CommitsOnSuccess(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
-	tx := NewTransaction(s.Pool)
+	tx := postgres.NewTransaction(s.Pool)
 	mid := uuid.New()
 
 	err := tx.Do(ctx, func(ctx context.Context) error {
-		_, err := sessionOr(ctx, s.Pool).Exec(ctx,
+		_, err := postgres.SessionOr(ctx, s.Pool).Exec(ctx,
 			`INSERT INTO members (id, name) VALUES ($1, $2)`, mid, "committed")
 		return err
 	})
@@ -28,14 +31,14 @@ func TestTransaction_CommitsOnSuccess(t *testing.T) {
 }
 
 func TestTransaction_RollsBackOnError(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
-	tx := NewTransaction(s.Pool)
+	tx := postgres.NewTransaction(s.Pool)
 	mid := uuid.New()
 	boom := errors.New("boom")
 
 	err := tx.Do(ctx, func(ctx context.Context) error {
-		if _, err := sessionOr(ctx, s.Pool).Exec(ctx,
+		if _, err := postgres.SessionOr(ctx, s.Pool).Exec(ctx,
 			`INSERT INTO members (id, name) VALUES ($1, $2)`, mid, "rolled-back"); err != nil {
 			return err
 		}

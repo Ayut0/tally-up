@@ -1,4 +1,4 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
@@ -8,10 +8,11 @@ import (
 	"github.com/google/uuid"
 
 	"tallyup/internal/domain/entry"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 func TestGate_FreshKeyProceeds(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	res, _, err := s.Idempotency.Acquire(context.Background(), uuid.New(), "hash1")
 	if err != nil {
 		t.Fatal(err)
@@ -22,7 +23,7 @@ func TestGate_FreshKeyProceeds(t *testing.T) {
 }
 
 func TestGate_DuplicatePendingIsInFlight(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	key := uuid.New()
 	ctx := context.Background()
 	if _, _, err := s.Idempotency.Acquire(ctx, key, "hash1"); err != nil {
@@ -38,7 +39,7 @@ func TestGate_DuplicatePendingIsInFlight(t *testing.T) {
 }
 
 func TestGate_SucceededKeyReplaysStoredResponse(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	key := uuid.New()
 	ctx := context.Background()
 	if _, _, err := s.Idempotency.Acquire(ctx, key, "hash1"); err != nil {
@@ -62,7 +63,7 @@ func TestGate_SucceededKeyReplaysStoredResponse(t *testing.T) {
 }
 
 func TestGate_HashMismatchRejected(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	key := uuid.New()
 	ctx := context.Background()
 	if _, _, err := s.Idempotency.Acquire(ctx, key, "hash1"); err != nil {
@@ -78,7 +79,7 @@ func TestGate_HashMismatchRejected(t *testing.T) {
 }
 
 func TestSweepStalePending(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
 	stale, fresh := uuid.New(), uuid.New()
 	if _, _, err := s.Idempotency.Acquire(ctx, stale, "h"); err != nil {
@@ -109,7 +110,7 @@ func TestSweepStalePending(t *testing.T) {
 }
 
 func TestReleaseIdempotencyKey_PendingOnly(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
 
 	// A released pending key can be re-acquired immediately.
