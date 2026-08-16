@@ -34,9 +34,7 @@ const balance = {
 // getGroup/getBalance directly, so every story mocks those endpoints via
 // MSW rather than the page itself, same as app/g/[groupId]/page.stories.tsx.
 const groupSucceeds = http.get(`*/groups/${GROUP_ID}`, () => HttpResponse.json(group));
-const balanceSucceeds = http.get(`*/groups/${GROUP_ID}/balance`, () =>
-  HttpResponse.json(balance),
-);
+const balanceSucceeds = http.get(`*/groups/${GROUP_ID}/balance`, () => HttpResponse.json(balance));
 
 const meta = {
   title: "Pages/RecordPayment",
