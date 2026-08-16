@@ -26,7 +26,10 @@ const VARIANT_CLASS_NAME: Record<TextVariant, string> = {
   // ink at 60% — no existing variant matches this exact size/weight/color.
   subhead: "text-[14.5px] font-medium text-ink/[.6]",
   body: "text-base text-zinc-950 dark:text-zinc-50",
-  error: "text-sm text-red-600 dark:text-red-400",
+  // globals.css's --negative (issue #143) — the handoff's own token for
+  // "in the red", not an arbitrary Tailwind red. Light-only, like every
+  // other handoff token in that file: no dark-mode counterpart exists.
+  error: "text-sm text-negative",
   muted: "text-sm text-zinc-500",
 };
 
