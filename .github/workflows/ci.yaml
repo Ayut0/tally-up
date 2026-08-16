@@ -103,7 +103,7 @@ jobs:
       - name: Test
         env:
           TALLYUP_REQUIRE_DB: "1"
-        run: make test DATABASE_URL='postgres://tallyup:tallyup@localhost:5432/tallyup_test?sslmode=disable'
+        run: make test DATABASE_URL=
 
   # Follow-up to #94, which deliberately deferred this: `web/` had no
   # devDependency on vitest and zero test files, so wiring it in then would
