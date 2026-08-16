@@ -76,9 +76,12 @@ export const ErrorState: Story = {
 // check that AddExpensePage's click really drives useAddExpenseForm into
 // SplitModeSection's other panels. (splitModeSection.stories.tsx's own
 // fixtures pass a no-op `setMode`, so they can't exercise that wiring.)
+// findByRole (not getByRole) because the group fetch is still in flight on
+// first render — AddExpensePage shows "Loading…" until it resolves, so the
+// tab isn't in the DOM yet; findByRole retries until MSW's response lands.
 async function clickSplitTab(canvasElement: HTMLElement, name: "Exact" | "Shares" | "Percent") {
   const canvas = within(canvasElement);
-  await userEvent.click(canvas.getByRole("tab", { name }));
+  await userEvent.click(await canvas.findByRole("tab", { name }));
   return canvas;
 }
 
