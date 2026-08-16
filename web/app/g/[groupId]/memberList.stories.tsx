@@ -67,8 +67,13 @@ export const RemoveBlockedByNonzeroBalance: Story = {
     await userEvent.click(within(aliceRow).getByRole("button", { name: "Remove" }));
     // The confirm dialog isn't scoped inside Alice's row — it's one shared
     // dialog for the whole list — so its confirm button needs a name that
-    // won't collide with the row's own "Remove" button.
-    await userEvent.click(canvas.getByRole("button", { name: "Remove Alice" }));
+    // won't collide with the row's own "Remove" button. HeroUI's Modal
+    // mounts into the DOM asynchronously (portal + open transition), so the
+    // button isn't there yet on the tick right after the triggering click.
+    const confirmButton = await waitFor(() =>
+      canvas.getByRole("button", { name: "Remove Alice" }),
+    );
+    await userEvent.click(confirmButton);
 
     await waitFor(() =>
       expect(
