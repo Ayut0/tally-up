@@ -24,6 +24,17 @@ scalar Uuid extends string;
 /** Calendar date in `YYYY-MM-DD`. */
 scalar CalendarDate extends plainDate;
 
+/**
+ * A participant's relative weight in a `shares` split. Mirrors
+ * internal/domain/ledger/split.go's `maxWeight`: weightedShares rejects any
+ * weight outside (0, 1_000_000]. Go does not generate from this spec (ADR
+ * 0003), so that constant stays hand-written and is the value this bound
+ * must be kept in sync with by hand.
+ */
+@minValue(1)
+@maxValue(1000000)
+scalar SharesWeight extends int64;
+
 // ---------------------------------------------------------------------------
 // Group models
 // ---------------------------------------------------------------------------
@@ -80,7 +91,7 @@ model ExactSplit {
 
 /** Relative weights per member, keyed by member id. */
 model SharesSplit {
-  weights: Record<int64>;
+  weights: Record<SharesWeight>;
 }
 
 /** Percentage weights per member, keyed by member id. */

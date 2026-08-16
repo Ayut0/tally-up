@@ -47,10 +47,19 @@ export const zPercentSplit = z.object({
 });
 
 /**
+ * A participant's relative weight in a `shares` split. Mirrors
+ * internal/domain/ledger/split.go's `maxWeight`: weightedShares rejects any
+ * weight outside (0, 1_000_000]. Go does not generate from this spec (ADR
+ * 0003), so that constant stays hand-written and is the value this bound
+ * must be kept in sync with by hand.
+ */
+export const zSharesWeight = z.number().int().gte(1).lte(1000000);
+
+/**
  * Relative weights per member, keyed by member id.
  */
 export const zSharesSplit = z.object({
-    weights: z.record(z.string(), z.number().int())
+    weights: z.record(z.string(), zSharesWeight)
 });
 
 /**

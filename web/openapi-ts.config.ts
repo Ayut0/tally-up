@@ -27,11 +27,37 @@ export default defineConfig({
         // types and with plain arithmetic/JSON.stringify elsewhere in
         // web/. Override to plain z.number()/z.number().int() regardless
         // of format.
+        //
+        // Supplying $resolvers.number at all fully replaces the plugin's
+        // default resolver (zod/v4/toAst/number.ts's numberResolver), not
+        // just the bigint step — so this also has to reproduce the
+        // minimum/maximum → .gte()/.lte() composition that resolver does,
+        // or every bound declared in spec/main.tsp (e.g. SharesWeight's
+        // @minValue/@maxValue) would silently vanish from the generated
+        // schema (see issue #252). Deliberately not reproduced: the
+        // library's format-based fallback range for bound-less int64/uint64
+        // fields (getIntegerLimit) always routes the literal through
+        // maybeBigInt, which wraps it in BigInt(...) whenever
+        // format === "int64" — regardless of the bigint override above —
+        // which would attach a BigInt(...) literal onto our plain
+        // z.number() chain. Only explicit minimum/maximum from the schema
+        // are honored; a field with neither gets no bound, same as before
+        // this override existed.
         number(ctx) {
           const { $, schema, plugin } = ctx;
           const { z } = plugin.imports;
           let chain = $(z).attr("number").call();
           if (schema.type === "integer") chain = chain.attr("int").call();
+          if (schema.exclusiveMinimum !== undefined) {
+            chain = chain.attr("gt").call($.fromValue(schema.exclusiveMinimum));
+          } else if (schema.minimum !== undefined) {
+            chain = chain.attr("gte").call($.fromValue(schema.minimum));
+          }
+          if (schema.exclusiveMaximum !== undefined) {
+            chain = chain.attr("lt").call($.fromValue(schema.exclusiveMaximum));
+          } else if (schema.maximum !== undefined) {
+            chain = chain.attr("lte").call($.fromValue(schema.maximum));
+          }
           return chain;
         },
       },
