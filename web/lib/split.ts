@@ -18,6 +18,9 @@ export const SplitMode = {
   Percent: "percent",
 } as const satisfies Record<string, SplitRule["type"]>;
 
+/** Mirrors internal/domain/ledger/split.go's maxWeight: the upper bound weightedShares enforces on each weight. */
+const maxWeight = 1_000_000;
+
 type BuildInputs = {
   total?: number;
   amounts?: Record<string, number>;
@@ -59,8 +62,11 @@ export function buildSplitRule(
       const weights = Object.fromEntries(
         participants.map((p) => [p, finiteOr(inputs.weights?.[p], 1)]),
       );
-      if (Object.values(weights).some((v) => v <= 0 || !Number.isInteger(v)))
-        return { isValid: false, error: "shares must be positive whole numbers" };
+      if (Object.values(weights).some((v) => v <= 0 || v > maxWeight || !Number.isInteger(v)))
+        return {
+          isValid: false,
+          error: `shares must be positive whole numbers no greater than ${maxWeight}`,
+        };
       return { isValid: true, rule: { type: SplitMode.Shares, weights } };
     }
     case SplitMode.Percent: {

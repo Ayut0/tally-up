@@ -93,6 +93,11 @@ describe("buildSplitRule validation", () => {
     expect(r.isValid).toBe(false);
   });
 
+  it("shares rejects a weight above Go's maxWeight cap of 1,000,000 (Go test parity)", () => {
+    const r = buildSplitRule(SplitMode.Shares, [A, B], { weights: { [A]: 1_000_001, [B]: 1 } });
+    expect(r.isValid).toBe(false);
+  });
+
   it("shares defaults a participant missing from the weights map to 1, not an error", () => {
     const r = buildSplitRule(SplitMode.Shares, [A, B], { weights: { [A]: 2 } });
     expect(r).toEqual({ isValid: true, rule: { type: "shares", weights: { [A]: 2, [B]: 1 } } });
