@@ -45,7 +45,7 @@ smoke: ## POST one expense against a running `make run` server (run `make seed` 
 test: ## Run the full test suite against the local Postgres container (race detector, sequential packages)
 	TEST_DATABASE_URL='$(DATABASE_URL)' $(GO) test -p 1 ./... -race
 
-test-nodb: ## Run only the tests that need no database — what CI runs today
+test-nodb: ## Run only the tests that need no database (fast local iteration without Docker)
 	@# Blanks DATABASE_URL so TEST_DATABASE_URL is empty and the DB-backed
 	@# tests skip. Without this they would target the local default (:5433)
 	@# and fail with "connection refused" wherever no Postgres is running.

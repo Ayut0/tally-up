@@ -32,9 +32,9 @@ See the `Makefile` target comments for the other targets (`run`, `seed`,
 
 [`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) runs two jobs on
 every pull request and every push to `main`: `test` (`make sqlc-check`, `go
-build`, `go vet`, `golangci-lint`, `make test-nodb`) and `web` (`npm ci`,
-`npm run lint`, `npm run format:check`, `npm run build`, `npm test` in
-`web/`). Both are blocking;
+build`, `go vet`, `golangci-lint`, `make test` against a `postgres` service
+container) and `web` (`npm ci`, `npm run lint`, `npm run format:check`, `npm
+run build`, `npm test` in `web/`). Both are blocking;
 the `@claude review` reviewer is advisory and comment-triggered. Neither job
 is yet a required status check on `main` — that's a deliberate open decision
 left to the maintainer (see the `test`/`web` job comments in ci.yaml).
@@ -65,16 +65,14 @@ that was never run through `make sqlc`. The `sqlc-version` pinned in
 committed code (currently `v1.30.0`); bump both together when upgrading
 sqlc, or the version drift itself will turn this red.
 
-**CI does not run DB-backed tests yet.** It invokes `make test-nodb`, which
-blanks `TEST_DATABASE_URL` so the tests that need Postgres skip; what runs is
-the domain and pure-logic coverage. Running the full suite is still on you
-locally: `make db-up && make test`.
-
-When the database is turned on in CI, the workflow gains a `services: postgres`
-block and sets `TALLYUP_REQUIRE_DB=1`. That variable flips a missing
-`TEST_DATABASE_URL` from a skip into a hard failure, so an environment that
-believes it is exercising the database but silently isn't fails loudly instead
-of reporting green. Set it locally too if you want the same strictness:
+**CI runs the full suite, including DB-backed tests.** The `test` job's
+`services` block starts a `postgres:16-alpine` container (mirroring
+`docker-compose.yml`, on port 5432 instead of the local 5433), and the `Test`
+step runs plain `make test` against it with `TALLYUP_REQUIRE_DB=1` set. That
+variable flips a missing `TEST_DATABASE_URL` from a skip into a hard failure,
+so an environment that believes it is exercising the database but silently
+isn't fails loudly instead of reporting green. Set it locally too if you want
+the same strictness:
 
 ```bash
 TALLYUP_REQUIRE_DB=1 make test    # fails rather than skips if the DB is missing
