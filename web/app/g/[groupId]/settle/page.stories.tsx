@@ -120,12 +120,14 @@ export const MarkPaid: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const bobRow = (await canvas.findByText("Bob")).closest("li");
-    const carolRow = canvas.getByText("Carol").closest("li");
-    if (!bobRow || !carolRow) throw new Error("expected an <li> ancestor for each transfer row");
-
-    const bobButton = within(bobRow).getByRole("button", { name: /Mark paid/ });
-    const carolButton = within(carolRow).getByRole("button", { name: /Mark paid/ });
+    // Query buttons directly by their accessible name rather than finding a
+    // row first: SettlePage's row text interleaves nameOf(transfer.from) with
+    // a sibling <span>pays</span> and more text, so "Bob" is never a single
+    // element's full text content and getByText("Bob") can't match it — the
+    // button's aria-label ("Mark paid: Bob pays Alice ¥1,500") already
+    // uniquely identifies the row without that detour.
+    const bobButton = await canvas.findByRole("button", { name: /Mark paid: Bob pays Alice/ });
+    const carolButton = canvas.getByRole("button", { name: /Mark paid: Carol pays Alice/ });
 
     await userEvent.click(bobButton);
 
