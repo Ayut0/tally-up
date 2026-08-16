@@ -70,9 +70,7 @@ export const RemoveBlockedByNonzeroBalance: Story = {
     // won't collide with the row's own "Remove" button. HeroUI's Modal
     // mounts into the DOM asynchronously (portal + open transition), so the
     // button isn't there yet on the tick right after the triggering click.
-    const confirmButton = await waitFor(() =>
-      canvas.getByRole("button", { name: "Remove Alice" }),
-    );
+    const confirmButton = await waitFor(() => canvas.getByRole("button", { name: "Remove Alice" }));
     await userEvent.click(confirmButton);
 
     await waitFor(() =>
