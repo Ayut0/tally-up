@@ -32,3 +32,13 @@ a product page. A page also needs routing mocked, not just API calls:
   `useParams()`'s params. No extra dependency needed.
 
 See `app/g/[groupId]/page.stories.tsx` for a worked example of both.
+
+## Storybook interaction tests
+
+`play` functions are opt-in at the same bar as stories themselves — add one
+when there's a multi-step interaction worth verifying (dialog confirm, form
+submit, error path), not for every interactive story. They run via
+`@storybook/addon-vitest` as a separate Vitest project
+(`npm run test:storybook`), deliberately never part of `npm test` — see
+`docs/adr/0005-storybook-interaction-tests.md` for why this doesn't reopen
+#138's "the suite never renders JSX" rule.

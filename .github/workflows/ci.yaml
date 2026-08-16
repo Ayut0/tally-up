@@ -134,10 +134,23 @@ jobs:
         run: npm run build
 
       # Build-only: catches a broken story or Storybook config the same way
-      # a broken `npm run build` would. Interaction/play-function tests via
-      # addon-vitest are deliberately out of scope (#184).
+      # a broken `npm run build` would. Interaction/play-function tests run
+      # separately below via addon-vitest (#226, ADR 0005) — kept alongside
+      # this step rather than replacing it, since they catch different
+      # failure modes.
       - name: Storybook build
         run: npm run build-storybook
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Advisory, like Storybook build above: runs play functions
+      # (interaction tests) via @storybook/addon-vitest, a separate Vitest
+      # project from the jsdom logic suite `npm test` runs — kept out of
+      # `npm test` on purpose. See docs/adr/0005-storybook-interaction-tests.md.
+      - name: Storybook interaction tests
+        timeout-minutes: 5
+        run: npm run test:storybook
 
       - name: Test
         run: npm test
