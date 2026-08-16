@@ -1,6 +1,6 @@
 "use client";
 
-import { Input } from "@heroui/react";
+import { Input, cn } from "@heroui/react";
 import type { InputHTMLAttributes, Ref } from "react";
 import { Text } from "./text";
 
@@ -38,7 +38,17 @@ export function TextField({
   return (
     <label className="flex flex-col gap-1">
       <Text variant={labelVariant}>{label}</Text>
-      <Input ref={ref} aria-invalid={!!error} className={inputClassName} {...inputProps} />
+      {/* aria-invalid:border-negative (issue #143) — the only way any field
+          gets a visual invalid state today; aria-invalid alone is set but
+          unstyled otherwise. Merged via cn, not concatenated, so it wins
+          over inputClassName's own resting-state border-color only when
+          aria-invalid is true. */}
+      <Input
+        ref={ref}
+        aria-invalid={!!error}
+        className={cn("aria-invalid:border-negative", inputClassName)}
+        {...inputProps}
+      />
       {error && <Text variant="error">{error}</Text>}
     </label>
   );
