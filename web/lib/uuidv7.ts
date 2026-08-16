@@ -21,3 +21,12 @@ export function generateUuidV7(): string {
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+
+/**
+ * An entity id paired with its Idempotency-Key, minted together so both
+ * forms that submit an intent (create-group, add-expense) mint identically
+ * instead of drifting apart.
+ */
+export function mintIntent(): { id: string; key: string } {
+  return { id: generateUuidV7(), key: generateUuidV7() };
+}

@@ -18,7 +18,7 @@ import {
   sumEntered,
   weightedPreview,
 } from "@/lib/split";
-import { generateUuidV7 } from "@/lib/uuidv7";
+import { mintIntent } from "@/lib/uuidv7";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
 type SplitRule = components["schemas"]["SplitRule"];
@@ -270,7 +270,7 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     };
     const signature = JSON.stringify(payload);
     if (submissionRef.current?.signature !== signature) {
-      submissionRef.current = { id: generateUuidV7(), key: generateUuidV7(), signature };
+      submissionRef.current = { ...mintIntent(), signature };
     }
     const { id, key } = submissionRef.current;
 
