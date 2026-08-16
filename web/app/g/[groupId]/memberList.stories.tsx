@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { HttpResponse, http } from "msw";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { zAddMemberRequest } from "@/lib/api-schemas/zod.gen";
 import { MemberList } from "./memberList";
 
@@ -65,14 +65,18 @@ export const RemoveBlockedByNonzeroBalance: Story = {
     if (!aliceRow) throw new Error("expected an <li> ancestor for Alice's row");
 
     await userEvent.click(within(aliceRow).getByRole("button", { name: "Remove" }));
-    // The confirm dialog isn't scoped inside Alice's row — it's one shared
-    // dialog for the whole list — so its confirm button needs a name that
-    // won't collide with the row's own "Remove" button.
-    await userEvent.click(canvas.getByRole("button", { name: "Remove Alice" }));
+    // HeroUI's Modal renders via a portal into `document.body`, outside
+    // `canvasElement` — `within(canvasElement)` can never find it no matter
+    // how long you wait, so the confirm dialog's contents need `screen`
+    // (which searches the whole document) instead of `canvas`. Its confirm
+    // button also needs a name that won't collide with the row's own
+    // "Remove" button, since the dialog isn't scoped inside Alice's row.
+    const confirmButton = await screen.findByRole("button", { name: "Remove Alice" });
+    await userEvent.click(confirmButton);
 
     await waitFor(() =>
       expect(
-        canvas.getByText("member has a nonzero balance; settle up before removing"),
+        screen.getByText("member has a nonzero balance; settle up before removing"),
       ).toBeInTheDocument(),
     );
   },
