@@ -53,9 +53,7 @@ export const Populated: Story = {
     msw: {
       handlers: [
         groupSucceeds,
-        http.get(`*/groups/${GROUP_ID}/pairwise-balances`, () =>
-          HttpResponse.json(populatedPairs),
-        ),
+        http.get(`*/groups/${GROUP_ID}/pairwise-balances`, () => HttpResponse.json(populatedPairs)),
       ],
     },
   },
