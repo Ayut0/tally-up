@@ -1,4 +1,4 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
@@ -11,10 +11,12 @@ import (
 
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/ledger"
+	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 // reverse acquires a fresh idempotency key and calls Reverse.
-func reverse(t *testing.T, s *Store, originalID uuid.UUID) ([]byte, error) {
+func reverse(t *testing.T, s *postgres.Store, originalID uuid.UUID) ([]byte, error) {
 	t.Helper()
 	key := uuid.New()
 	if res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String()); err != nil || res != entry.GateProceed {
@@ -24,7 +26,7 @@ func reverse(t *testing.T, s *Store, originalID uuid.UUID) ([]byte, error) {
 }
 
 func TestReverse_NegatesAndZeroes(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	orig := uuid.New()
 	addExpense(t, s, orig, rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB})
@@ -59,7 +61,7 @@ func TestReverse_NegatesAndZeroes(t *testing.T) {
 }
 
 func TestReverse_SecondReversalRejected(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	orig := uuid.New()
 	addExpense(t, s, orig, rYuto, 3000, []uuid.UUID{rYuto, rMemA})
@@ -73,7 +75,7 @@ func TestReverse_SecondReversalRejected(t *testing.T) {
 }
 
 func TestReverse_ReversalNotReversible(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	orig := uuid.New()
 	addExpense(t, s, orig, rYuto, 3000, []uuid.UUID{rYuto, rMemA})
@@ -88,7 +90,7 @@ func TestReverse_ReversalNotReversible(t *testing.T) {
 }
 
 func TestReverse_UnknownEntry(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	if _, err := reverse(t, s, uuid.New()); !errors.Is(err, entry.ErrNotFound) {
 		t.Fatalf("got %v, want ErrNotFound", err)
@@ -96,7 +98,7 @@ func TestReverse_UnknownEntry(t *testing.T) {
 }
 
 func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	orig := uuid.New()
 	addExpense(t, s, orig, rYuto, 9000, []uuid.UUID{rYuto, rMemA, rMemB})
@@ -144,7 +146,7 @@ func TestReverse_ConcurrentDoubleReversal_ExactlyOneWins(t *testing.T) {
 }
 
 func TestEdit_ReverseAndReplaceAtomically(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
 	orig := uuid.New()
 	// Original: yuto pays 12000, 3-way equal → yuto +8000, a -4000, b -4000.

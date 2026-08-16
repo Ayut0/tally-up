@@ -72,9 +72,11 @@ specific type ever crosses into a port signature.
 
 `Store` (`store.go`) now holds only `Pool *pgxpool.Pool` plus named
 (non-embedded) handles to each repository — `Idempotency`, `Entries`,
-`Reads`, `Integrity`. Its only behavior is `New` (connect + migrate),
-`Migrate`, and the `TestStore` test helper. Because the repository fields are
-no longer *embedded*, Go does not promote their methods onto `Store`, so
+`Reads`, `Integrity`. Its only behavior is `New` (connect + migrate) and
+`Migrate`; the test-only helper for building one (`postgrestest.Store`) lives
+outside the package entirely (#99), so `store.go` ships no test-support code.
+Because the repository fields are no longer *embedded*, Go does not promote
+their methods onto `Store`, so
 `Store` itself satisfies no domain repository interface — wiring code
 (`cmd/api/main.go`) and tests reach the actual capability by name
 (`s.Entries.Create`, `s.Reads.GetBalances`, ...).

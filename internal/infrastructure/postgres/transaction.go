@@ -28,7 +28,7 @@ func NewTransaction(pool *pgxpool.Pool) *Transaction {
 
 // Do begins a transaction, binds it to the context it passes to fn, and
 // commits or rolls back based on fn's result. Any repository that resolves its
-// queries through sessionOr will run against this transaction.
+// queries through SessionOr will run against this transaction.
 func (t *Transaction) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	tx, err := t.pool.Begin(ctx)
 	if err != nil {
@@ -47,10 +47,14 @@ func withSession(ctx context.Context, tx pgx.Tx) context.Context {
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
-// sessionOr returns the transaction bound to ctx when one is present, and
+// SessionOr returns the transaction bound to ctx when one is present, and
 // fallback (normally the pool) otherwise. Both pgx.Tx and *pgxpool.Pool satisfy
 // sqlc.DBTX, so callers get the same query API either way.
-func sessionOr(ctx context.Context, fallback sqlc.DBTX) sqlc.DBTX {
+//
+// Exported so tests in postgres_test can drive writes through the same
+// ambient-transaction resolution repository methods use, rather than bypassing
+// it via the pool directly — see transaction_test.go.
+func SessionOr(ctx context.Context, fallback sqlc.DBTX) sqlc.DBTX {
 	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return tx
 	}

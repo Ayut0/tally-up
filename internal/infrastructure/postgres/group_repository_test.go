@@ -1,4 +1,4 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
@@ -11,13 +11,15 @@ import (
 
 	"tallyup/internal/domain/entry"
 	"tallyup/internal/domain/group"
+	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 // acquireKey claims key with a pending idempotency row, mirroring what
 // creategroup.Service does before calling group.Repository.CreateGroup — the
 // repository's CreateGroup only marks an existing pending row succeeded, it
 // does not create one.
-func acquireKey(t *testing.T, s *Store, key uuid.UUID) {
+func acquireKey(t *testing.T, s *postgres.Store, key uuid.UUID) {
 	t.Helper()
 	res, _, err := s.Idempotency.Acquire(context.Background(), key, key.String())
 	if err != nil || res != entry.GateProceed {
@@ -26,9 +28,9 @@ func acquireKey(t *testing.T, s *Store, key uuid.UUID) {
 }
 
 func TestGroupRepository_CreateAndGet(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	groupID, key := uuid.New(), uuid.New()
 	acquireKey(t, s, key)
@@ -62,8 +64,8 @@ func TestGroupRepository_CreateAndGet(t *testing.T) {
 }
 
 func TestGroupRepository_GetGroup_NotFound(t *testing.T) {
-	s := TestStore(t)
-	repo := NewGroupRepository(s.Pool)
+	s := postgrestest.Store(t)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	_, err := repo.GetGroup(context.Background(), uuid.New())
 	if !errors.Is(err, group.ErrNotFound) {
@@ -72,9 +74,9 @@ func TestGroupRepository_GetGroup_NotFound(t *testing.T) {
 }
 
 func TestGroupRepository_CreateGroup_DuplicateID(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	groupID := uuid.New()
 	in := group.Input{ID: groupID, Name: "trip", MemberNames: []string{"yuto"}}
@@ -93,9 +95,9 @@ func TestGroupRepository_CreateGroup_DuplicateID(t *testing.T) {
 }
 
 func TestGroupRepository_AddMember(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	ctx := context.Background()
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	groupID, createKey := uuid.New(), uuid.New()
 	acquireKey(t, s, createKey)
@@ -136,9 +138,9 @@ func TestGroupRepository_AddMember(t *testing.T) {
 // with the newly added member as a participant, proving group-membership
 // validation sees them immediately.
 func TestGroupRepository_AddMember_UsableAsParticipant(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	key := uuid.New()
 	acquireKey(t, s, key)
@@ -155,9 +157,9 @@ func TestGroupRepository_AddMember_UsableAsParticipant(t *testing.T) {
 }
 
 func TestGroupRepository_RemoveMember_ZeroBalanceSucceeds(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	// rMemA never participates in anything — balance is zero by construction.
 	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
@@ -175,9 +177,9 @@ func TestGroupRepository_RemoveMember_ZeroBalanceSucceeds(t *testing.T) {
 }
 
 func TestGroupRepository_RemoveMember_NonzeroBalanceRejected(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	addExpense(t, s, uuid.New(), rYuto, 12000, []uuid.UUID{rYuto, rMemA, rMemB}) // A now owes 4000
 	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); !errors.Is(err, group.ErrNonzeroBalance) {
@@ -186,9 +188,9 @@ func TestGroupRepository_RemoveMember_NonzeroBalanceRejected(t *testing.T) {
 }
 
 func TestGroupRepository_RemoveMember_HistoryStaysReadable(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	entryID := uuid.New()
 	addExpense(t, s, entryID, rYuto, 8000, []uuid.UUID{rYuto, rMemA}) // A owes 4000
@@ -212,9 +214,9 @@ func TestGroupRepository_RemoveMember_HistoryStaysReadable(t *testing.T) {
 }
 
 func TestGroupRepository_RemoveMember_AlreadyRemovedIsNoop(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	if err := repo.RemoveMember(context.Background(), rGroup, rMemA); err != nil {
 		t.Fatal(err)
@@ -234,9 +236,9 @@ func TestGroupRepository_RemoveMember_AlreadyRemovedIsNoop(t *testing.T) {
 // what a concurrent expense-insert's FK check would do) and asserts
 // RemoveMember blocks until the lock is released, never interleaving.
 func TestRemoveMember_BlocksOnConcurrentGroupLock(t *testing.T) {
-	s := TestStore(t)
+	s := postgrestest.Store(t)
 	seedReadGroup(t, s)
-	repo := NewGroupRepository(s.Pool)
+	repo := postgres.NewGroupRepository(s.Pool)
 
 	tx, err := s.Pool.Begin(context.Background())
 	if err != nil {

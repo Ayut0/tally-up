@@ -19,6 +19,7 @@ import (
 	"tallyup/internal/application/proposesettleplan"
 	"tallyup/internal/domain/ledger"
 	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/postgres/postgrestest"
 )
 
 var (
@@ -75,7 +76,7 @@ func post(t *testing.T, srv *httptest.Server, key uuid.UUID, body []byte) (*http
 }
 
 func newTestServer(t *testing.T) (*httptest.Server, *postgres.Store) {
-	s := postgres.TestStore(t)
+	s := postgrestest.Store(t)
 	seedGroup(t, s)
 	entries := &addentry.Service{Gate: s.Idempotency, Entries: s.Entries}
 	corrections := &correctentry.Service{Gate: s.Idempotency, Reverses: s.Entries, Edits: s.Entries}
