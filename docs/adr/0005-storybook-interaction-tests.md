@@ -43,13 +43,19 @@ Adopt `@storybook/addon-vitest` with Vitest's browser mode
 as a **second Vitest project** alongside the existing jsdom logic project —
 not folded into it.
 
-- `vitest.config.ts` gains a `test.projects` array: the existing jsdom
-  project (`lib/`/hook tests, unchanged) plus a new `storybook` project
-  wired via `storybookTest()` from `@storybook/addon-vitest/vitest-plugin`.
-- A new script, `test:storybook`, runs only the `storybook` project. It is
-  **not** part of `npm test` — `npm test` keeps meaning exactly what #138
-  settled: the suite that never renders JSX. That claim stays true by
-  `grep`, not just by convention.
+- A new, separate config file, `vitest.storybook.config.ts`, holds the
+  `storybook` project (wired via `storybookTest()` from
+  `@storybook/addon-vitest/vitest-plugin`) — not a `test.projects` array
+  merged into the existing `vitest.config.ts`. `vitest.config.ts` (the
+  jsdom logic/hook project) stays untouched. A merged-config `projects`
+  array is Vitest's own documented pattern here, but it requires a
+  `--project` CLI filter to keep the two apart; a separate file makes
+  `npm test`'s default `vitest run` structurally unaware of the browser
+  project, not reliant on remembering a flag.
+- A new script, `test:storybook`, runs `vitest run --config
+  vitest.storybook.config.ts`. It is **not** part of `npm test` — `npm
+  test` keeps meaning exactly what #138 settled: the suite that never
+  renders JSX. That claim stays true by `grep`, not just by convention.
 - CI's `web` job gets a new `test:storybook` step, advisory (not blocking)
   for now — matching the existing `storybook build` step's status, and not
   preempting #96's separate, still-open decision about which `web` job
