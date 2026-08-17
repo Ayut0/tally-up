@@ -5,9 +5,14 @@
  * that's a separate concern, layered on top in `app/`'s hooks (e.g.
  * `useGroupData`, `useSettlePlan`, `useMemberActions`), which call these
  * functions from `useQuery`/`useMutation` and own caching, polling, and
- * cache invalidation. Keeping this file query-client-agnostic means it's
- * exercised directly in `api.test.ts` (mocked `fetch`, no `QueryClient`
- * needed) and could be reused from a non-React context without change.
+ * cache invalidation. Writes that navigate away on success instead call
+ * these functions directly from a plain `useState` — `useCreateGroupForm`,
+ * `useAddExpenseForm`, `useRecordPaymentForm` — because the page unmounts
+ * on `router.push`, so there is no on-page cache to invalidate and the
+ * destination route's own `useQuery` picks up fresh data regardless.
+ * Keeping this file query-client-agnostic means it's exercised directly in
+ * `api.test.ts` (mocked `fetch`, no `QueryClient` needed) and could be
+ * reused from a non-React context without change.
  */
 import type { z } from "zod";
 import type { components } from "./api-types";
