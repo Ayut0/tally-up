@@ -1128,9 +1128,19 @@ components:
         weights:
           type: object
           additionalProperties:
-            type: integer
-            format: int64
+            $ref: '#/components/schemas/SharesWeight'
       description: Relative weights per member, keyed by member id.
+    SharesWeight:
+      type: integer
+      format: int64
+      minimum: 1
+      maximum: 1000000
+      description: |-
+        A participant's relative weight in a `shares` split. Mirrors
+        internal/domain/ledger/split.go's `maxWeight`: weightedShares rejects any
+        weight outside (0, 1_000_000]. Go does not generate from this spec (ADR
+        0003), so that constant stays hand-written and is the value this bound
+        must be kept in sync with by hand.
     SplitRule:
       type: object
       oneOf:

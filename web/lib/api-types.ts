@@ -529,7 +529,7 @@ export interface components {
         /** @description Relative weights per member, keyed by member id. */
         SharesSplit: {
             weights: {
-                [key: string]: number;
+                [key: string]: components["schemas"]["SharesWeight"];
             };
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -537,6 +537,15 @@ export interface components {
              */
             type: "shares";
         };
+        /**
+         * Format: int64
+         * @description A participant's relative weight in a `shares` split. Mirrors
+         *     internal/domain/ledger/split.go's `maxWeight`: weightedShares rejects any
+         *     weight outside (0, 1_000_000]. Go does not generate from this spec (ADR
+         *     0003), so that constant stays hand-written and is the value this bound
+         *     must be kept in sync with by hand.
+         */
+        SharesWeight: number;
         /** @description How an entry's total is divided among its participants. */
         SplitRule: components["schemas"]["EqualSplit"] | components["schemas"]["ExactSplit"] | components["schemas"]["SharesSplit"] | components["schemas"]["PercentSplit"];
         /** @description One proposed payment in a settle-up plan. */

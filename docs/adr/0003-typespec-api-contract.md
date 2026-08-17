@@ -5,7 +5,9 @@
 - **Deciders:** Yuto
 - **Related:** Issue #93 (this decision); Issue #116 (generates
   `web/lib/api-schemas/`, amending "The web client generates from the
-  contract" below); `spec/main.tsp`, `spec/openapi.yaml`;
+  contract" below); Issue #252 (amends "The web client generates from the
+  contract" with "The contract may encode numeric business-rule bounds"
+  below); `spec/main.tsp`, `spec/openapi.yaml`;
   `internal/interfaces/rest/openapi_spec_test.go`;
   `.github/workflows/spec-drift.yaml`; `web/lib/api-types.ts`,
   `web/lib/api-schemas/`, `web/openapi-ts.config.ts`
@@ -107,6 +109,41 @@ handling (`z.coerce.bigint()`) is overridden to plain `z.number()` in
 within `Number.MAX_SAFE_INTEGER`, and a `bigint` would be incompatible with
 `api-types.ts`'s `number` types and with `JSON.stringify`. The web client
 now catches a contract regression at runtime too, not just compile time.
+
+### The contract may encode numeric business-rule bounds — response-shape only (#252)
+
+Every numeric field in `spec/main.tsp` originally described shape only
+(`int64`, `string`), never the domain's own bounds — `EntryRequestCommon`'s
+`total_amount` carried its `(0, 100_000_000_000]` cap as a doc comment, not
+a schema constraint. Issue #252 (raised on review of #249, which duplicated
+`internal/domain/ledger/split.go`'s `weightedShares` weight cap as a
+hand-written `web/lib/split.ts` constant) asked whether such bounds could be
+generated instead of duplicated a second time.
+
+TypeSpec's `@minValue`/`@maxValue` decorators compile to JSON Schema
+`minimum`/`maximum`, which `@hey-api/openapi-ts`'s zod plugin already
+composes onto the generated schema (`web/openapi-ts.config.ts`'s
+`$resolvers.number` had to be rewritten to preserve that composition
+alongside its existing bigint-format override — see the file's own comment
+for why the library's format-based fallback range isn't reproduced). The
+decision: **the contract may declare a bound this way where doing so
+documents response-shape completeness** — `SharesSplit.weights`' values now
+use a `SharesWeight` scalar with `@minValue(1) @maxValue(1000000)`,
+generating `zSharesWeight = z.number().int().gte(1).lte(1000000)` for the
+runtime response validation issue #116 added.
+
+This does **not** extend to using generated schemas for request-side
+validation or building. `requests: false` (above) stays: `web/lib/split.ts`'s
+`buildSplitRule` still hand-validates form input and returns tailored
+per-field UX error strings (e.g. "shares must be positive whole numbers no
+greater than 1000000"), a different job than generic schema conformance —
+its own `maxWeight` constant is unchanged and still hand-duplicated. Go also
+still does not generate from or read this bound; `split.go`'s `maxWeight` is
+unchanged and remains the value both the TypeSpec scalar and the TS constant
+are meant to track by hand. Net effect of #252: one of the three copies
+(`spec/main.tsp`'s) is now the *generated* one instead of a third
+independently hand-written number — the duplication itself is not
+eliminated, per the issue's own findings.
 
 ### CI fails on spec drift, independently of Go CI
 
