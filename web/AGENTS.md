@@ -4,6 +4,42 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Query keys
+
+Every TanStack Query key lives in `lib/queries.ts`, as a `queryOptions()`
+factory pairing the key with the `lib/api` call that fills it. Hooks under
+`app/` MUST spread a factory rather than writing a `queryKey` literal, and
+MUST invalidate through one too:
+
+```ts
+const groupQuery = useQuery(groupQueryOptions(groupId));
+
+const balanceQuery = useQuery({
+  ...balanceQueryOptions(groupId),   // per-call-site knobs go after the
+  enabled: groupQuery.isSuccess,     // spread, or the factory clobbers them
+  refetchInterval: POLL_INTERVAL_MS,
+});
+
+queryClient.invalidateQueries({ queryKey: groupQueryOptions(groupId).queryKey });
+```
+
+Two reasons this is a rule and not a preference. Invalidation relies on
+prefix matching — `entriesKey(groupId)` reaches every entries query, live
+window and paged-older alike — and a hand-written key that orders its
+segments differently escapes that silently: nothing fails, the data just
+goes stale. And where a key and its request both branch on the same value
+(`entriesWindowQueryOptions`), splitting them across a call site lets them
+drift, caching one window's data under another's name.
+
+What does *not* belong in a factory: `enabled`, `refetchInterval`, and the
+other per-screen knobs. Those legitimately differ between call sites — the
+group home polls balance, the record-payment form doesn't — so the factory
+carries key and fetcher only. Don't reconcile such a difference by adding a
+knob for symmetry; check first whether the asymmetry is load-bearing.
+
+Writes that navigate away on success don't invalidate at all; see the
+comment at the top of `lib/api.ts` for why.
+
 # Storybook
 
 Storybook (`@storybook/nextjs-vite`) is available for rendering a component

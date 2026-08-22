@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, addMember, removeMember } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { groupQueryOptions } from "@/lib/queries";
 import { generateUuidV7 } from "@/lib/uuidv7";
 
 type Member = components["schemas"]["Member"];
@@ -30,7 +31,7 @@ export function useAddMember(groupId: string) {
     onSuccess: () => {
       intentRef.current = null;
       setName("");
-      queryClient.invalidateQueries({ queryKey: ["group", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupQueryOptions(groupId).queryKey });
     },
   });
 
@@ -81,7 +82,7 @@ export function useRemoveMember(groupId: string) {
     mutationFn: (memberId) => removeMember(groupId, memberId),
     onSuccess: () => {
       setConfirmingId(null);
-      queryClient.invalidateQueries({ queryKey: ["group", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupQueryOptions(groupId).queryKey });
     },
   });
 
