@@ -34,6 +34,7 @@ func NewServer(entries *addentry.Service, balances entry.BalanceReader, pairwise
 		memberRemover: memberRemover,
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", srv.handleHealthz)
 	mux.HandleFunc("POST /groups", srv.handleCreateGroup)
 	mux.HandleFunc("GET /groups/{group_id}", srv.handleGetGroup)
 	mux.HandleFunc("POST /groups/{group_id}/entries", srv.handleCreateEntry)
