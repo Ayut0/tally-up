@@ -1,0 +1,27 @@
+# App name matches the staging app #259 provisions via
+# `flyctl apps create tallyup-api-staging`. Production (#262) is expected to
+# deploy under a different app name via `flyctl deploy -a tallyup-api-production`,
+# which overrides this file's `app` key — see issue #258 discussion.
+app = "tallyup-api-staging"
+primary_region = "nrt"
+
+# Fly's default kill_timeout is 5s, shorter than main.go's 10s graceful
+# shutdown window (main.go:81-88); set explicitly so in-flight transactions
+# finish draining instead of being killed mid-shutdown.
+kill_timeout = "30s"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"
