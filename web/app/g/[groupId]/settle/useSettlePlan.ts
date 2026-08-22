@@ -2,15 +2,19 @@
 
 import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError, addEntry, getGroup, getSettlePlan } from "@/lib/api";
+import { ApiError, addEntry } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { todayLocal } from "@/lib/date";
 import { getIdentity } from "@/lib/identity";
+import {
+  balanceQueryOptions,
+  entriesKey,
+  groupQueryOptions,
+  settlePlanQueryOptions,
+} from "@/lib/queries";
 import { settlementFor, transferKey } from "@/lib/settle";
 import { generateUuidV7 } from "@/lib/uuidv7";
 
-type GroupRecord = components["schemas"]["GroupRecord"];
-type SettlePlan = components["schemas"]["SettlePlan"];
 type Transfer = components["schemas"]["Transfer"];
 type EntryAck = components["schemas"]["EntryAck"];
 
@@ -21,7 +25,8 @@ const POLL_INTERVAL_MS = 5000;
  * same terms as the group home (`useGroupData`): TanStack Query's defaults
  * pause the 5s poll while the tab is hidden (`refetchIntervalInBackground:
  * false`) and re-poll on refocus (`refetchOnWindowFocus`). The group query
- * shares its key with `useGroupData`, so arriving from the home is cache-warm.
+ * comes from the shared `groupQueryOptions`, so arriving from the home is
+ * cache-warm.
  *
  * That refresh is the *only* defence against two people recording the same
  * cash handover (issue #150) — the server rejects no duplicate, because it
@@ -31,14 +36,10 @@ const POLL_INTERVAL_MS = 5000;
  * guard someone can forget to write.
  */
 export function useSettlePlan(groupId: string) {
-  const groupQuery = useQuery<GroupRecord, ApiError>({
-    queryKey: ["group", groupId],
-    queryFn: () => getGroup(groupId),
-  });
+  const groupQuery = useQuery(groupQueryOptions(groupId));
 
-  const planQuery = useQuery<SettlePlan, ApiError>({
-    queryKey: ["settle-plan", groupId],
-    queryFn: () => getSettlePlan(groupId),
+  const planQuery = useQuery({
+    ...settlePlanQueryOptions(groupId),
     enabled: groupQuery.isSuccess,
     refetchInterval: POLL_INTERVAL_MS,
   });
@@ -87,9 +88,11 @@ export function useRecordTransfer(groupId: string) {
       // payment, and replaying this key would return the settled one instead
       // of recording it.
       intents.current.delete(transferKey(transfer));
-      queryClient.invalidateQueries({ queryKey: ["settle-plan", groupId] });
-      queryClient.invalidateQueries({ queryKey: ["balance", groupId] });
-      queryClient.invalidateQueries({ queryKey: ["entries", groupId] });
+      queryClient.invalidateQueries({ queryKey: settlePlanQueryOptions(groupId).queryKey });
+      queryClient.invalidateQueries({ queryKey: balanceQueryOptions(groupId).queryKey });
+      // The prefix, not one window: history may be holding a live window and
+      // any number of paged-older queries, and all of them just went stale.
+      queryClient.invalidateQueries({ queryKey: entriesKey(groupId) });
     },
   });
 

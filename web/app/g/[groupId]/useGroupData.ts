@@ -1,11 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ApiError, getBalance, getGroup } from "@/lib/api";
-import type { components } from "@/lib/api-types";
-
-type GroupRecord = components["schemas"]["GroupRecord"];
-type BalanceSnapshot = components["schemas"]["BalanceSnapshot"];
+import { balanceQueryOptions, groupQueryOptions } from "@/lib/queries";
 
 export const POLL_INTERVAL_MS = 5000;
 
@@ -18,14 +14,10 @@ export const POLL_INTERVAL_MS = 5000;
  * separate hook because, unlike balance, entries page.
  */
 export function useGroupData(groupId: string) {
-  const groupQuery = useQuery<GroupRecord, ApiError>({
-    queryKey: ["group", groupId],
-    queryFn: () => getGroup(groupId),
-  });
+  const groupQuery = useQuery(groupQueryOptions(groupId));
 
-  const balanceQuery = useQuery<BalanceSnapshot, ApiError>({
-    queryKey: ["balance", groupId],
-    queryFn: () => getBalance(groupId),
+  const balanceQuery = useQuery({
+    ...balanceQueryOptions(groupId),
     enabled: groupQuery.isSuccess,
     refetchInterval: POLL_INTERVAL_MS,
   });

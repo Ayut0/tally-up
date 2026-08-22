@@ -2,21 +2,12 @@
 
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ApiError, listEntries } from "@/lib/api";
-import type { components } from "@/lib/api-types";
+import { entriesOlderInfiniteQueryOptions, entriesWindowQueryOptions } from "@/lib/queries";
 import { POLL_INTERVAL_MS } from "./useGroupData";
-
-type EntryList = components["schemas"]["EntryList"];
 
 export const PAGE_SIZES = [10, 20, 50, 100] as const;
 export type PageSize = (typeof PAGE_SIZES)[number];
 const DEFAULT_PAGE_SIZE: PageSize = 20;
-
-// Ceiling for the "everything since the paging boundary" live query below —
-// the backend clamps limit to this anyway (maxListLimit in reads.go), so
-// this just makes the ceiling explicit instead of relying on the server's
-// default (100).
-const LIVE_TAIL_LIMIT = 500;
 
 /**
  * Loads and pages `groupId`'s ledger history (#221).
@@ -36,7 +27,8 @@ const LIVE_TAIL_LIMIT = 500;
  * newest-N window, leaving a gap between the older pages and the live one
  * that nothing would ever re-fetch. Freezing the boundary the moment
  * paging starts means the live side only ever grows forward from it, never
- * forgets it.
+ * forgets it. That switch — key and request together — lives in
+ * `entriesWindowQueryOptions`, so the two halves cannot drift apart.
  *
  * `boundarySeq` itself can't be a TanStack-managed value: it's a snapshot
  * of "where the live window's oldest entry was *the moment the user first
@@ -56,25 +48,14 @@ export function useGroupHistory(groupId: string, enabled: boolean) {
   const [pageSize, setPageSizeState] = useState<PageSize>(DEFAULT_PAGE_SIZE);
   const [boundarySeq, setBoundarySeq] = useState<number | null>(null);
 
-  const windowQuery = useQuery<EntryList, ApiError>({
-    queryKey:
-      boundarySeq === null
-        ? (["entries", groupId, "latest", pageSize] as const)
-        : (["entries", groupId, "after", boundarySeq] as const),
-    queryFn: () =>
-      boundarySeq === null
-        ? listEntries(groupId, undefined, undefined, pageSize)
-        : listEntries(groupId, boundarySeq, undefined, LIVE_TAIL_LIMIT),
+  const windowQuery = useQuery({
+    ...entriesWindowQueryOptions(groupId, { boundarySeq, pageSize }),
     enabled,
     refetchInterval: POLL_INTERVAL_MS,
   });
 
   const olderQuery = useInfiniteQuery({
-    queryKey: ["entries", groupId, "older", boundarySeq] as const,
-    queryFn: ({ pageParam }) => listEntries(groupId, undefined, pageParam, pageSize),
-    initialPageParam: (boundarySeq ?? 0) + 1,
-    getNextPageParam: (lastPage: EntryList) =>
-      lastPage.has_more ? lastPage.entries[0]?.seq : undefined,
+    ...entriesOlderInfiniteQueryOptions(groupId, { boundarySeq, pageSize }),
     enabled: enabled && boundarySeq !== null,
   });
 
