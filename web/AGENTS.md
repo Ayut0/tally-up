@@ -50,6 +50,10 @@ components with multiple visual states worth eyeballing in isolation (e.g.
 `BalanceList`'s balance/settled/empty states), not routine props-driven
 components with a single obvious rendering.
 
+Storybook is the *mocked* rendering tier: MSW stands in for the API. A case
+that only fails when the real Go API disagrees with the client belongs in the
+E2E suite instead (`e2e/`, ADR 0006) — see `e2e/README.md`.
+
 The same opt-in bar applies to pages — the route components under `app/`
 (e.g. `app/g/[groupId]/page.tsx`), not just leaf/shared components. Reserve
 a page story for pages with multiple visual states worth eyeballing

@@ -23,7 +23,29 @@ go vet ./...        # static checks
 make lint           # golangci-lint, config in .golangci.yaml — see the CI section below
 make sqlc           # regenerate typed queries after editing query/*.sql
 make sqlc-check     # fail if generated output is stale — what CI runs
+make e2e            # Gherkin E2E suite through a real browser (see below)
 ```
+
+## Test tiers
+
+Three suites, each seeing a failure class the others can't. Pick the lowest
+tier that can hold the case.
+
+| Tier | Command | Renders? | Network |
+| --- | --- | --- | --- |
+| Go suite | `make test` | n/a | real Postgres |
+| `web/` logic | `make web-test` | never (#138) | n/a — pure rules and hooks |
+| Storybook interaction | `cd web && npm run test:storybook` | yes, one component | MSW-mocked (ADR 0005) |
+| E2E (Gherkin) | `make e2e` | yes, whole app | real Go API + Postgres (ADR 0006) |
+
+`make e2e` starts Postgres, then Playwright boots the API and the web client
+itself. It's the slowest tier by design — reach for it when a case genuinely
+spans client and server, not as a substitute for a unit test. Structure and
+conventions: [`web/e2e/README.md`](../web/e2e/README.md).
+
+**Don't run `make test` and `make e2e` concurrently against the same local
+database** — the Go test helper truncates shared tables and will delete rows
+a running scenario is using. CI gives them separate service containers.
 
 See the `Makefile` target comments for the other targets (`run`, `seed`,
 `smoke`, `db-down`).
@@ -38,6 +60,13 @@ run build`, `npm test` in `web/`). Both are blocking;
 the `@claude review` reviewer is advisory and comment-triggered. Neither job
 is yet a required status check on `main` — that's a deliberate open decision
 left to the maintainer (see the `test`/`web` job comments in ci.yaml).
+
+A third job, `e2e`, runs the Gherkin suite against a real stack (Go API +
+Postgres service container + a production Next.js build). It is
+`continue-on-error: true` for now — the same advisory footing `storybook
+build` and the Storybook interaction tests entered on — so a flaky
+first-generation E2E suite can't block a merge. See
+[ADR 0006](adr/0006-gherkin-e2e-tier.md).
 
 Third-party actions in these workflows are pinned to commit SHAs rather than
 mutable tags (a tag can be repointed by whoever controls the action repo).

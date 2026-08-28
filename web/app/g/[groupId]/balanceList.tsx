@@ -16,7 +16,11 @@ export function BalanceList({
   pulsingIds?: Set<string>;
 }) {
   return (
-    <section className="flex flex-col gap-[10px]">
+    // aria-label, not a heading: the "Balances" caption is a Text "label"
+    // variant (a <p>), so without this the section is an unnamed generic —
+    // indistinguishable from History for a screen reader moving by landmark,
+    // and for the E2E suite's role-based lookups (e2e/screens/groupScreen.ts).
+    <section aria-label="Balances" className="flex flex-col gap-[10px]">
       <Text variant="label">Balances</Text>
       <Card>
         <ul className="divide-y divide-ink/[.08]">
