@@ -61,7 +61,8 @@ export function HistoryList({
   isLoadingMore: boolean;
 }) {
   return (
-    <section className="flex flex-col gap-[10px]">
+    // Named for the same reason BalanceList's section is — see the comment there.
+    <section aria-label="History" className="flex flex-col gap-[10px]">
       <Text variant="label">History</Text>
       <Tabs
         tabs={PAGE_SIZE_TABS}

@@ -138,7 +138,10 @@ The code map — DDD layers and what each is responsible for — lives in
 Run the verify commands and report their actual output before you call a change
 done. Setup and the exact commands live in
 [docs/development.md](docs/development.md) — in short, `make db-up` then
-`make test`, plus `go vet ./...`.
+`make test`, plus `go vet ./...`. Changes spanning the client and the API
+SHOULD also run `make e2e` (the Gherkin end-to-end tier, ADR 0006); see
+[docs/development.md's test-tier table](docs/development.md#test-tiers) for
+which tier a given case belongs in.
 
 An independent, advisory CI reviewer runs on demand: comment `@claude review` on
 a PR (owner/member/collaborator only) to trigger it — see
