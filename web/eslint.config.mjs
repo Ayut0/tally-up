@@ -21,5 +21,6 @@ export default defineConfig([
     "lib/api-types.ts",
     "lib/api-schemas/**",
     "public/mockServiceWorker.js",
+    ".features-gen/**",
   ]),
 ]);

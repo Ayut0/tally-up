@@ -7,6 +7,7 @@
     "lib/api-schemas/**",
     "AGENTS.md",
     "package-lock.json",
-    "public/mockServiceWorker.js"
+    "public/mockServiceWorker.js",
+    ".features-gen/**"
   ]
 }
