@@ -35,6 +35,29 @@ When(
   },
 );
 
+When(
+  "{word} adds an expense of ¥{int} for {string}, with {word} not sharing, split exactly:",
+  async (
+    { group, addExpense },
+    payerName: string,
+    yen: number,
+    memo: string,
+    skippedName: string,
+    amounts: DataTable,
+  ) => {
+    await group.startAddingExpense();
+    await addExpense.choosePayer(payerName);
+    await addExpense.fillTotal(yen);
+    await addExpense.toggleParticipant(skippedName);
+    await addExpense.chooseSplitMode("Exact");
+    for (const row of amounts.hashes()) {
+      await addExpense.fillExactAmount(row.member!, Number(row.amount));
+    }
+    await addExpense.fillMemo(memo);
+    await addExpense.submit();
+  },
+);
+
 Then("the balances are:", async ({ group }, balances: DataTable) => {
   for (const row of balances.hashes()) {
     await group.expectBalance(row.member!, row.balance!);

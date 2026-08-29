@@ -25,3 +25,27 @@ Feature: Splitting an expense across a group
       | Aoi    | −¥1,000 |
       | Ren    | −¥1,000 |
     And the history shows "dinner" paid by Yuto
+
+  Scenario: An uneven split where not everyone shared the expense
+    Given a group named "Kyoto trip" with members:
+      | name |
+      | Yuto |
+      | Aoi  |
+      | Ren  |
+      | Sana |
+    When Yuto adds an expense of ¥5000 for "dinner", with Sana not sharing, split exactly:
+      | member | amount |
+      | Yuto   | 2000   |
+      | Aoi    | 2000   |
+      | Ren    | 1000   |
+    # Yuto paid 5000 and consumed his own 2000 share, so he's owed the rest;
+    # Aoi and Ren owe their exact amounts. Sana never joined the expense, so
+    # there is no posting for her at all — ¥0 here is that absence rendered,
+    # not a zero-amount posting.
+    Then the balances are:
+      | member | balance |
+      | Yuto   | +¥3,000 |
+      | Aoi    | −¥2,000 |
+      | Ren    | −¥1,000 |
+      | Sana   | ¥0      |
+    And the history shows "dinner" paid by Yuto
