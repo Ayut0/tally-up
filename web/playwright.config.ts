@@ -10,8 +10,8 @@ import { defineBddConfig } from "playwright-bdd";
  *
  * `bddgen` (the `e2e` npm script) compiles `e2e/features/*.feature` into
  * generated Playwright specs under `.features-gen/`, which is what `testDir`
- * below points at. The generated directory is disposable — never edit or
- * commit it.
+ * below points at. That directory is committed (#273) and guarded by
+ * `make features-gen-check` — never hand-edit it.
  */
 const testDir = defineBddConfig({
   features: "e2e/features/**/*.feature",

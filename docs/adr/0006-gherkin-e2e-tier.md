@@ -112,6 +112,10 @@ Adopt **playwright-bdd** on the Playwright runner as a third test tier, in
 - Running `make test` and `make e2e` against the same local database
   concurrently will break the E2E run — the Go helper truncates shared tables.
   CI gives them separate containers; locally it's a documented caveat.
+- `.features-gen/` (bddgen's output) is committed, per the repo-wide
+  generated-code rule decided in #273: most `.feature` edits produce an
+  unreviewable diff (a handful of line-number integers inside one large
+  minified JSON blob), accepted as the cost of one rule over two.
 
 ## Alternatives considered
 

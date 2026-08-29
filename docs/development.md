@@ -24,6 +24,7 @@ make lint           # golangci-lint, config in .golangci.yaml — see the CI sec
 make sqlc           # regenerate typed queries after editing query/*.sql
 make sqlc-check     # fail if generated output is stale — what CI runs
 make e2e            # Gherkin E2E suite through a real browser (see below)
+make features-gen-check  # fail if generated Playwright specs are stale — what CI runs
 ```
 
 ## Test tiers
@@ -67,6 +68,12 @@ Postgres service container + a production Next.js build). It is
 build` and the Storybook interaction tests entered on — so a flaky
 first-generation E2E suite can't block a merge. See
 [ADR 0006](adr/0006-gherkin-e2e-tier.md).
+
+Before the suite runs, the `e2e` job also checks `web/.features-gen/`
+(bddgen's compiled output, committed per #273) isn't stale relative to
+`e2e/features/*.feature` — the same class of gap `sqlc-check` and
+`web-api-check` close for their own generators, via `make
+features-gen-check`.
 
 Third-party actions in these workflows are pinned to commit SHAs rather than
 mutable tags (a tag can be repointed by whoever controls the action repo).

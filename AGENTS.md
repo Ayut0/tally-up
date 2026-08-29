@@ -167,6 +167,15 @@ conflict.
   rule above calls for the rebase. The decision is the maintainer's: undoing a
   force-push takes another force-push, and it can strand review threads.
 - **Commits/PRs:** open a PR per issue; link it to the issue it addresses.
+- **Generated code:** commit it — one rule for every generator, decided in
+  #273. Pair each generator with a `<name>-check` Makefile target that
+  regenerates and diffs against what's committed (`sqlc-check`,
+  `web-api-check`, `features-gen-check`; see
+  [docs/development.md](docs/development.md)'s Verify commands), so a source
+  change that skips regenerating turns CI red instead of shipping stale
+  output. A generated diff that reads as an unreviewable blob (e.g.
+  `web/.features-gen/`) is an accepted cost of this rule, not a reason to
+  gitignore that one artifact instead.
 
 ## Escalation
 
