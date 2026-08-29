@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 
 /**
- * Screen 03b — the "You're invited" panel rendered at `/g/{groupId}` when
+ * Screen 02 — the "You're invited" panel rendered at `/g/{groupId}` when
  * this browser has no identity for the group yet (`JoinPicker` in
  * app/g/[groupId]/join.tsx). Not a separate route: the group URL itself is
  * the invite link (README), so `open()` just navigates there.
