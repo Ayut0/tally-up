@@ -44,9 +44,8 @@ next-env.d.ts
 storybook-static
 
 # playwright / playwright-bdd (e2e)
-# .features-gen is bddgen's output: generated from e2e/features on every run,
-# never edited by hand, never committed.
-/.features-gen/
+# .features-gen (bddgen's output) is committed, per #273 — see
+# e2e/README.md. These four are run *reports*, not generated code.
 /playwright-report/
 /test-results/
 /blob-report/

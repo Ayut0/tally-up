@@ -226,6 +226,14 @@ jobs:
         working-directory: web
         run: npm ci
 
+      # Follow-up to #273: a .feature edit that skips regenerating
+      # .features-gen/ would otherwise leave the committed Playwright specs
+      # silently stale — same class of gap sqlc-check/web-api-check close
+      # for the Go and API-client generators.
+      - name: Generated Playwright specs up to date
+        working-directory: ${{ github.workspace }}
+        run: make features-gen-check
+
       # Pre-building the API means the `go run` inside Playwright's webServer
       # starts from a warm build cache and comes up well within its timeout,
       # instead of compiling the whole dependency tree while Playwright polls

@@ -34,5 +34,10 @@
       }
     }
   ],
-  "ignorePatterns": ["lib/api-types.ts", "lib/api-schemas/**", "public/mockServiceWorker.js"]
+  "ignorePatterns": [
+    "lib/api-types.ts",
+    "lib/api-schemas/**",
+    "public/mockServiceWorker.js",
+    ".features-gen/**"
+  ]
 }

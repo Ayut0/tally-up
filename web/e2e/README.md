@@ -80,9 +80,19 @@ fixture set and the screens won't be there.
 
 `bddgen` (run by the `e2e` script, before `playwright test`) compiles each
 `.feature` into a real Playwright spec under `.features-gen/`. That directory
-is gitignored and disposable — never edit it, never commit it. It is worth
-reading once, though: it makes clear that a Gherkin scenario is just a normal
-Playwright test with a nicer front end.
+is committed — same rule as `internal/infrastructure/postgres/sqlc/` and
+`web/lib/api-types.ts`/`api-schemas/` (decided in #273: commit generated
+code, guard it with a `<name>-check` target). `make features-gen-check`
+regenerates and diffs against what's committed; run it (or just `npm run e2e`,
+which regenerates unconditionally) after editing a `.feature` file, and commit
+the result. Never hand-edit it — it is worth reading once, though: it makes
+clear that a Gherkin scenario is just a normal Playwright test with a nicer
+front end.
+
+Its diffs are close to unreviewable — a single-comment `.feature` edit tends
+to change a handful of line-number integers inside one large minified JSON
+blob, so GitHub renders one giant red line and one giant green line. That's a
+known, accepted cost of one repo-wide rule (#273), not a bug.
 
 ## Selectors: accessible roles, not test IDs
 
