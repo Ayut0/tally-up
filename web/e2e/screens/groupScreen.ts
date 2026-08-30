@@ -69,4 +69,14 @@ export class GroupScreen {
   async expectOnGroupPage(): Promise<void> {
     await expect(this.page.getByRole("link", { name: "Add expense" })).toBeVisible();
   }
+
+  /**
+   * page.tsx's error branch (a failed `useGroupData`/`useGroupHistory`
+   * query) renders the API's own message verbatim. TanStack Query's default
+   * `retry: 3` still runs against a 404 before settling into this state, so
+   * this gets a longer timeout than the rest of the suite's assertions.
+   */
+  async expectError(message: string): Promise<void> {
+    await expect(this.page.getByText(message)).toBeVisible({ timeout: 15_000 });
+  }
 }

@@ -31,3 +31,18 @@ When("the second phone reopens the invite link", async ({ group, secondPhone }) 
 Then("the second phone is not asked again", async ({ secondPhone }) => {
   await secondPhone.group.expectOnGroupPage();
 });
+
+// The inverse of the persistence assertion above: a browser that has never
+// picked has nothing in localStorage to remember, so reopening the same
+// link must show the picker again, not skip it.
+Then("the second phone is asked who they are", async ({ secondPhone }) => {
+  await secondPhone.join.expectShown();
+});
+
+When("a second phone opens a broken invite link", async ({ secondPhone }) => {
+  await secondPhone.join.openBrokenLink();
+});
+
+Then("the second phone sees a {string} error", async ({ secondPhone }, message: string) => {
+  await secondPhone.group.expectError(message);
+});

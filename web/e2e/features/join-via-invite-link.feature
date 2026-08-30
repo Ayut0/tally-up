@@ -16,3 +16,16 @@ Feature: A friend opens the invite link and picks who they are
     Then the second phone lands on the group page
     When the second phone reopens the invite link
     Then the second phone is not asked again
+
+  Scenario: A second phone that hasn't picked yet is still asked on reopen
+    Given a group named "Kyoto trip" with members:
+      | name |
+      | Yuto |
+      | Aoi  |
+    When a second phone opens the invite link
+    And the second phone reopens the invite link
+    Then the second phone is asked who they are
+
+  Scenario: A broken invite link shows an error, not the picker
+    When a second phone opens a broken invite link
+    Then the second phone sees a "group not found" error
