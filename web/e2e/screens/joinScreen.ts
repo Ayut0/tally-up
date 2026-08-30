@@ -15,7 +15,7 @@ export class JoinScreen {
   }
 
   /**
-   * A syntactically valid group id nothing created — for the broken-link
+   * A syntactically valid group id that nothing created — for the broken-link
    * scenario, where the group page itself (not JoinPicker) has to render
    * the API's 404 (GET /groups/{id}).
    */
