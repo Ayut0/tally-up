@@ -122,6 +122,28 @@ against the same database at the same time.** The Go helper's truncation will
 delete the groups a running scenario is mid-way through using. In CI they get
 separate Postgres service containers, so this only bites locally.
 
+## Multi-phone scenarios
+
+Most scenarios only ever need one browser: `e2e/steps/fixtures.ts` binds
+`home`/`group`/`addExpense` to Playwright's default `page`, and the default
+`page`'s browser context is always the group's creator — `useCreateGroupForm`
+calls `setIdentity` at creation time, so that browser is never asked to join.
+
+A scenario that needs a _second_ phone — one that has never seen the group,
+the way the join flow (`JoinPicker`, `lib/identity.ts`) actually gets
+exercised — asks for the `secondPhone` fixture instead of `page`. It hands
+back the same screen set (`home`, `group`, `addExpense`, `join`) built on a
+fresh `browser.newContext()`, so a step reads
+`await secondPhone.join.pickMember(name)` the same way it reads
+`await group.expectLoaded(name)` for the first phone. The new context has its
+own cookie jar and storage partition — unrelated to the default `page`'s — so
+it never carries the first phone's `localStorage` identity, regardless of
+whether it's created before or after the group exists.
+
+This fixture is deliberately generic (not "the joining phone" or anything
+join-scenario-specific): any scenario needing a second, isolated browser asks
+for `secondPhone` and gets a full screen set to drive it with.
+
 ## Adding a scenario
 
 1. Write the Gherkin first, in domain language. If you can't say it without
