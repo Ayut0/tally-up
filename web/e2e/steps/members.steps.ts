@@ -25,13 +25,10 @@ When("{word} joins the group", async ({ members }, name: string) => {
   await members.add(name);
 });
 
-Then(
-  "{word} is available to split expenses with",
-  async ({ group, addExpense }, name: string) => {
-    await group.startAddingExpense();
-    await addExpense.expectParticipant(name);
-  },
-);
+Then("{word} is available to split expenses with", async ({ group, addExpense }, name: string) => {
+  await group.startAddingExpense();
+  await addExpense.expectParticipant(name);
+});
 
 When("{word} tries to leave the group", async ({ members }, name: string) => {
   await attemptRemove(members, name);
