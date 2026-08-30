@@ -40,26 +40,32 @@ export default function OwesPage() {
         </Link>
       </div>
 
-      {pairs.length === 0 ? (
-        <Text variant="muted">All settled up — nobody owes anybody anything.</Text>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {pairs.map((pair) => (
-            <li
-              key={`${pair.debtor_id}:${pair.creditor_id}`}
-              className="flex flex-col rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
-            >
-              <Text variant="body">
-                {nameOf(pair.debtor_id)} <span className="text-zinc-500">owes</span>{" "}
-                {nameOf(pair.creditor_id)}
-              </Text>
-              <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
-                ¥{pair.amount.toLocaleString("ja-JP")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* aria-label, not a heading: the "Who owes whom" caption above is a
+          Text "heading" variant, but the results themselves — list or
+          settled message — are otherwise an unnamed generic, same gap #271
+          closed for Balances/History (see balanceList.tsx). */}
+      <section aria-label="Who owes whom">
+        {pairs.length === 0 ? (
+          <Text variant="muted">All settled up — nobody owes anybody anything.</Text>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {pairs.map((pair) => (
+              <li
+                key={`${pair.debtor_id}:${pair.creditor_id}`}
+                className="flex flex-col rounded-lg border border-black/[.08] px-4 py-2 dark:border-white/[.145]"
+              >
+                <Text variant="body">
+                  {nameOf(pair.debtor_id)} <span className="text-zinc-500">owes</span>{" "}
+                  {nameOf(pair.creditor_id)}
+                </Text>
+                <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                  ¥{pair.amount.toLocaleString("ja-JP")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
