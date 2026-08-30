@@ -2,6 +2,7 @@ import { test as base } from "playwright-bdd";
 import { AddExpenseScreen } from "../screens/addExpenseScreen";
 import { GroupScreen } from "../screens/groupScreen";
 import { HomeScreen } from "../screens/homeScreen";
+import { MembersScreen } from "../screens/membersScreen";
 
 /**
  * Screens are handed to steps as Playwright fixtures rather than constructed
@@ -16,6 +17,7 @@ type Screens = {
   home: HomeScreen;
   group: GroupScreen;
   addExpense: AddExpenseScreen;
+  members: MembersScreen;
 };
 
 export const test = base.extend<Screens>({
@@ -27,6 +29,9 @@ export const test = base.extend<Screens>({
   },
   addExpense: async ({ page }, use) => {
     await use(new AddExpenseScreen(page));
+  },
+  members: async ({ page }, use) => {
+    await use(new MembersScreen(page));
   },
 });
 
