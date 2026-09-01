@@ -43,6 +43,22 @@ export class AddExpenseScreen {
     await expect(this.page.getByRole("button", { name: `✓ ${memberName}` })).toBeVisible();
   }
 
+  /**
+   * The "Who shared it?" pills (participantPills.tsx). Every member starts
+   * checked, so this is how a scenario removes someone; clicking again would
+   * re-add them. Accessible name is `"✓ " + name` when checked, bare `name`
+   * otherwise — Playwright's default substring match for `name` finds the
+   * pill either way, without needing to know its current state.
+   */
+  async toggleParticipant(memberName: string): Promise<void> {
+    await this.page.getByRole("button", { name: memberName }).click();
+  }
+
+  /** Exact-mode's per-row amount field (splitModeSection.tsx), labelled per participant. */
+  async fillExactAmount(memberName: string, yen: number): Promise<void> {
+    await this.page.getByLabel(`${memberName}'s exact amount`).fill(String(yen));
+  }
+
   async fillMemo(memo: string): Promise<void> {
     await this.page.getByLabel("Memo").fill(memo);
   }

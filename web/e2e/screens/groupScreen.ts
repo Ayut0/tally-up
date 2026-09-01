@@ -48,4 +48,40 @@ export class GroupScreen {
     await this.page.getByRole("link", { name: "Add expense" }).click();
     await this.page.waitForURL(/\/g\/[0-9a-f-]{36}\/add$/);
   }
+
+  async viewWhoOwesWhom(): Promise<void> {
+    await this.page.getByRole("link", { name: "Who owes whom" }).click();
+    await this.page.waitForURL(/\/g\/[0-9a-f-]{36}\/owes$/);
+  }
+
+  /**
+   * There is no separate invite route — the group URL *is* the invite link
+   * (docs/architecture.md §2). Read it off the page rather than
+   * reconstructing `/g/<id>`, so the join scenario never encodes routing
+   * the app owns.
+   */
+  inviteLink(): string {
+    return this.page.url();
+  }
+
+  /**
+   * The floating "Add expense" action only renders once this browser has
+   * an identity for the group (page.tsx) — `JoinPicker` never shows it,
+   * even though it renders the same group-name heading. That makes this a
+   * real positive check that a browser is past the picker, not a vacuous
+   * "picker disappeared" (see e2e/README.md and issue #277's gotchas).
+   */
+  async expectOnGroupPage(): Promise<void> {
+    await expect(this.page.getByRole("link", { name: "Add expense" })).toBeVisible();
+  }
+
+  /**
+   * page.tsx's error branch (a failed `useGroupData`/`useGroupHistory`
+   * query) renders the API's own message verbatim. TanStack Query's default
+   * `retry: 3` still runs against a 404 before settling into this state, so
+   * this gets a longer timeout than the rest of the suite's assertions.
+   */
+  async expectError(message: string): Promise<void> {
+    await expect(this.page.getByText(message)).toBeVisible({ timeout: 15_000 });
+  }
 }
