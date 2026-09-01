@@ -3,6 +3,7 @@ import { AddExpenseScreen } from "../screens/addExpenseScreen";
 import { GroupScreen } from "../screens/groupScreen";
 import { HomeScreen } from "../screens/homeScreen";
 import { JoinScreen } from "../screens/joinScreen";
+import { MembersScreen } from "../screens/membersScreen";
 import { OwesScreen } from "../screens/owesScreen";
 
 /**
@@ -18,6 +19,7 @@ type Screens = {
   home: HomeScreen;
   group: GroupScreen;
   addExpense: AddExpenseScreen;
+  members: MembersScreen;
   owes: OwesScreen;
   secondPhone: Phone;
 };
@@ -45,6 +47,9 @@ export const test = base.extend<Screens>({
   },
   addExpense: async ({ page }, use) => {
     await use(new AddExpenseScreen(page));
+  },
+  members: async ({ page }, use) => {
+    await use(new MembersScreen(page));
   },
   owes: async ({ page }, use) => {
     await use(new OwesScreen(page));

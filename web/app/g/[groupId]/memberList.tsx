@@ -16,7 +16,12 @@ export function MemberList({ groupId, members }: { groupId: string; members: Mem
   const removingConfirmed = confirmingMember !== null && remove.isRemoving(confirmingMember.id);
 
   return (
-    <section className="flex flex-col gap-2">
+    // aria-label, not a heading: the "Members" caption is a Text
+    // "section-heading" variant (a styled <p>, not an <h*>), so without this
+    // the section is an unnamed generic — same gap #271 closed for
+    // Balances/History (see balanceList.tsx), and the E2E suite's
+    // role-based lookups (e2e/screens/membersScreen.ts) need it too.
+    <section aria-label="Members" className="flex flex-col gap-2">
       <Text variant="section-heading">Members</Text>
       <ul className="flex flex-col gap-1">
         {members.map((member) => (

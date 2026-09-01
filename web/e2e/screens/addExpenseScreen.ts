@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /** The split modes the UI offers, as labelled on the tab strip. */
 export type SplitMode = "Equal" | "Exact" | "Shares" | "Percent";
@@ -29,6 +29,18 @@ export class AddExpenseScreen {
 
   async chooseSplitMode(mode: SplitMode): Promise<void> {
     await this.page.getByRole("tab", { name: mode }).click();
+  }
+
+  /**
+   * Asserts a member shows as a checked "Who shared it?" pill
+   * (ParticipantPills renders a checked pill's accessible name as
+   * `"✓ " + name`). Proves more than presence in the member list: the
+   * form's default participants come from `group.members` at mount
+   * (useAddExpenseForm), so this only passes if the add actually landed in
+   * the shared group-query cache the add-expense screen reads too.
+   */
+  async expectParticipant(memberName: string): Promise<void> {
+    await expect(this.page.getByRole("button", { name: `✓ ${memberName}` })).toBeVisible();
   }
 
   /**
