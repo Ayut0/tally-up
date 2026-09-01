@@ -5,6 +5,7 @@ import { HomeScreen } from "../screens/homeScreen";
 import { JoinScreen } from "../screens/joinScreen";
 import { MembersScreen } from "../screens/membersScreen";
 import { OwesScreen } from "../screens/owesScreen";
+import { SettleScreen } from "../screens/settleScreen";
 
 /**
  * Screens are handed to steps as Playwright fixtures rather than constructed
@@ -21,6 +22,7 @@ type Screens = {
   addExpense: AddExpenseScreen;
   members: MembersScreen;
   owes: OwesScreen;
+  settle: SettleScreen;
   secondPhone: Phone;
 };
 
@@ -36,6 +38,7 @@ export type Phone = {
   group: GroupScreen;
   addExpense: AddExpenseScreen;
   join: JoinScreen;
+  settle: SettleScreen;
 };
 
 export const test = base.extend<Screens>({
@@ -54,6 +57,9 @@ export const test = base.extend<Screens>({
   owes: async ({ page }, use) => {
     await use(new OwesScreen(page));
   },
+  settle: async ({ page }, use) => {
+    await use(new SettleScreen(page));
+  },
   // `browser.newContext()` gets its own cookie jar and storage partition,
   // unrelated to the default `page`'s context — so this phone never carries
   // the first phone's `localStorage` identity, no matter whether it's
@@ -68,6 +74,7 @@ export const test = base.extend<Screens>({
       group: new GroupScreen(page),
       addExpense: new AddExpenseScreen(page),
       join: new JoinScreen(page),
+      settle: new SettleScreen(page),
     });
     await context.close();
   },
