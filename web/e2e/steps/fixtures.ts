@@ -3,6 +3,7 @@ import { AddExpenseScreen } from "../screens/addExpenseScreen";
 import { GroupScreen } from "../screens/groupScreen";
 import { HomeScreen } from "../screens/homeScreen";
 import { JoinScreen } from "../screens/joinScreen";
+import { OwesScreen } from "../screens/owesScreen";
 
 /**
  * Screens are handed to steps as Playwright fixtures rather than constructed
@@ -17,6 +18,7 @@ type Screens = {
   home: HomeScreen;
   group: GroupScreen;
   addExpense: AddExpenseScreen;
+  owes: OwesScreen;
   secondPhone: Phone;
 };
 
@@ -43,6 +45,9 @@ export const test = base.extend<Screens>({
   },
   addExpense: async ({ page }, use) => {
     await use(new AddExpenseScreen(page));
+  },
+  owes: async ({ page }, use) => {
+    await use(new OwesScreen(page));
   },
   // `browser.newContext()` gets its own cookie jar and storage partition,
   // unrelated to the default `page`'s context — so this phone never carries
