@@ -32,3 +32,37 @@ Feature: Settling up on the proposed plan
       | member | balance |
       | Yuto   | ¥0      |
       | Aoi    | ¥0      |
+
+  Scenario: Marking one of several transfers paid leaves the rest of the plan intact
+    Given a group named "Kyoto trip" with members:
+      | name |
+      | Yuto |
+      | Aoi  |
+      | Ren  |
+    When Yuto adds an expense of ¥3000 for "dinner" split equally
+    And someone views the settle plan
+    # Yuto is the sole payer, so both Aoi and Ren owe their 1000-yen share
+    # straight to him — the minimal plan is exactly these two transfers,
+    # unambiguous regardless of solver ordering.
+    Then the settle plan proposes:
+      | from | to   | amount |
+      | Aoi  | Yuto | ¥1,000 |
+      | Ren  | Yuto | ¥1,000 |
+    When Aoi pays Yuto ¥1000
+    # The one-transfer scenario above can't tell a correct recompute apart
+    # from a buggy local copy that just always shows whatever it last saw —
+    # there's nothing left to have kept. With two transfers, this is real
+    # proof of #150: exactly the paid row drops, the other stays untouched.
+    Then the settle plan no longer proposes Aoi pays Yuto
+    And the settle plan proposes:
+      | from | to   | amount |
+      | Ren  | Yuto | ¥1,000 |
+    When someone returns to the group
+    # Aoi's share is cleared but Ren's isn't — a genuinely partial
+    # settlement, not the group's end state, which is what makes this a
+    # different case from the scenario above rather than a rerun of it.
+    And the balances are:
+      | member | balance |
+      | Yuto   | +¥1,000 |
+      | Aoi    | ¥0      |
+      | Ren    | −¥1,000 |

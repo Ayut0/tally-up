@@ -25,6 +25,16 @@ export class SettleScreen {
   }
 
   /**
+   * The negative half of `expectProposes`: proves a specific transfer's row
+   * is gone, not just that the plan as a whole is non-empty. Auto-retries
+   * (Playwright's default `toHaveCount` polling) rather than a fixed sleep,
+   * since the row disappearing depends on the next poll landing.
+   */
+  async expectGone(fromName: string, toName: string): Promise<void> {
+    await expect(this.row(fromName, toName)).toHaveCount(0);
+  }
+
+  /**
    * Clicks "Mark paid" for one proposed transfer. Deliberately does not wait
    * for the row to disappear here — every row disables while any record is
    * in flight, and the plan only recomputes on its next poll, so the honest

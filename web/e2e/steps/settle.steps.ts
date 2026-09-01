@@ -26,6 +26,13 @@ Then("the settle plan is empty", async ({ settle }) => {
   await settle.expectEmpty();
 });
 
+Then(
+  "the settle plan no longer proposes {word} pays {word}",
+  async ({ settle }, fromName: string, toName: string) => {
+    await settle.expectGone(fromName, toName);
+  },
+);
+
 When("someone returns to the group", async ({ settle }) => {
   await settle.returnToGroup();
 });
