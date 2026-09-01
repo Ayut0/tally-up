@@ -36,6 +36,7 @@ export type Phone = {
   group: GroupScreen;
   addExpense: AddExpenseScreen;
   join: JoinScreen;
+  settle: SettleScreen;
 };
 
 export const test = base.extend<Screens>({
@@ -68,6 +69,7 @@ export const test = base.extend<Screens>({
       group: new GroupScreen(page),
       addExpense: new AddExpenseScreen(page),
       join: new JoinScreen(page),
+      settle: new SettleScreen(page),
     });
     await context.close();
   },

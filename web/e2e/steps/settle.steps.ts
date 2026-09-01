@@ -36,3 +36,18 @@ Then(
 When("someone returns to the group", async ({ settle }) => {
   await settle.returnToGroup();
 });
+
+When("the second phone views the settle plan", async ({ secondPhone }) => {
+  await secondPhone.group.viewSettlePlan();
+});
+
+// A second phone doing the marking, not "someone" — this is what actually
+// exercises #150's concurrency defence: the write comes from a browser the
+// first phone's plan (`settle`) never touches, so the first phone's own
+// screen has no way to know except its next poll.
+When(
+  "the second phone marks {word} pays {word} ¥{int}",
+  async ({ secondPhone }, fromName: string, toName: string, yen: number) => {
+    await secondPhone.settle.pay(fromName, toName, yen);
+  },
+);
