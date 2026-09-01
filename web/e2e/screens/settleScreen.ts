@@ -29,9 +29,17 @@ export class SettleScreen {
    * is gone, not just that the plan as a whole is non-empty. Auto-retries
    * (Playwright's default `toHaveCount` polling) rather than a fixed sleep,
    * since the row disappearing depends on the next poll landing.
+   *
+   * A same-browser write invalidates the query immediately, so this settles
+   * fast in practice — but a write from a *different* browser (the
+   * concurrent-settle scenario) has no invalidation to ride on here: the
+   * 5s poll interval (`useSettlePlan.ts`) is the only thing that will ever
+   * make this locator's count change. Playwright's 5000ms default timeout
+   * would then be racing that exact interval, so this needs headroom past
+   * it rather than reusing the default.
    */
   async expectGone(fromName: string, toName: string): Promise<void> {
-    await expect(this.row(fromName, toName)).toHaveCount(0);
+    await expect(this.row(fromName, toName)).toHaveCount(0, { timeout: 7_000 });
   }
 
   /**
