@@ -54,6 +54,11 @@ export class GroupScreen {
     await this.page.waitForURL(/\/g\/[0-9a-f-]{36}\/owes$/);
   }
 
+  async viewSettlePlan(): Promise<void> {
+    await this.page.getByRole("link", { name: "Settle up" }).click();
+    await this.page.waitForURL(/\/g\/[0-9a-f-]{36}\/settle$/);
+  }
+
   /**
    * There is no separate invite route — the group URL *is* the invite link
    * (docs/architecture.md §2). Read it off the page rather than
