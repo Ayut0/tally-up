@@ -17,14 +17,43 @@ import (
 	"tallyup/internal/application/creategroup"
 	"tallyup/internal/application/proposesettleplan"
 	"tallyup/internal/infrastructure/postgres"
+	"tallyup/internal/infrastructure/slackalert"
 	"tallyup/internal/interfaces/rest"
 )
 
 func main() {
-	if err := run(); err != nil {
-		slog.Error("fatal", "err", err)
-		os.Exit(1)
+	os.Exit(mainWithExitCode())
+}
+
+// mainWithExitCode holds everything main would otherwise do directly: an
+// os.Exit call in main itself would skip any pending defer (notably
+// cancelAlerts below), so main just relays the exit code this returns.
+func mainWithExitCode() int {
+	// A dedicated context, independent of run()'s signal-bound one, so the
+	// worker survives long enough to send an alert about run() itself
+	// failing (e.g. a missing DATABASE_URL at boot).
+	alertCtx, cancelAlerts := context.WithCancel(context.Background())
+	defer cancelAlerts()
+
+	var alerts *slackalert.Handler
+	if webhookURL := os.Getenv("SLACK_WEBHOOK_URL"); webhookURL != "" {
+		alerts = slackalert.NewHandler(alertCtx, slog.Default().Handler(), &slackalert.WebhookNotifier{URL: webhookURL})
+		slog.SetDefault(slog.New(alerts))
 	}
+
+	err := run()
+	if err != nil {
+		slog.Error("fatal", "err", err)
+	}
+	if alerts != nil {
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		alerts.Flush(flushCtx)
+		cancel()
+	}
+	if err != nil {
+		return 1
+	}
+	return 0
 }
 
 // run holds everything that used to live in main directly. Splitting it out
