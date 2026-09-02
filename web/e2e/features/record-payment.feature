@@ -23,7 +23,7 @@ Feature: Recording a payment that isn't on the plan
     # Reached via the settle plan's own link, not a raw goto — that's what
     # makes this a user's path, and the only way to actually exercise the
     # deep link (?payer=Aoi&counterparty=Yuto) rather than assume it's wired.
-    When Aoi opens "Different amount" for paying Yuto
+    When Aoi asks to pay Yuto a different amount
     # Asserted before anything is typed. A step that fills every field
     # itself would pass whether or not the query params were ever read.
     Then the payment form is prefilled with payer Aoi and counterparty Yuto

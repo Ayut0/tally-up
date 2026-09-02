@@ -4,7 +4,7 @@ import { test } from "./fixtures";
 const { When, Then } = createBdd(test);
 
 When(
-  '{word} opens "Different amount" for paying {word}',
+  "{word} asks to pay {word} a different amount",
   async ({ settle }, fromName: string, toName: string) => {
     await settle.openDifferentAmount(fromName, toName);
   },
