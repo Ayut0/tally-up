@@ -5,6 +5,7 @@ import { HomeScreen } from "../screens/homeScreen";
 import { JoinScreen } from "../screens/joinScreen";
 import { MembersScreen } from "../screens/membersScreen";
 import { OwesScreen } from "../screens/owesScreen";
+import { RecordPaymentScreen } from "../screens/recordPaymentScreen";
 import { SettleScreen } from "../screens/settleScreen";
 
 /**
@@ -23,6 +24,7 @@ type Screens = {
   members: MembersScreen;
   owes: OwesScreen;
   settle: SettleScreen;
+  recordPayment: RecordPaymentScreen;
   secondPhone: Phone;
 };
 
@@ -59,6 +61,9 @@ export const test = base.extend<Screens>({
   },
   settle: async ({ page }, use) => {
     await use(new SettleScreen(page));
+  },
+  recordPayment: async ({ page }, use) => {
+    await use(new RecordPaymentScreen(page));
   },
   // `browser.newContext()` gets its own cookie jar and storage partition,
   // unrelated to the default `page`'s context — so this phone never carries
