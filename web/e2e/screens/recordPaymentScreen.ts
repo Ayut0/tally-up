@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 
 /**
@@ -52,5 +53,24 @@ export class RecordPaymentScreen {
     // Success navigates back to the group home; staying put means the write
     // failed and the form is showing an error.
     await this.page.waitForURL(/\/g\/[0-9a-f-]{36}$/);
+  }
+
+  /**
+   * A syntactically valid group id that nothing created — same shape as
+   * JoinScreen.openBrokenLink, but for this screen's own error branch
+   * (useGroupAndBalance), not the group page's.
+   */
+  async openBroken(): Promise<void> {
+    await this.page.goto(`/g/${randomUUID()}/record-payment`);
+  }
+
+  /**
+   * page.tsx's error branch renders the API's own message verbatim.
+   * TanStack Query's default `retry: 3` still runs against a 404 before
+   * settling into this state, hence the longer timeout (mirrors
+   * GroupScreen.expectError).
+   */
+  async expectError(message: string): Promise<void> {
+    await expect(this.page.getByText(message)).toBeVisible({ timeout: 15_000 });
   }
 }

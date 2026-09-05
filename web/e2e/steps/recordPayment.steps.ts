@@ -29,3 +29,11 @@ When(
     await recordPayment.submit();
   },
 );
+
+When("someone opens a broken record-payment link", async ({ recordPayment }) => {
+  await recordPayment.openBroken();
+});
+
+Then("someone sees a {string} error", async ({ recordPayment }, message: string) => {
+  await recordPayment.expectError(message);
+});

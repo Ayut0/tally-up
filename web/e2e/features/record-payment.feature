@@ -44,3 +44,40 @@ Feature: Recording a payment that isn't on the plan
       | Aoi  | Yuto | ¥400   |
     When someone returns to the group
     And the history shows "cash tonight" paid by Aoi
+
+  Scenario: Overpaying flips who owes whom
+    Given a group named "Kyoto trip" with members:
+      | name |
+      | Yuto |
+      | Aoi  |
+    When Yuto adds an expense of ¥2000 for "dinner" split equally
+    And someone views the settle plan
+    Then the settle plan proposes:
+      | from | to   | amount |
+      | Aoi  | Yuto | ¥1,000 |
+    When Aoi asks to pay Yuto a different amount
+    Then the payment form is prefilled with payer Aoi and counterparty Yuto
+    # Aoi hands over more than her ¥1,000 debt — allowed (#122): a
+    # settlement is a ledger entry like any other, not capped at what's
+    # currently owed. The ¥500 overpaid becomes a debt in the other
+    # direction, not a rejected request or a balance clamped to ¥0.
+    When Aoi pays Yuto ¥1500 with memo "rounding up"
+    Then the balances are:
+      | member | balance |
+      | Yuto   | −¥500   |
+      | Aoi    | +¥500   |
+    When someone views the settle plan
+    # Direction reversed from every other assertion in this feature: Yuto
+    # is now the one who owes. Proof the ledger tracked a real net amount
+    # rather than just marking the original debt "settled".
+    Then the settle plan proposes:
+      | from | to   | amount |
+      | Yuto | Aoi  | ¥500   |
+
+  Scenario: A stale record-payment link shows an error, not a blank form
+    # No group setup — this link was never good. record-payment/page.tsx
+    # has its own error branch fed by useGroupAndBalance, a different hook
+    # from the group page's, so this isn't covered by
+    # join-via-invite-link.feature's own broken-link scenario.
+    When someone opens a broken record-payment link
+    Then someone sees a "group not found" error
