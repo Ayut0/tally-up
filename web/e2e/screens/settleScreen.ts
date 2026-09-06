@@ -61,6 +61,20 @@ export class SettleScreen {
       .click();
   }
 
+  /**
+   * The "Different amount" escape hatch (#161) on one proposed transfer's
+   * row — deep-links to record-payment with payer/counterparty prefilled.
+   * Playwright's default substring match on `name` means the amount the
+   * real aria-label also carries (`Different amount: {description}`)
+   * doesn't need reproducing here.
+   */
+  async openDifferentAmount(fromName: string, toName: string): Promise<void> {
+    await this.page
+      .getByRole("link", { name: `Different amount: ${fromName} pays ${toName}` })
+      .click();
+    await this.page.waitForURL(/\/record-payment\?/);
+  }
+
   async expectEmpty(): Promise<void> {
     await expect(this.page.getByText("All settled up — every balance is ¥0.")).toBeVisible();
   }
