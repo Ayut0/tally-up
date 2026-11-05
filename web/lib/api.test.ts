@@ -3,6 +3,7 @@ import { zEntryAck } from "./api-schemas/zod.gen";
 import {
   addEntry,
   addMember,
+  apiUrl,
   createGroup,
   getBalance,
   getGroup,
@@ -400,5 +401,30 @@ describe("removeMember", () => {
       status: 409,
       message: "member has a nonzero balance; settle up before removing",
     });
+  });
+});
+
+describe("apiUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to the local Go server when NEXT_PUBLIC_API_URL is unset", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", undefined);
+    expect(apiUrl("/groups")).toBe("http://localhost:8080/groups");
+  });
+
+  it("joins the base and path with exactly one slash", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com");
+    expect(apiUrl("/groups")).toBe("https://api.example.com/groups");
+  });
+
+  // A trailing slash in the env var (easy to paste from a browser address bar)
+  // used to yield `//groups`, which the Go mux answers with a 301 — and a
+  // browser turns a redirected POST into a GET, so group creation silently
+  // failed in the browser.
+  it("ignores trailing slashes on NEXT_PUBLIC_API_URL", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com//");
+    expect(apiUrl("/groups")).toBe("https://api.example.com/groups");
   });
 });

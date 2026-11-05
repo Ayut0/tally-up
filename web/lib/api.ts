@@ -37,9 +37,14 @@ export class ApiError extends Error {
   }
 }
 
-/** Prefixes `path` with `NEXT_PUBLIC_API_URL`, defaulting to the Go server's dev address. */
+/**
+ * Prefixes `path` with `NEXT_PUBLIC_API_URL`, defaulting to the Go server's dev
+ * address. Trailing slashes on the base are dropped: `//groups` is answered by
+ * the Go mux with a 301, which a browser follows as a GET, so a POST silently
+ * fails.
+ */
 export function apiUrl(path: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/+$/, "");
   return `${base}${path}`;
 }
 
