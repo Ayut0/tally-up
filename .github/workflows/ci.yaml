@@ -18,6 +18,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # Lets deploy-staging.yaml call this workflow as a gate (#260) instead of
+  # restating these steps or racing it via `workflow_run`. Additive: the
+  # triggers above are unchanged.
+  workflow_call:
 
 # A newer push to the same ref supersedes the run already in flight.
 concurrency:

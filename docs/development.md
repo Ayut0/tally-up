@@ -69,6 +69,15 @@ build` and the Storybook interaction tests entered on — so a flaky
 first-generation E2E suite can't block a merge. See
 [ADR 0006](adr/0006-gherkin-e2e-tier.md).
 
+`ci.yaml` also declares `workflow_call`, so
+[`deploy-staging.yaml`](../.github/workflows/deploy-staging.yaml) can call it
+as a gate: every merge to `main` runs CI, and only a green run deploys the API
+to the Fly staging app and smoke-checks `/healthz` (#260). It needs the repo
+secret `FLY_API_TOKEN_STAGING` from #259 and fails with an explicit message
+until that exists. It can also be started by hand from the Actions tab
+(`workflow_dispatch`); the deploy job only runs for `main`. The e2e job is
+`continue-on-error`, so it delays but never blocks the deploy.
+
 Before the suite runs, the `e2e` job also checks `web/.features-gen/`
 (bddgen's compiled output, committed per #273) isn't stale relative to
 `e2e/features/*.feature` — the same class of gap `sqlc-check` and

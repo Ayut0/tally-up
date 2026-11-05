@@ -1,0 +1,90 @@
+name: Deploy staging
+
+# Every merge to `main` deploys the API to the Fly staging app, with no human
+# in the loop (#260). Production is a different trigger, gate, and ticket.
+#
+# Operator setup (#259): the Fly app `tallyup-api-staging` must exist, with
+# its `DATABASE_URL` / `CORS_ORIGIN` secrets set on Fly, and the repo secret
+# `FLY_API_TOKEN_STAGING` must hold an app-scoped deploy token
+# (`flyctl tokens create deploy -a tallyup-api-staging`) — never a personal
+# access token, so this workflow cannot reach production.
+#
+# `workflow_dispatch` is there so a deploy can be started by hand (including
+# from a phone via the Actions tab). The deploy job only runs for `main`, so
+# running it from another branch tests CI but never ships that branch.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer merge supersedes a deploy that is still in flight. The group name is
+# deliberately NOT `${{ github.workflow }}-...`: the called ci.yaml evaluates
+# `github.workflow` as this workflow's name, so reusing that shape here would
+# give caller and callee the same group.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+# Least privilege, same stance as ci.yaml: this workflow only ever reads the
+# tree. The Fly credential is a secret, not a GitHub permission.
+permissions:
+  contents: read
+
+jobs:
+  # Gate on CI by calling it, so the check has exactly one definition (the
+  # same principle ci.yaml applies to the Makefile). A red run blocks `deploy`.
+  ci:
+    uses: ./.github/workflows/ci.yaml
+
+  deploy:
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FLY_APP: tallyup-api-staging
+
+    # Third-party actions are pinned to commit SHAs, not tags — more important
+    # here than in CI: a repointed upstream tag would run with a credential
+    # that can reach a database. The trailing comment is the human-readable
+    # version; update both together.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The token is passed only to the steps that use it, not set job-wide,
+      # so the third-party actions above and below never see it.
+      - name: Require the staging deploy token
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_API_TOKEN_STAGING is not set. Complete #259 (staging infrastructure) first."
+            exit 1
+          fi
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+
+      # --remote-only builds on Fly's builder, so the runner needs no Docker.
+      # Migrations apply on boot (deploy = migrate), so a bad migration fails
+      # the health check here rather than later.
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+        run: flyctl deploy --app "$FLY_APP" --remote-only
+
+      # The machine may still be waking or rolling over, so retry for about
+      # a minute. Anything other than a 200 from /healthz fails the job.
+      - name: Smoke-check /healthz
+        run: |
+          url="https://${FLY_APP}.fly.dev/healthz"
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            code=$(curl --silent --output /dev/null --max-time 10 --write-out '%{http_code}' "$url" || true)
+            echo "attempt $i: $url -> $code"
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$url did not return 200"
+          exit 1
