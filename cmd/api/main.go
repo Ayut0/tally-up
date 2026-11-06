@@ -77,6 +77,13 @@ func run() error {
 		Addr:              ":" + port,
 		Handler:           rest.NewServer(entries, s.Reads, s.Reads, s.Reads, corrections, groups, s.Groups, settlePlans, addMember, s.Groups, os.Getenv("CORS_ORIGIN")),
 		ReadHeaderTimeout: 5 * time.Second,
+		// ReadHeaderTimeout alone leaves the body read unbounded, so a client
+		// trickling a request body (slowloris) could pin a connection and its
+		// goroutine indefinitely. Bodies are capped at 1 MiB (rest.maxBodyBytes)
+		// and every handler is a short DB round-trip, so these are generous.
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 	go func() {
 		<-ctx.Done()
