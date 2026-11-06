@@ -7,8 +7,8 @@
 # Base images are pinned to digest, not a mutable tag, same reasoning as the
 # commit-SHA pins in ci.yaml — update the digest and the comment above it
 # together when bumping.
-# golang:1.25.0-alpine
-FROM golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440 AS build
+# golang:1.25.14-alpine
+FROM golang:1.25.14-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 AS build
 
 WORKDIR /src
 
