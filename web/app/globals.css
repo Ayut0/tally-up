@@ -8,9 +8,11 @@
  * HeroUI ships these same var names with its own default palette
  * (@heroui/styles/dist/themes/default/variables.css); overriding them
  * here in `:root` wins the cascade the same way this file previously
- * relied on HeroUI's un-overridden values. The handoff is light-only —
- * no dark-mode palette is specified — so `.dark`/`[data-theme="dark"]`
- * are deliberately left on HeroUI's defaults rather than guessed at.
+ * relied on HeroUI's un-overridden values. The handoff specifies no
+ * dark-mode palette, so the `.dark` block below is a warm-dark derivation
+ * of the same tokens (same hues, inverted lightness) — without it, the
+ * `:root` overrides above would win over HeroUI's dark defaults and leave
+ * light-on-light text in night mode.
  */
 :root {
   --background: #ece5d8; /* app canvas */
@@ -27,6 +29,23 @@
   --highlight-text-strong: #8a5a1d;
   --positive: oklch(0.52 0.12 150);
   --negative: oklch(0.52 0.14 25);
+}
+
+.dark {
+  --background: #1d1712;
+  --foreground: #f1e9dc;
+  --surface: #2a221b;
+  --accent: #d9784d;
+  --accent-pressed: #b4562e;
+  --accent-hover: #e58a5f;
+
+  --highlight: #4a3a1c;
+  --highlight-text: #f0d9a0;
+  --highlight-text-strong: #f6e2b0;
+  --positive: oklch(0.75 0.13 150);
+  --negative: oklch(0.72 0.14 25);
+
+  color-scheme: dark;
 }
 
 @theme inline {

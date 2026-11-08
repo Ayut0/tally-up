@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
-import { ApiError, addEntry } from "@/lib/api";
+import { ApiError, addEntry, editEntry } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { todayLocal } from "@/lib/date";
 import { EntryKind } from "@/lib/entry";
@@ -18,10 +18,30 @@ import {
   sumEntered,
   weightedPreview,
 } from "@/lib/split";
-import { mintIntent } from "@/lib/uuidv7";
+import { generateUuidV7, mintIntent } from "@/lib/uuidv7";
 
 type GroupRecord = components["schemas"]["GroupRecord"];
 type SplitRule = components["schemas"]["SplitRule"];
+type EntryRecord = components["schemas"]["EntryRecord"];
+
+/**
+ * Form defaults for editing `entry`. A recorded split rule carries its own
+ * `type` at runtime (the generated TS type omits it), and exact amounts /
+ * share counts / percentages all map onto the form's two number maps the
+ * same way the add form fills them.
+ */
+function editDefaults(entry: EntryRecord) {
+  const rule = entry.split_rule as SplitRule | undefined;
+  const mode: SplitRule["type"] = rule?.type ?? SplitMode.Equal;
+  return {
+    mode,
+    amounts: rule?.type === SplitMode.Exact ? { ...rule.amounts } : {},
+    weights:
+      rule?.type === SplitMode.Shares || rule?.type === SplitMode.Percent
+        ? { ...rule.weights }
+        : {},
+  };
+}
 
 // Every field the form tracks, whether bound via register() (totalInput,
 // memo, occurredOn, amounts, weights) or via imperative setters
@@ -51,14 +71,15 @@ const SPLIT_TABS: { mode: SplitRule["type"]; label: string }[] = [
  * reading `group` directly — no effect needed to "apply defaults once they
  * arrive".
  */
-export function useAddExpenseForm(groupId: string, group: GroupRecord) {
+export function useAddExpenseForm(groupId: string, group: GroupRecord, editing?: EntryRecord) {
   const router = useRouter();
+  const [initial] = useState(() => (editing ? editDefaults(editing) : null));
 
   // Stays useState: the split tabs are <button onClick>, not a native input
   // register() can bind, so folding `mode` into the useForm below would
   // still need a setValue(...) wrapper for `setMode` regardless — no
   // reduction in code, just moved where the value lives.
-  const [mode, setMode] = useState<SplitRule["type"]>(SplitMode.Equal);
+  const [mode, setMode] = useState<SplitRule["type"]>(initial?.mode ?? SplitMode.Equal);
 
   const {
     register,
@@ -69,13 +90,15 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     formState,
   } = useForm<FormValues>({
     defaultValues: {
-      payerId: getIdentity(groupId) ?? group.members[0]?.id ?? "",
-      participants: Object.fromEntries(group.members.map((m) => [m.id, true])),
-      totalInput: "",
-      memo: "",
-      occurredOn: todayLocal(),
-      amounts: {},
-      weights: {},
+      payerId: editing?.payer_id ?? getIdentity(groupId) ?? group.members[0]?.id ?? "",
+      participants: Object.fromEntries(
+        group.members.map((m) => [m.id, editing ? editing.participants.includes(m.id) : true]),
+      ),
+      totalInput: editing ? String(editing.total_amount) : "",
+      memo: editing?.memo ?? "",
+      occurredOn: editing?.occurred_on ?? todayLocal(),
+      amounts: initial?.amounts ?? {},
+      weights: initial?.weights ?? {},
     },
   });
 
@@ -88,7 +111,12 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
   const weights = useWatch({ control, name: "weights" });
 
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const submissionRef = useRef<{ id: string; key: string; signature: string } | null>(null);
+  const submissionRef = useRef<{
+    id: string;
+    key: string;
+    reversalId: string;
+    signature: string;
+  } | null>(null);
 
   // Imperative setters. Originally added for the renderHook test suite per
   // #138 (it can't drive register()'s DOM-bound onChange without
@@ -178,7 +206,10 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     splitValid: result.isValid,
   });
 
-  const splitTabs = SPLIT_TABS.map((tab) => ({ ...tab, active: tab.mode === mode }));
+  const splitTabs = SPLIT_TABS.map((tab) => ({
+    ...tab,
+    active: tab.mode === mode,
+  }));
   const exactRows = participantIds.map((id) => ({
     id,
     name: memberName(id),
@@ -270,9 +301,13 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
     };
     const signature = JSON.stringify(payload);
     if (submissionRef.current?.signature !== signature) {
-      submissionRef.current = { ...mintIntent(), signature };
+      submissionRef.current = {
+        ...mintIntent(),
+        reversalId: generateUuidV7(),
+        signature,
+      };
     }
-    const { id, key } = submissionRef.current;
+    const { id, key, reversalId } = submissionRef.current;
 
     setSubmitError(null);
     try {
@@ -281,7 +316,11 @@ export function useAddExpenseForm(groupId: string, group: GroupRecord) {
         id,
         ...payload,
       };
-      await addEntry(groupId, entry, key);
+      if (editing) {
+        await editEntry(groupId, editing.id, { ...entry, reversal_entry_id: reversalId }, key);
+      } else {
+        await addEntry(groupId, entry, key);
+      }
       router.push(`/g/${groupId}`);
     } catch (err) {
       setSubmitError(

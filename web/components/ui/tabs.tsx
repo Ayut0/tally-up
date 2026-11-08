@@ -65,7 +65,7 @@ export function Tabs<T extends string>({
             className={cn(
               "rounded-segment px-0 py-[9px] text-center font-sans text-[13px]",
               tab.id === value
-                ? "bg-white font-extrabold text-ink shadow-[0_1px_3px_rgba(43,33,24,.12)]"
+                ? "bg-surface font-extrabold text-ink shadow-[0_1px_3px_rgba(43,33,24,.12)]"
                 : "font-bold text-ink/50",
             )}
           >

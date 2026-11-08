@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Text } from "@/components/ui/text";
+import { ThemeToggle } from "@/components/ui/themeToggle";
 import { Wordmark } from "@/components/ui/wordmark";
 import { buildBalanceRows } from "@/lib/balance";
 import { buildHistoryRows } from "@/lib/history";
@@ -75,7 +76,10 @@ export default function GroupPage() {
             {memberCount} {memberCount === 1 ? "member" : "members"} · updates live
           </Text>
         </div>
-        <Wordmark size="sm" />
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Wordmark size="sm" />
+        </div>
       </header>
 
       {isEmpty ? (
@@ -89,6 +93,7 @@ export default function GroupPage() {
             pulsingIds={pulsingIds}
           />
           <HistoryList
+            groupId={groupId}
             rows={historyRows}
             pageSize={pageSize}
             onPageSizeChange={setPageSize}

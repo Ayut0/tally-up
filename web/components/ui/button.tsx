@@ -71,7 +71,7 @@ const PILL_SELECTED_CLASS_NAME =
   "[--button-bg:var(--foreground)] [--button-bg-hover:var(--foreground)] [--button-bg-pressed:var(--foreground)] [--button-fg:var(--background)] rounded-full gap-[7px] px-[14px] min-h-[38px] text-[14px] font-bold";
 
 const PILL_UNSELECTED_CLASS_NAME =
-  "[--button-bg:rgba(43,33,24,.08)] [--button-bg-hover:rgba(43,33,24,.08)] [--button-bg-pressed:rgba(43,33,24,.08)] [--button-fg:rgba(43,33,24,.5)] rounded-full gap-[7px] px-[14px] min-h-[38px] text-[14px] font-bold";
+  "[--button-bg:color-mix(in_srgb,var(--foreground)_8%,transparent)] [--button-bg-hover:color-mix(in_srgb,var(--foreground)_8%,transparent)] [--button-bg-pressed:color-mix(in_srgb,var(--foreground)_8%,transparent)] [--button-fg:color-mix(in_srgb,var(--foreground)_50%,transparent)] rounded-full gap-[7px] px-[14px] min-h-[38px] text-[14px] font-bold";
 
 /**
  * design-handoff.md's join-screen member row (§2, panel #1b): a white,
