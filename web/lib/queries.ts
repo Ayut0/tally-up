@@ -21,6 +21,7 @@ import { getBalance, getGroup, getPairwiseBalances, getSettlePlan, listEntries }
 import type { components } from "./api-types";
 
 type EntryList = components["schemas"]["EntryList"];
+type EntryRecord = components["schemas"]["EntryRecord"];
 
 // Ceiling for the "everything since the paging boundary" live query — the
 // backend clamps limit to this anyway (maxListLimit in reads.go), so this
@@ -115,5 +116,29 @@ export function entriesOlderInfiniteQueryOptions(
     initialPageParam: (boundarySeq ?? 0) + 1,
     getNextPageParam: (lastPage: EntryList) =>
       lastPage.has_more ? lastPage.entries[0]?.seq : undefined,
+  });
+}
+
+/**
+ * Every entry in the group, oldest first, paged forward by `after_seq`.
+ * There is no single-entry endpoint, so the detail and edit screens find
+ * theirs here — and need the full list anyway to know whether a later
+ * reversal has retired it. Lives under `entriesKey` so a write's
+ * invalidation of that prefix reaches it.
+ */
+export function allEntriesQueryOptions(groupId: string) {
+  return queryOptions({
+    queryKey: [...entriesKey(groupId), "all"] as const,
+    queryFn: async (): Promise<EntryRecord[]> => {
+      const all: EntryRecord[] = [];
+      let afterSeq = 0;
+      for (;;) {
+        const page = await listEntries(groupId, afterSeq, undefined, LIVE_TAIL_LIMIT);
+        all.push(...page.entries);
+        const last = page.entries[page.entries.length - 1];
+        if (!page.has_more || !last) return all;
+        afterSeq = last.seq;
+      }
+    },
   });
 }

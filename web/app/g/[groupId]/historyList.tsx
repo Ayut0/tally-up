@@ -1,16 +1,24 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { Text } from "@/components/ui/text";
 import type { HistoryRow } from "@/lib/history";
 import { PAGE_SIZES, type PageSize } from "./useGroupHistory";
 
-const PAGE_SIZE_TABS = PAGE_SIZES.map((size) => ({ id: String(size), label: String(size) }));
+const PAGE_SIZE_TABS = PAGE_SIZES.map((size) => ({
+  id: String(size),
+  label: String(size),
+}));
 
 /** design-handoff.md: deleted/corrected entries never leave the list — they render struck-through, in place, permanently. */
-function HistoryCard({ row }: { row: HistoryRow }) {
+function HistoryCard({ row, groupId }: { row: HistoryRow; groupId: string }) {
+  const href = `/g/${groupId}/entries/${row.id}`;
   if (row.struck) {
     return (
-      <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-dashed border-ink/[.15] bg-white/50 px-4 py-[13px]">
+      <Link
+        href={href}
+        className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-dashed border-ink/[.15] bg-surface/50 px-4 py-[13px]"
+      >
         <div className="min-w-0 flex-1">
           <Text variant="body" className="text-[15px] font-bold text-ink/40 line-through">
             {row.label}
@@ -25,11 +33,14 @@ function HistoryCard({ row }: { row: HistoryRow }) {
         >
           {row.formattedAmount}
         </Text>
-      </div>
+      </Link>
     );
   }
   return (
-    <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-ink/[.12] bg-surface px-4 py-[13px]">
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-ink/[.12] bg-surface px-4 py-[13px]"
+    >
       <div className="min-w-0 flex-1">
         <Text variant="body" className="text-[15px] font-bold text-ink">
           {row.label}
@@ -41,11 +52,12 @@ function HistoryCard({ row }: { row: HistoryRow }) {
       <Text variant="body" className="font-mono text-[15.5px] font-bold text-ink tabular-nums">
         {row.formattedAmount}
       </Text>
-    </div>
+    </Link>
   );
 }
 
 export function HistoryList({
+  groupId,
   rows,
   pageSize,
   onPageSizeChange,
@@ -53,6 +65,7 @@ export function HistoryList({
   onLoadMore,
   isLoadingMore,
 }: {
+  groupId: string;
   rows: HistoryRow[];
   pageSize: PageSize;
   onPageSizeChange: (size: PageSize) => void;
@@ -73,7 +86,7 @@ export function HistoryList({
           <ul className="flex flex-col gap-2">
             {rows.map((row) => (
               <li key={row.id}>
-                <HistoryCard row={row} />
+                <HistoryCard row={row} groupId={groupId} />
               </li>
             ))}
           </ul>

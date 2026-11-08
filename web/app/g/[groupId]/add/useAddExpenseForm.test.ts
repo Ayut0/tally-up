@@ -357,4 +357,60 @@ describe("useAddExpenseForm", () => {
     expect(result.current.submitting).toBe(false);
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  describe("editing an existing entry", () => {
+    const editingRecord = {
+      id: ENTRY_ID,
+      seq: 1,
+      kind: "expense" as const,
+      payer_id: "member-b",
+      total_amount: 1000,
+      split_rule: { type: "exact", amounts: { "member-a": 300, "member-b": 700 } },
+      participants: ["member-a", "member-b"],
+      memo: "dinner",
+      occurred_on: "2026-11-01",
+      created_by: "member-b",
+      created_at: "2026-11-01T10:00:00Z",
+      postings: [],
+    };
+    // Assigned through a variable so the literal skips excess-property
+    // checks: the generated type omits `split_rule.type`, which the server
+    // does send.
+    const EDITING: components["schemas"]["EntryRecord"] = editingRecord;
+
+    it("prefills every field from the entry, including the split mode and amounts", () => {
+      const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP, EDITING));
+      expect(result.current.payerId).toBe("member-b");
+      expect(result.current.totalInput).toBe("1000");
+      expect(result.current.memo).toBe("dinner");
+      expect(result.current.occurredOn).toBe("2026-11-01");
+      expect(result.current.showExactInputs).toBe(true);
+      expect(result.current.exactRows.map((r) => r.amount)).toEqual([300, 700]);
+      expect(result.current.submitDisabled).toBe(false);
+    });
+
+    it("submits a PUT to the entry's own URL with a fresh id and a reversal id", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        jsonResponse(201, {
+          id: "018f4c9e-0000-7000-8000-000000000002",
+          seq: 3,
+          reversal_entry_id: "018f4c9e-0000-7000-8000-000000000003",
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP, EDITING));
+
+      act(() => result.current.setTotalInput("1000"));
+      await act(async () => result.current.handleSubmit(submitEvent()));
+
+      const [url, init] = fetchMock.mock.calls[0]!;
+      expect(String(url)).toContain(`/groups/group-1/entries/${ENTRY_ID}`);
+      expect(init.method).toBe("PUT");
+      const body = JSON.parse(init.body);
+      expect(body.id).not.toBe(ENTRY_ID);
+      expect(body.reversal_entry_id).toEqual(expect.any(String));
+      expect(body.split_rule.type).toBe("exact");
+      expect(pushMock).toHaveBeenCalledWith("/g/group-1");
+    });
+  });
 });

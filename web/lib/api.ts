@@ -18,6 +18,7 @@ import type { z } from "zod";
 import type { components } from "./api-types";
 import {
   zBalanceSnapshot,
+  zEditAck,
   zEntryAck,
   zEntryList,
   zErrorBody,
@@ -86,6 +87,7 @@ export async function postIdempotent<T>(
   body: unknown,
   key: string,
   schema: z.ZodType<T>,
+  method: "POST" | "PUT" = "POST",
 ): Promise<T> {
   let attempt = 0;
   let inFlightAttempt = 0;
@@ -94,7 +96,7 @@ export async function postIdempotent<T>(
     let res: Response;
     try {
       res = await fetch(apiUrl(path), {
-        method: "POST",
+        method,
         headers: { "content-type": "application/json", "Idempotency-Key": key },
         body: JSON.stringify(body),
       });
@@ -182,7 +184,11 @@ export function createGroup(
   memberNames: string[],
   key: string,
 ): Promise<components["schemas"]["GroupRecord"]> {
-  const body: components["schemas"]["CreateGroupRequest"] = { id, name, member_names: memberNames };
+  const body: components["schemas"]["CreateGroupRequest"] = {
+    id,
+    name,
+    member_names: memberNames,
+  };
   return postIdempotent("/groups", body, key, zGroupRecord);
 }
 
@@ -193,6 +199,21 @@ export function addEntry(
   key: string,
 ): Promise<components["schemas"]["EntryAck"]> {
   return postIdempotent(`/groups/${groupId}/entries`, entry, key, zEntryAck);
+}
+
+/**
+ * Edits an expense: the server reverses `entryId` and appends the
+ * replacement (`entry.id`) in one transaction, so the original stays in
+ * history, struck through. `entry.reversal_entry_id` is the id of that
+ * reversal — client-minted like every other entry id.
+ */
+export function editEntry(
+  groupId: string,
+  entryId: string,
+  entry: components["schemas"]["EditEntryRequest"],
+  key: string,
+): Promise<components["schemas"]["EditAck"]> {
+  return postIdempotent(`/groups/${groupId}/entries/${entryId}`, entry, key, zEditAck, "PUT");
 }
 
 /** Fetches true pairwise "who owes whom" debt, distinct from the settle-plan's minimal-transfer proposal. */
@@ -218,7 +239,9 @@ export function addMember(
  * unless the member's balance is exactly zero.
  */
 export async function removeMember(groupId: string, memberId: string): Promise<void> {
-  const res = await fetch(apiUrl(`/groups/${groupId}/members/${memberId}`), { method: "DELETE" });
+  const res = await fetch(apiUrl(`/groups/${groupId}/members/${memberId}`), {
+    method: "DELETE",
+  });
   if (!res.ok) {
     throw new ApiError(res.status, await readErrorMessage(res));
   }
