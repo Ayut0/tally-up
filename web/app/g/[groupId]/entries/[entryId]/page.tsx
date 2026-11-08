@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Text } from "@/components/ui/text";
 import { formatYen } from "@/lib/currency";
-import { EntryKind } from "@/lib/entry";
+import { EntryKind, parseSplitRule } from "@/lib/entry";
 import { useEntry } from "./useEntry";
 
 export default function EntryDetailPage() {
@@ -85,9 +85,7 @@ export default function EntryDetailPage() {
 
       {isExpense && (
         <section aria-label="Split" className="flex flex-col gap-2">
-          <Text variant="label">
-            Split · {(entry.split_rule as { type?: string } | undefined)?.type ?? "equal"}
-          </Text>
+          <Text variant="label">Split · {parseSplitRule(entry.split_rule)?.type ?? "equal"}</Text>
           <ul className="flex flex-col gap-2">
             {entry.participants.map((id) => {
               // Net posting = payer credit minus own share; add the credit

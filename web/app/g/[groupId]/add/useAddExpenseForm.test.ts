@@ -359,10 +359,10 @@ describe("useAddExpenseForm", () => {
   });
 
   describe("editing an existing entry", () => {
-    const EDITING: components["schemas"]["EntryRecord"] = {
+    const editingRecord = {
       id: ENTRY_ID,
       seq: 1,
-      kind: "expense",
+      kind: "expense" as const,
       payer_id: "member-b",
       total_amount: 1000,
       split_rule: { type: "exact", amounts: { "member-a": 300, "member-b": 700 } },
@@ -372,7 +372,11 @@ describe("useAddExpenseForm", () => {
       created_by: "member-b",
       created_at: "2026-11-01T10:00:00Z",
       postings: [],
-    } as components["schemas"]["EntryRecord"];
+    };
+    // Assigned through a variable so the literal skips excess-property
+    // checks: the generated type omits `split_rule.type`, which the server
+    // does send.
+    const EDITING: components["schemas"]["EntryRecord"] = editingRecord;
 
     it("prefills every field from the entry, including the split mode and amounts", () => {
       const { result } = renderHook(() => useAddExpenseForm("group-1", GROUP, EDITING));

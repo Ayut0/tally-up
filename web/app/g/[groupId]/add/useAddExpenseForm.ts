@@ -6,7 +6,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { ApiError, addEntry, editEntry } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { todayLocal } from "@/lib/date";
-import { EntryKind } from "@/lib/entry";
+import { EntryKind, parseSplitRule } from "@/lib/entry";
 import { canSubmitExpense, parseTotal } from "@/lib/expenseForm";
 import { getIdentity } from "@/lib/identity";
 import { formatYen } from "@/lib/currency";
@@ -31,7 +31,7 @@ type EntryRecord = components["schemas"]["EntryRecord"];
  * same way the add form fills them.
  */
 function editDefaults(entry: EntryRecord) {
-  const rule = entry.split_rule as SplitRule | undefined;
+  const rule = parseSplitRule(entry.split_rule);
   const mode: SplitRule["type"] = rule?.type ?? SplitMode.Equal;
   return {
     mode,
